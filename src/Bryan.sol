@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// libraries are good, but I'm just wanting to experiment.
+// libraries are good, but I'm just wanting to experiment. This is not decentralized.
 pragma solidity 0.8.30;
 
 contract Bryan {
@@ -26,7 +26,6 @@ contract Bryan {
     uint256 public totalSupply;
 
     mapping(address => uint256) public balanceOf;
-
     mapping(address => mapping(address => uint256)) public allowance;
 
     event Transfer(address indexed _from, address indexed _to, uint256 _value);
@@ -57,6 +56,16 @@ contract Bryan {
     //
     // owner-only
     //
+
+    function burn(address from, uint256 amount) ownerOnly public returns (bool success) {
+        _burn(from, amount);
+        return true;
+    }
+
+    function mint(address to, uint256 amount) ownerOnly public returns (bool success) {
+        _mint(to, amount);
+        return true;
+    }
 
     function setName(string calldata newName) ownerOnly public returns (bool success) {
         name = newName;
