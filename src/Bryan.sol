@@ -2,7 +2,7 @@
 // libraries are good, but I'm just wanting to experiment. This is not decentralized.
 pragma solidity 0.8.30;
 
-contract Bryan {
+contract BryanSol {
     string public name;
     string public symbol;
     uint8 public immutable decimals = 18;
@@ -149,7 +149,7 @@ contract Bryan {
 
     // billboard things
 
-    function claimBillboard(string calldata newBillboard) public returns (bool) {
+    function yoink(string calldata newBillboard) public returns (bool) {
         uint256 senderBalance = balanceOf[msg.sender];
 
         require(senderBalance > billboardCost);

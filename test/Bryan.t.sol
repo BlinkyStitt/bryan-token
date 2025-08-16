@@ -2,13 +2,13 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {Bryan} from "../src/Bryan.sol";
+import {BryanSol} from "../src/Bryan.sol";
 
 contract BryanTest is Test {
-    Bryan public bryan;
+    BryanSol public bryan;
 
     function setUp() public {
-        bryan = new Bryan();
+        bryan = new BryanSol();
     }
 
     // function test_Increment() public {

@@ -2,17 +2,17 @@
 pragma solidity ^0.8.13;
 
 import {Script} from "forge-std/Script.sol";
-import {Bryan} from "../src/Bryan.sol";
+import {BryanSol} from "../src/Bryan.sol";
 
 contract BryanScript is Script {
-    Bryan public bryan;
+    BryanSol public bryan;
 
     function setUp() public {}
 
     function run() public {
         vm.startBroadcast();
 
-        bryan = new Bryan();
+        bryan = new BryanSol();
 
         vm.stopBroadcast();
     }
