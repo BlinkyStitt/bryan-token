@@ -15,7 +15,8 @@ contract BryanTest is Test {
         string memory name = "Bryan";
         string memory symbol = "BRY";
         string memory description = "Just for fun.";
-        string memory image = "https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/41b5bebd-f3b0-4c85-c465-bd62cd947c00/anim=false,fit=contain,f=auto,w=128";
+        string memory image =
+            "https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/41b5bebd-f3b0-4c85-c465-bd62cd947c00/anim=false,fit=contain,f=auto,w=128";
         string memory website = "https://farcaster.xyz/flashprofits.eth";
         uint8 decimals = 0;
         uint256 initialSupply = 10_000;
@@ -37,18 +38,21 @@ contract BryanTest is Test {
         console.logString(json);
 
         // 4. Cheatcode-based JSON parsing
-        string memory name   = json.readString(".name");
+        string memory name = json.readString(".name");
         string memory symbol = json.readString(".symbol");
-        string memory decimals  = json.readString(".decimals");
-        string memory description  = json.readString(".description");
-        string memory image  = json.readString(".image");
-        string memory website  = json.readString(".website");
+        string memory decimals = json.readString(".decimals");
+        string memory description = json.readString(".description");
+        string memory image = json.readString(".image");
+        string memory website = json.readString(".website");
 
         assertEq(name, "Bryan");
         assertEq(symbol, "BRY");
         assertEq(decimals, "0");
         assertEq(description, "Just for fun.");
-        assertEq(image, "https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/41b5bebd-f3b0-4c85-c465-bd62cd947c00/anim=false,fit=contain,f=auto,w=128");
+        assertEq(
+            image,
+            "https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/41b5bebd-f3b0-4c85-c465-bd62cd947c00/anim=false,fit=contain,f=auto,w=128"
+        );
         assertEq(website, "https://farcaster.xyz/flashprofits.eth");
     }
 }

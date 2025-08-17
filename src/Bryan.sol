@@ -88,10 +88,9 @@ contract BryanSol {
         _mint(msg.sender, _supply);
     }
 
-    // 
+    //
     // modifiers
     //
-
     modifier ownerOnly() {
         require(msg.sender == owner, Unauthorized());
         _;
@@ -100,59 +99,58 @@ contract BryanSol {
     //
     // owner-only
     //
-
-    function burn(address from, uint256 amount) ownerOnly public returns (bool success) {
+    function burn(address from, uint256 amount) public ownerOnly returns (bool success) {
         _burn(from, amount);
         return true;
     }
 
-    function mint(address to, uint256 amount) ownerOnly public returns (bool success) {
+    function mint(address to, uint256 amount) public ownerOnly returns (bool success) {
         _mint(to, amount);
         return true;
     }
 
-    function setName(string calldata newName) ownerOnly public returns (bool success) {
+    function setName(string calldata newName) public ownerOnly returns (bool success) {
         name = newName;
         emit NewName(newName);
         return true;
     }
 
-    function setSymbol(string calldata newSymbol) ownerOnly public returns (bool success) {
+    function setSymbol(string calldata newSymbol) public ownerOnly returns (bool success) {
         symbol = newSymbol;
         emit NewSymbol(newSymbol);
         return true;
     }
 
-    function setDescription(string calldata newDescription) ownerOnly public returns (bool success) {
+    function setDescription(string calldata newDescription) public ownerOnly returns (bool success) {
         description = newDescription;
         emit NewDescription(newDescription);
         return true;
     }
 
-    function setImage(string calldata newImage) ownerOnly public returns (bool success) {
+    function setImage(string calldata newImage) public ownerOnly returns (bool success) {
         image = newImage;
         emit NewImage(newImage);
         return true;
     }
 
-    function setWebsite(string calldata newWebsite) ownerOnly public returns (bool success) {
+    function setWebsite(string calldata newWebsite) public ownerOnly returns (bool success) {
         website = newWebsite;
         emit NewWebsite(newWebsite);
         return true;
     }
 
-    function setBillboard(string calldata newBillboard, uint256 newCost) ownerOnly public returns (bool success) {
+    function setBillboard(string calldata newBillboard, uint256 newCost) public ownerOnly returns (bool success) {
         _billboard(msg.sender, newBillboard, newCost);
         return true;
     }
 
-    function setBillboardCost(uint256 newCost) ownerOnly public returns (bool success) {
+    function setBillboardCost(uint256 newCost) public ownerOnly returns (bool success) {
         billboardCost = newCost;
         emit NewBillboard(billboardAuthor, billboard, newCost);
         return true;
     }
 
-    function setNextOwner(address newOwner) ownerOnly public returns (bool success) {
+    function setNextOwner(address newOwner) public ownerOnly returns (bool success) {
         nextOwner = newOwner;
         emit NextOwner(msg.sender, newOwner);
         return true;
@@ -172,7 +170,6 @@ contract BryanSol {
     //
     // internal
     //
-
     function _billboard(address author, string calldata newBillboard, uint256 newCost) internal {
         billboardAuthor = author;
         billboard = newBillboard;
@@ -208,11 +205,11 @@ contract BryanSol {
 
     function yoink(string calldata newBillboard) public returns (bool) {
         uint256 senderBalance = balanceOf[msg.sender];
-        require (senderBalance > billboardCost, LowBalance());
+        require(senderBalance > billboardCost, LowBalance());
 
         // we don't update billboardCost to avoid flash loans causing trickery
         uint256 authorBalance = balanceOf[billboardAuthor];
-        require (senderBalance > authorBalance, LowBalance());
+        require(senderBalance > authorBalance, LowBalance());
 
         _billboard(msg.sender, newBillboard, senderBalance);
 
@@ -222,7 +219,6 @@ contract BryanSol {
     //
     // erc20 things
     //
-
     function approve(address spender, uint256 amount) public returns (bool) {
         allowance[msg.sender][spender] = amount;
 
@@ -245,11 +241,7 @@ contract BryanSol {
         return true;
     }
 
-    function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) public returns (bool) {
+    function transferFrom(address from, address to, uint256 amount) public returns (bool) {
         uint256 allowed = allowance[from][msg.sender]; // Saves gas for limited approvals.
 
         if (allowed != type(uint256).max) allowance[from][msg.sender] = allowed - amount;
@@ -274,15 +266,25 @@ contract BryanSol {
     // TODO: put billboard here? if people aren't careful they could break the json so I don't think so.
     function tokenURI() public view returns (string memory) {
         bytes memory json = abi.encodePacked(
-            '{"name":"', name, '",',
-            '"symbol":"', symbol, '",',
-            '"decimals":', uint256(decimals).toString(), ',',
-            '"description":"', description, '",',
-            '"image":"', image, '",',
-            '"website":"', website, '"}'
+            '{"name":"',
+            name,
+            '",',
+            '"symbol":"',
+            symbol,
+            '",',
+            '"decimals":',
+            uint256(decimals).toString(),
+            ",",
+            '"description":"',
+            description,
+            '",',
+            '"image":"',
+            image,
+            '",',
+            '"website":"',
+            website,
+            '"}'
         );
-        return string(
-            abi.encodePacked("data:application/json;base64,", Base64.encode(json))
-        );
+        return string(abi.encodePacked("data:application/json;base64,", Base64.encode(json)));
     }
 }
