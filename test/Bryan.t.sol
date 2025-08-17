@@ -19,13 +19,9 @@ contract BryanTest is Test {
         bryan = new BryanSol(name, symbol, description, image, website, decimals, initialSupply);
     }
 
-    // function test_Increment() public {
-    //     counter.increment();
-    //     assertEq(counter.number(), 1);
-    // }
+    function test_uri() public view {
+        string memory uri = bryan.tokenURI();
 
-    // function testFuzz_SetNumber(uint256 x) public {
-    //     counter.setNumber(x);
-    //     assertEq(counter.number(), x);
-    // }
+        // TODO: parse it as json and do things with it
+    }
 }
