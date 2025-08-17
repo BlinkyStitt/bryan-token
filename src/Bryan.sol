@@ -271,9 +271,10 @@ contract BryanSol {
         bytes memory json = abi.encodePacked(
             '{"name":"', name, '",',
             '"symbol":"', symbol, '",',
+            '"decimals":"', decimals, '",',
             '"description":"', description, '",',
-            '"website":"', website, '",',
-            '"image":"', image, '"}'
+            '"image":"', image, '",',
+            '"website":"', website, '"}'
         );
         return string(
             abi.encodePacked("data:application/json;base64,", Base64.encode(json))
