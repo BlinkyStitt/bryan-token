@@ -2,12 +2,15 @@
 // libraries are good, but I'm just wanting to experiment. This is not decentralized.
 pragma solidity 0.8.30;
 
-import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
+import {Base64} from "@solady/utils/Base64.sol";
+import {LibString} from "@solady/utils/LibString.sol";
 
 error Unauthorized();
 error LowBalance();
 
 contract BryanSol {
+    using LibString for uint256;
+
     string public name;
     string public symbol;
     uint8 public immutable decimals;
@@ -273,7 +276,7 @@ contract BryanSol {
         bytes memory json = abi.encodePacked(
             '{"name":"', name, '",',
             '"symbol":"', symbol, '",',
-            '"decimals":', decimals, ',',
+            '"decimals":', uint256(decimals).toString(), ',',
             '"description":"', description, '",',
             '"image":"', image, '",',
             '"website":"', website, '"}'
