@@ -5,8 +5,9 @@ pragma solidity 0.8.30;
 import {Base64} from "@solady/utils/Base64.sol";
 import {LibString} from "@solady/utils/LibString.sol";
 
-error Unauthorized();
+error EarlyMint();
 error LowBalance();
+error Unauthorized();
 
 contract BryanSol {
     using LibString for uint256;
@@ -33,11 +34,20 @@ contract BryanSol {
     /// @notice the address of the last user to set the billboard
     address public billboardAuthor;
 
-    /// @notice the current owner of the contract. has power to mint and burn
+    /// @notice the current owner of the contract. has power to mint new tokens
     address public owner;
 
-    /// @notice the next owner of the contract. will have the power to mint and burn after claiming ownership
+    /// @notice the next owner of the contract. will be the owner after claiming ownership
     address public nextOwner;
+
+    /// @notice the timestamp when another mint can happen. 
+    uint256 public nextMint;
+
+    /// @notice the amount that can be minted.
+    uint256 public immutable mintAmount;
+
+    /// @notice the minimum amount of times between mint being called.
+    uint256 public immutable mintInterval;
 
     /// @dev Do not manually set balances without updating totalSupply, as the sum of all user balances must not exceed it.
     uint256 public totalSupply;
@@ -66,7 +76,8 @@ contract BryanSol {
         string memory _image,
         string memory _website,
         uint8 _decimals,
-        uint256 _supply
+        uint256 _mintAmount,
+        uint256 _mintInterval
     ) {
         name = _name;
         symbol = _symbol;
@@ -85,7 +96,10 @@ contract BryanSol {
 
         owner = msg.sender;
 
-        _mint(msg.sender, _supply);
+        mintAmount = _mintAmount;
+        mintInterval = _mintInterval;
+
+        _mint(msg.sender);
     }
 
     // 
@@ -101,13 +115,8 @@ contract BryanSol {
     // owner-only
     //
 
-    function burn(address from, uint256 amount) ownerOnly public returns (bool success) {
-        _burn(from, amount);
-        return true;
-    }
-
-    function mint(address to, uint256 amount) ownerOnly public returns (bool success) {
-        _mint(to, amount);
+    function mint(address to) ownerOnly public returns (bool success) {
+        _mint(to);
         return true;
     }
 
@@ -180,28 +189,20 @@ contract BryanSol {
         emit NewBillboard(author, newBillboard, newCost);
     }
 
-    function _mint(address to, uint256 amount) internal {
-        totalSupply += amount;
+    function _mint(address to) internal {
+        require(block.timestamp >= nextMint, EarlyMint());
+
+        nextMint = block.timestamp + mintInterval;
+
+        totalSupply += mintAmount;
 
         // Cannot overflow because the sum of all user
         // balances can't exceed the max uint256 value.
         unchecked {
-            balanceOf[to] += amount;
+            balanceOf[to] += mintAmount;
         }
 
-        emit Transfer(address(0), to, amount);
-    }
-
-    function _burn(address from, uint256 amount) internal {
-        balanceOf[from] -= amount;
-
-        // Cannot underflow because a user's balance
-        // will never be larger than the total supply.
-        unchecked {
-            totalSupply -= amount;
-        }
-
-        emit Transfer(from, address(0), amount);
+        emit Transfer(address(0), to, mintAmount);
     }
 
     // billboard things
@@ -279,6 +280,9 @@ contract BryanSol {
             '"decimals":', uint256(decimals).toString(), ',',
             '"description":"', description, '",',
             '"image":"', image, '",',
+            '"mintAmount":"', mintAmount, '",',
+            '"mintInterval":"', mintInterval, '",',
+            '"nextMint":"', nextMint, '",',
             '"website":"', website, '"}'
         );
         return string(

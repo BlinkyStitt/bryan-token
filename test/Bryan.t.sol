@@ -20,7 +20,7 @@ contract BryanTest is Test {
         uint8 decimals = 0;
         uint256 initialSupply = 10_000;
 
-        bryan = new BryanSol(name, symbol, description, image, website, decimals, initialSupply);
+        bryan = new BryanSol(name, symbol, description, image, website, decimals, initialSupply, 28 days);
     }
 
     function test_uri() public view {

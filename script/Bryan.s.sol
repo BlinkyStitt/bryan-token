@@ -20,7 +20,7 @@ contract BryanScript is Script {
         uint8 decimals = 18;
         uint256 initialSupply = 10_000;
 
-        bryan = new BryanSol(name, symbol, description, image, website, decimals, initialSupply);
+        bryan = new BryanSol(name, symbol, description, image, website, decimals, initialSupply, 28 days);
 
         vm.stopBroadcast();
     }
