@@ -5,6 +5,7 @@ pragma solidity 0.8.30;
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 
 error Unauthorized();
+error LowBalance();
 
 contract BryanSol {
     string public name;
@@ -204,10 +205,11 @@ contract BryanSol {
 
     function yoink(string calldata newBillboard) public returns (bool) {
         uint256 senderBalance = balanceOf[msg.sender];
-        require (senderBalance > billboardCost);
+        require (senderBalance > billboardCost, LowBalance());
 
         // we don't update billboardCost to avoid flash loans causing trickery
-        require (senderBalance > balanceOf[billboardAuthor]);
+        uint256 authorBalance = balanceOf[billboardAuthor];
+        require (senderBalance > authorBalance, LowBalance());
 
         _billboard(msg.sender, newBillboard, senderBalance);
 
