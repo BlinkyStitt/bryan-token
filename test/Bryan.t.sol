@@ -8,7 +8,15 @@ contract BryanTest is Test {
     BryanSol public bryan;
 
     function setUp() public {
-        bryan = new BryanSol();
+        string memory name = "Bryan";
+        string memory symbol = "BRY";
+        string memory description = "Just for fun.";
+        string memory website = "https://farcaster.xyz/flashprofits.eth";
+        string memory image = "https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/b0b01cf5-fc8d-479b-074a-1a09c3270d00/anim=false,fit=contain,f=auto,w=576";
+        uint8 decimals;
+        uint256 initialSupply = 10_000;
+
+        bryan = new BryanSol(name, symbol, description, image, website, decimals, initialSupply);
     }
 
     // function test_Increment() public {
