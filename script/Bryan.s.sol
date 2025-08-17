@@ -16,7 +16,7 @@ contract BryanScript is Script {
         string memory symbol = "BRY";
         string memory description = "Just for fun.";
         string memory website = "https://farcaster.xyz/flashprofits.eth";
-        string memory image = "https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/b0b01cf5-fc8d-479b-074a-1a09c3270d00/anim=false,fit=contain,f=auto,w=576";
+        string memory image = "https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/41b5bebd-f3b0-4c85-c465-bd62cd947c00/anim=false,fit=contain,f=auto,w=128";
         uint8 decimals = 8;
         uint256 initialSupply = 10_000;
 
