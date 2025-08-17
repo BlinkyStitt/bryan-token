@@ -17,7 +17,7 @@ contract BryanTest is Test {
         string memory description = "Just for fun.";
         string memory image = "https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/41b5bebd-f3b0-4c85-c465-bd62cd947c00/anim=false,fit=contain,f=auto,w=128";
         string memory website = "https://farcaster.xyz/flashprofits.eth";
-        uint8 decimals = 8;
+        uint8 decimals = 0;
         uint256 initialSupply = 10_000;
 
         bryan = new BryanSol(name, symbol, description, image, website, decimals, initialSupply);
@@ -46,7 +46,7 @@ contract BryanTest is Test {
 
         assertEq(name, "Bryan");
         assertEq(symbol, "BRY");
-        assertEq(decimals, "8");
+        assertEq(decimals, "0");
         assertEq(description, "Just for fun.");
         assertEq(image, "https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/41b5bebd-f3b0-4c85-c465-bd62cd947c00/anim=false,fit=contain,f=auto,w=128");
         assertEq(website, "https://farcaster.xyz/flashprofits.eth");
