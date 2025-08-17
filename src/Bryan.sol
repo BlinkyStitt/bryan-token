@@ -271,7 +271,7 @@ contract BryanSol {
         bytes memory json = abi.encodePacked(
             '{"name":"', name, '",',
             '"symbol":"', symbol, '",',
-            '"decimals":"', decimals, '",',
+            '"decimals":', decimals, ',',
             '"description":"', description, '",',
             '"image":"', image, '",',
             '"website":"', website, '"}'
