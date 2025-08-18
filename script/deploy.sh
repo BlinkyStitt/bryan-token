@@ -2,6 +2,9 @@
 set -eux -o pipefail
 
 forge script Bryan \
-    --account "" \
+    --account "flashprofits" \
     --fork-url "https://1rpc.io/base" \
-    --broadcast
+    --broadcast \
+    --ffi \
+    --slow \
+;

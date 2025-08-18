@@ -2,9 +2,11 @@
 pragma solidity ^0.8.13;
 
 import {Script} from "forge-std/Script.sol";
-import {Bryan} from "../src/Bryan.sol";
+import {Bryan, LibString} from "../src/Bryan.sol";
 
 contract BryanScript is Script {
+    using LibString for uint256;
+
     Bryan public bryan;
 
     function setUp() public {}
@@ -24,13 +26,15 @@ contract BryanScript is Script {
         string memory addressPrefix = "0x112358";
 
         // prepare creation code
-        bytes memory creationCode = abi.encodePacked(type(Bryan).creationCode, name, symbol, description, image, website, owner, decimals, initialSupply);
+        bytes memory creationCode = abi.encodePacked(type(Bryan).creationCode, abi.encode(name, symbol, description, image, website, owner, decimals, initialSupply));
+
+        bytes32 creationCodeHash = keccak256(creationCode);
 
         // find a salt
         string[] memory cmds = new string[](3);
         cmds[0] = "./script/salt_finder.sh";
         cmds[1] = addressPrefix;
-        cmds[2] = string(creationCode);
+        cmds[2] = LibString.toHexString(uint256(creationCodeHash), 32);
         bytes memory result = vm.ffi(cmds);
 
         bytes32 salt = abi.decode(result, (bytes32));
