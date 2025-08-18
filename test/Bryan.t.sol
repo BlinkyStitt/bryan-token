@@ -3,13 +3,13 @@ pragma solidity ^0.8.13;
 
 import {stdJson} from "forge-std/StdJson.sol";
 import {Test} from "forge-std/Test.sol";
-import {BryanSol, Base64} from "../src/Bryan.sol";
+import {Bryan, Base64} from "../src/Bryan.sol";
 import {console} from "forge-std/console.sol";
 
 contract BryanTest is Test {
     using stdJson for string;
 
-    BryanSol public bryan;
+    Bryan public bryan;
 
     function setUp() public {
         string memory name = "Bryan";
@@ -21,7 +21,9 @@ contract BryanTest is Test {
         uint8 decimals = 0;
         uint256 initialSupply = 10_000;
 
-        bryan = new BryanSol(name, symbol, description, image, website, decimals, initialSupply);
+        address owner = address(this);
+
+        bryan = new Bryan(name, symbol, description, image, website, owner, decimals, initialSupply);
     }
 
     function test_uri() public view {

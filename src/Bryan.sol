@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-// libraries are good, but I'm just wanting to experiment. This is not decentralized.
-pragma solidity 0.8.30;
+// This is an experiment in a "social token". It is an ERC-20 with some extra pieces.
+// TODO: permit for allowances? the name can change and that complicates things. <https://docs.openzeppelin.com/contracts/5.x/api/token/erc20#ERC20Permit>
+pragma solidity ^0.8.13;
 
 import {Base64} from "@solady/utils/Base64.sol";
 import {LibString} from "@solady/utils/LibString.sol";
@@ -8,7 +9,7 @@ import {LibString} from "@solady/utils/LibString.sol";
 error Unauthorized();
 error LowBalance();
 
-contract BryanSol {
+contract Bryan {
     using LibString for uint256;
 
     string public name;
@@ -34,37 +35,43 @@ contract BryanSol {
     address public billboardAuthor;
 
     /// @notice the current owner of the contract. has power to mint and burn
+    /// @dev With a smart-contract as the owner, more advancted authentication can be added.
     address public owner;
 
     /// @notice the next owner of the contract. will have the power to mint and burn after claiming ownership
     address public nextOwner;
 
+    /// @notice the total supply of this erc20 token
     /// @dev Do not manually set balances without updating totalSupply, as the sum of all user balances must not exceed it.
     uint256 public totalSupply;
 
+    /// @notice the balances of this erc20 token
     mapping(address => uint256) public balanceOf;
+
+    /// @notice the allowances of this erc20 token
     mapping(address => mapping(address => uint256)) public allowance;
 
-    event Transfer(address indexed _from, address indexed _to, uint256 _value);
     event Approval(address indexed _owner, address indexed _spender, uint256 _value);
+    event Transfer(address indexed _from, address indexed _to, uint256 _value);
 
     event NextOwner(address indexed _from, address indexed _to);
     event ClaimOwnership(address indexed _from, address indexed _to);
 
-    event NewName(string _name);
-    event NewSymbol(string _symbol);
+    event NewBillboard(address indexed _from, string _msg, uint256 _newCost);
     event NewDescription(string _description);
     event NewImage(string _image);
+    event NewName(string _name);
+    event NewSymbol(string _symbol);
     event NewWebsite(string _website);
 
-    event NewBillboard(address indexed _from, string _msg, uint256 _newCost);
-
+    /// todo: what order should these arguments be in? does it matter?
     constructor(
         string memory _name,
         string memory _symbol,
         string memory _description,
         string memory _image,
         string memory _website,
+        address _owner,
         uint8 _decimals,
         uint256 _supply
     ) {
@@ -76,16 +83,16 @@ contract BryanSol {
         image = _image;
         website = _website;
 
-        emit ClaimOwnership(address(0), msg.sender);
+        emit ClaimOwnership(address(0), _owner);
         emit NewName(_name);
         emit NewSymbol(_symbol);
         emit NewDescription(_description);
         emit NewImage(_image);
         emit NewWebsite(_website);
 
-        owner = msg.sender;
+        owner = _owner;
 
-        _mint(msg.sender, _supply);
+        _mint(_owner, _supply);
     }
 
     //
@@ -99,12 +106,12 @@ contract BryanSol {
     //
     // owner-only
     //
-    function burn(address from, uint256 amount) public ownerOnly returns (bool success) {
+    function ownerBurn(address from, uint256 amount) public ownerOnly returns (bool success) {
         _burn(from, amount);
         return true;
     }
 
-    function mint(address to, uint256 amount) public ownerOnly returns (bool success) {
+    function ownerMint(address to, uint256 amount) public ownerOnly returns (bool success) {
         _mint(to, amount);
         return true;
     }
@@ -139,12 +146,12 @@ contract BryanSol {
         return true;
     }
 
-    function setBillboard(string calldata newBillboard, uint256 newCost) public ownerOnly returns (bool success) {
+    function ownerBillboard(string calldata newBillboard, uint256 newCost) public ownerOnly returns (bool success) {
         _billboard(msg.sender, newBillboard, newCost);
         return true;
     }
 
-    function setBillboardCost(uint256 newCost) public ownerOnly returns (bool success) {
+    function ownerBillboardCost(uint256 newCost) public ownerOnly returns (bool success) {
         billboardCost = newCost;
         emit NewBillboard(billboardAuthor, billboard, newCost);
         return true;
@@ -201,8 +208,13 @@ contract BryanSol {
         emit Transfer(from, address(0), amount);
     }
 
-    // billboard things
+    //
+    // fun and games
+    //
 
+    /// @notice yoink the billboard with any message you want.
+    /// @dev the billboard can be claimed by the person with the most BRY.
+    /// @dev the owner contract can take the billboard back at any time.
     function yoink(string calldata newBillboard) public returns (bool) {
         uint256 senderBalance = balanceOf[msg.sender];
         require(senderBalance > billboardCost, LowBalance());
@@ -217,7 +229,7 @@ contract BryanSol {
     }
 
     //
-    // erc20 things
+    // standard erc20 things
     //
     function approve(address spender, uint256 amount) public returns (bool) {
         allowance[msg.sender][spender] = amount;
@@ -262,8 +274,21 @@ contract BryanSol {
     //
     // non-standard token things
     //
+    function burn(uint256 amount) public returns (bool success) {
+        _burn(msg.sender, amount);
+        return true;
+    }
 
-    // TODO: put billboard here? if people aren't careful they could break the json so I don't think so.
+    function burnFrom(address from, uint256 amount) public returns (bool success) {
+        uint256 allowed = allowance[from][msg.sender]; // Saves gas for limited approvals.
+
+        if (allowed != type(uint256).max) allowance[from][msg.sender] = allowed - amount;
+
+        _burn(from, amount);
+        return true;
+    }
+
+    /// @dev the billboard is base64 encoded because it should be filtered before being displayed.
     function tokenURI() public view returns (string memory) {
         bytes memory json = abi.encodePacked(
             '{"name":"',
@@ -280,6 +305,9 @@ contract BryanSol {
             '",',
             '"image":"',
             image,
+            '",',
+            '"billboard":"',
+            Base64.encode(bytes(billboard)),
             '",',
             '"website":"',
             website,

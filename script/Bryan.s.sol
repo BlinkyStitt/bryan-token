@@ -2,16 +2,15 @@
 pragma solidity ^0.8.13;
 
 import {Script} from "forge-std/Script.sol";
-import {BryanSol} from "../src/Bryan.sol";
+import {Bryan} from "../src/Bryan.sol";
 
 contract BryanScript is Script {
-    BryanSol public bryan;
+    Bryan public bryan;
 
     function setUp() public {}
 
     function run() public {
-        vm.startBroadcast();
-
+        // constructor arguments
         string memory name = "Bryan";
         string memory symbol = "BRY";
         string memory description = "Just for fun.";
@@ -20,10 +19,27 @@ contract BryanScript is Script {
             "https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/41b5bebd-f3b0-4c85-c465-bd62cd947c00/anim=false,fit=contain,f=auto,w=128";
         uint8 decimals = 18;
         uint256 initialSupply = 10_000;
+        address owner = 0x2699C32A793D58691419A054DA69414dF186b181;
 
-        bytes32 salt = 0x0;
+        string memory addressPrefix = "0x112358";
 
-        bryan = new BryanSol{salt: salt}(name, symbol, description, image, website, decimals, initialSupply);
+        // prepare creation code
+        bytes memory creationCode = abi.encodePacked(type(Bryan).creationCode, name, symbol, description, image, website, owner, decimals, initialSupply);
+
+        // find a salt
+        string[] memory cmds = new string[](3);
+        cmds[0] = "./script/salt_finder.sh";
+        cmds[1] = addressPrefix;
+        cmds[2] = string(creationCode);
+        bytes memory result = vm.ffi(cmds);
+
+        bytes32 salt = abi.decode(result, (bytes32));
+
+        // deploy the contract with our found salt
+        vm.startBroadcast();
+        bryan = new Bryan{salt: salt}(name, symbol, description, image, website, owner, decimals, initialSupply);
+
+        // TODO: make sure the address for bryan matches the address prefix
 
         vm.stopBroadcast();
     }
