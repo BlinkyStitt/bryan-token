@@ -20,10 +20,10 @@ contract BryanScript is Script {
         string memory image =
             "https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/41b5bebd-f3b0-4c85-c465-bd62cd947c00/anim=false,fit=contain,f=auto,w=128";
         uint8 decimals = 18;
-        uint256 initialSupply = 10_000;
+        uint256 initialSupply = 10_000 * 10 ** decimals;
         address owner = 0x2699C32A793D58691419A054DA69414dF186b181;
 
-        string memory addressPrefix = "0x112358";
+        string memory addressPrefix = "0x0112358";
 
         // prepare creation code
         bytes memory creationCode = abi.encodePacked(type(Bryan).creationCode, abi.encode(name, symbol, description, image, website, owner, decimals, initialSupply));
