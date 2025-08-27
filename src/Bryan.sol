@@ -112,18 +112,18 @@ contract Bryan {
         emit Transfer(address(0), to, amount);
     }
 
-    function _redeem(address from, uint256 amount, uint256 minAssets) internal returns (uint256 assets) {
-        assets = prizeVault.redeem(amount, from, address(this), minAssets);
+    function _redeem(address from, uint256 shares, uint256 minAssets) internal returns (uint256 assets) {
+        assets = prizeVault.redeem(shares, from, address(this), minAssets);
 
-        balanceOf[from] -= amount;
+        balanceOf[from] -= shares;
 
         // Cannot underflow because a user's balance
         // will never be larger than the total supply.
         unchecked {
-            totalSupply -= amount;
+            totalSupply -= shares;
         }
 
-        emit Transfer(from, address(0), amount);
+        emit Transfer(from, address(0), shares);
     }
 
     // TODO: need _withdraw probably too

@@ -99,3 +99,5 @@ cast --help
 - a script that makes it easy to call "yoink" to set the billboard
 
 - a migrator contract that converts from b1 to b2 to b3
+
+- should this be a 4626 vault? things are 1:1 when everything works, but what if something goes wrong?
