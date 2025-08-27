@@ -85,3 +85,15 @@ anvil --help
 ```shell
 cast --help
 ```
+
+# Ideas
+
+- I don't like having the ability to erase the billboard. But it seems like that's a good idea for this experiment.
+
+- A decaying price on the billboard is an interesting idea.
+
+- Most systems like this burn the tokens when someone writes. But I don't like burns. And
+
+- allow signatures for claiming and for transfers (permit2).
+
+-

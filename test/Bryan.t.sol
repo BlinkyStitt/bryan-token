@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {stdJson} from "forge-std/StdJson.sol";
 import {Test} from "forge-std/Test.sol";
-import {Bryan, Base64} from "../src/Bryan.sol";
+import {Bryan, Base64, LibString} from "../src/Bryan.sol";
 import {console} from "forge-std/console.sol";
 
 contract BryanTest is Test {
@@ -24,6 +24,37 @@ contract BryanTest is Test {
         address owner = address(this);
 
         bryan = new Bryan(name, symbol, description, image, website, owner, decimals, initialSupply);
+    }
+
+    function test_description() public {
+        bryan.setDescription("new description");
+        assertEq(bryan.description(), "new description");
+    }
+
+    function test_image() public {
+        bryan.setImage("new image");
+        assertEq(bryan.image(), "new image");
+    }
+
+    function test_website() public {
+        bryan.setWebsite("new website");
+        assertEq(bryan.website(), "new website");
+    }
+
+    function test_billboard() public {
+        bryan.yoink("new billboard");
+        assertEq(bryan.billboard(), "new billboard");
+    }
+
+    function test_ownership() public {
+        address nextOwner = makeAddr("nextOwner");
+
+        bryan.setNextOwner(nextOwner);
+
+        vm.prank(nextOwner);
+        bryan.claimOwnership();
+
+        require(nextOwner == bryan.owner());
     }
 
     function test_uri() public view {

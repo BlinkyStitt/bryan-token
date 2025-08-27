@@ -10,10 +10,15 @@ error Unauthorized();
 error LowBalance();
 
 contract Bryan {
+    using LibString for string;
     using LibString for uint256;
 
+    /// @dev Immutable variables cannot have a non-value type.
     string public name;
+
+    /// @dev Immutable variables cannot have a non-value type.
     string public symbol;
+
     uint8 public immutable decimals;
 
     /// @notice owner-settable description
@@ -60,11 +65,8 @@ contract Bryan {
     event NewBillboard(address indexed _from, string _msg, uint256 _newCost);
     event NewDescription(string _description);
     event NewImage(string _image);
-    event NewName(string _name);
-    event NewSymbol(string _symbol);
     event NewWebsite(string _website);
 
-    /// todo: what order should these arguments be in? does it matter?
     constructor(
         string memory _name,
         string memory _symbol,
@@ -84,8 +86,6 @@ contract Bryan {
         website = _website;
 
         emit ClaimOwnership(address(0), _owner);
-        emit NewName(_name);
-        emit NewSymbol(_symbol);
         emit NewDescription(_description);
         emit NewImage(_image);
         emit NewWebsite(_website);
@@ -104,43 +104,27 @@ contract Bryan {
     }
 
     //
-    // owner-only
+    // owner-only setters
     //
-    function ownerBurn(address from, uint256 amount) public ownerOnly returns (bool success) {
-        _burn(from, amount);
-        return true;
-    }
-
-    function ownerMint(address to, uint256 amount) public ownerOnly returns (bool success) {
-        _mint(to, amount);
-        return true;
-    }
-
-    function setName(string calldata newName) public ownerOnly returns (bool success) {
-        name = newName;
-        emit NewName(newName);
-        return true;
-    }
-
-    function setSymbol(string calldata newSymbol) public ownerOnly returns (bool success) {
-        symbol = newSymbol;
-        emit NewSymbol(newSymbol);
-        return true;
-    }
-
     function setDescription(string calldata newDescription) public ownerOnly returns (bool success) {
+        require(newDescription.indexOf('"', 0) == type(uint256).max);
+
         description = newDescription;
         emit NewDescription(newDescription);
         return true;
     }
 
     function setImage(string calldata newImage) public ownerOnly returns (bool success) {
+        require(newImage.indexOf('"', 0) == type(uint256).max);
+
         image = newImage;
         emit NewImage(newImage);
         return true;
     }
 
     function setWebsite(string calldata newWebsite) public ownerOnly returns (bool success) {
+        require(newWebsite.indexOf('"', 0) == type(uint256).max);
+
         website = newWebsite;
         emit NewWebsite(newWebsite);
         return true;
