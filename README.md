@@ -96,4 +96,6 @@ cast --help
 
 - allow signatures for claiming and for transfers (permit2).
 
--
+- a script that makes it easy to call "yoink" to set the billboard
+
+- a migrator contract that converts from b1 to b2 to b3

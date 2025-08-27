@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import {LibString} from "@solady/utils/LibString.sol";
 import {Script} from "forge-std/Script.sol";
-import {Bryan, LibString} from "../src/Bryan.sol";
+import {Bryan} from "../src/Bryan.sol";
 
 contract BryanScript is Script {
     using LibString for uint256;
@@ -13,23 +14,14 @@ contract BryanScript is Script {
 
     function run() public {
         // constructor arguments
-        string memory name = "Bryan 2";
-        string memory symbol = "BRY2";
-        string memory description = "Just for fun.";
-        string memory website = "https://farcaster.xyz/flashprofits.eth";
-        string memory image =
-            "https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/41b5bebd-f3b0-4c85-c465-bd62cd947c00/anim=false,fit=contain,f=auto,w=128";
-        uint8 decimals = 18;
-        uint256 initialSupply = 1_000_000 * 10 ** decimals;
         address owner = 0x2699C32A793D58691419A054DA69414dF186b181;
+        address prizePoolTwabRewards = 0xF4c47dacFda99bE38793181af9Fd1A2Ec7576bBF;
+        address prizeVault = 0x7f5C2b379b88499aC2B997Db583f8079503f25b9;
 
         string memory addressPrefix = "0x0112358D";
 
         // prepare creation code
-        bytes memory creationCode = abi.encodePacked(
-            type(Bryan).creationCode,
-            abi.encode(name, symbol, description, image, website, owner, decimals, initialSupply)
-        );
+        bytes memory creationCode = abi.encodePacked(type(Bryan).creationCode, abi.encode(owner, prizePoolTwabRewards, prizeVault));
 
         bytes32 creationCodeHash = keccak256(creationCode);
 
@@ -44,7 +36,7 @@ contract BryanScript is Script {
 
         // deploy the contract with our found salt
         vm.startBroadcast();
-        bryan = new Bryan{salt: salt}(name, symbol, description, image, website, owner, decimals, initialSupply);
+        bryan = new Bryan{salt: salt}(owner, prizePoolTwabRewards, prizeVault);
 
         // TODO: make sure the address for bryan matches the address prefix
 

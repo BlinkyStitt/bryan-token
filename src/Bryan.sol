@@ -3,41 +3,26 @@
 // TODO: permit for allowances? the name can change and that complicates things. <https://docs.openzeppelin.com/contracts/5.x/api/token/erc20#ERC20Permit>
 pragma solidity ^0.8.13;
 
-import {Base64} from "@solady/utils/Base64.sol";
-import {LibString} from "@solady/utils/LibString.sol";
+import {ERC20} from "@solady/tokens/ERC20.sol";
+import {PrizeVault} from "./interfaces/PrizeVault.sol";
+import {PrizePoolTwabRewards} from "./interfaces/PrizePoolTwabRewards.sol";
+import {SafeTransferLib} from "@solady/utils/SafeTransferLib.sol";
 
 error Unauthorized();
 error LowBalance();
 
 contract Bryan {
-    using LibString for string;
-    using LibString for uint256;
+    /// @dev Immutable variables cannot have a non-value type.
+    string public name = "Bryan 3";
 
     /// @dev Immutable variables cannot have a non-value type.
-    string public name;
-
-    /// @dev Immutable variables cannot have a non-value type.
-    string public symbol;
+    string public symbol = "BRY3";
 
     uint8 public immutable decimals;
 
-    /// @notice owner-settable description
-    string public description;
-
-    /// @notice owner-settable image
-    string public image;
-
-    /// @notice owner-settable uri
-    string public website;
-
-    /// @notice fan-settable things. get the most BRY and you can set this!
-    string public billboard;
-
-    /// @notice the balance of the last user to set the billboard
-    uint256 public billboardCost;
-
-    /// @notice the address of the last user to set the billboard
-    address public billboardAuthor;
+    ERC20 public immutable asset;
+    PrizePoolTwabRewards public immutable prizePoolTwabRewards;
+    PrizeVault public immutable prizeVault;
 
     /// @notice the current owner of the contract. has power to mint and burn
     /// @dev With a smart-contract as the owner, more advancted authentication can be added.
@@ -62,37 +47,22 @@ contract Bryan {
     event NextOwner(address indexed _from, address indexed _to);
     event ClaimOwnership(address indexed _from, address indexed _to);
 
-    event NewBillboard(address indexed _from, string _msg, uint256 _newCost);
-    event NewDescription(string _description);
-    event NewImage(string _image);
-    event NewWebsite(string _website);
-
-    constructor(
-        string memory _name,
-        string memory _symbol,
-        string memory _description,
-        string memory _image,
-        string memory _website,
-        address _owner,
-        uint8 _decimals,
-        uint256 _supply
-    ) {
-        name = _name;
-        symbol = _symbol;
-        decimals = _decimals;
-
-        description = _description;
-        image = _image;
-        website = _website;
-
-        emit ClaimOwnership(address(0), _owner);
-        emit NewDescription(_description);
-        emit NewImage(_image);
-        emit NewWebsite(_website);
-
+    constructor(address _owner, address _prizePoolTwabRewards, address _prizeVault) {
         owner = _owner;
+        emit ClaimOwnership(address(0), _owner);
 
-        _mint(_owner, _supply);
+        prizePoolTwabRewards = PrizePoolTwabRewards(_prizePoolTwabRewards);
+        prizeVault = PrizeVault(_prizeVault);
+
+        asset = ERC20(prizeVault.asset());
+
+        decimals = prizeVault.decimals();
+
+        internalApprovals();
+    }
+
+    function internalApprovals() public {
+        asset.approve(address(prizeVault), type(uint256).max);
     }
 
     //
@@ -106,41 +76,6 @@ contract Bryan {
     //
     // owner-only setters
     //
-    function setDescription(string calldata newDescription) public ownerOnly returns (bool success) {
-        require(newDescription.indexOf('"', 0) == type(uint256).max);
-
-        description = newDescription;
-        emit NewDescription(newDescription);
-        return true;
-    }
-
-    function setImage(string calldata newImage) public ownerOnly returns (bool success) {
-        require(newImage.indexOf('"', 0) == type(uint256).max);
-
-        image = newImage;
-        emit NewImage(newImage);
-        return true;
-    }
-
-    function setWebsite(string calldata newWebsite) public ownerOnly returns (bool success) {
-        require(newWebsite.indexOf('"', 0) == type(uint256).max);
-
-        website = newWebsite;
-        emit NewWebsite(newWebsite);
-        return true;
-    }
-
-    function ownerBillboard(string calldata newBillboard, uint256 newCost) public ownerOnly returns (bool success) {
-        _billboard(msg.sender, newBillboard, newCost);
-        return true;
-    }
-
-    function ownerBillboardCost(uint256 newCost) public ownerOnly returns (bool success) {
-        billboardCost = newCost;
-        emit NewBillboard(billboardAuthor, billboard, newCost);
-        return true;
-    }
-
     function setNextOwner(address newOwner) public ownerOnly returns (bool success) {
         nextOwner = newOwner;
         emit NextOwner(msg.sender, newOwner);
@@ -161,14 +96,11 @@ contract Bryan {
     //
     // internal
     //
-    function _billboard(address author, string calldata newBillboard, uint256 newCost) internal {
-        billboardAuthor = author;
-        billboard = newBillboard;
-        billboardCost = newCost;
-        emit NewBillboard(author, newBillboard, newCost);
-    }
+    function _deposit(address to, uint256 amount) internal returns (uint256 shares) {
+        SafeTransferLib.safeTransferFrom(address(asset), to, address(this), amount);
 
-    function _mint(address to, uint256 amount) internal {
+        shares = prizeVault.deposit(amount, address(this));
+
         totalSupply += amount;
 
         // Cannot overflow because the sum of all user
@@ -180,7 +112,9 @@ contract Bryan {
         emit Transfer(address(0), to, amount);
     }
 
-    function _burn(address from, uint256 amount) internal {
+    function _redeem(address from, uint256 amount, uint256 minAssets) internal returns (uint256 assets) {
+        assets = prizeVault.redeem(amount, from, address(this), minAssets);
+
         balanceOf[from] -= amount;
 
         // Cannot underflow because a user's balance
@@ -192,25 +126,7 @@ contract Bryan {
         emit Transfer(from, address(0), amount);
     }
 
-    //
-    // fun and games
-    //
-
-    /// @notice yoink the billboard with any message you want.
-    /// @dev the billboard can be claimed by the person with the most BRY.
-    /// @dev the owner contract can take the billboard back at any time.
-    function yoink(string calldata newBillboard) public returns (bool) {
-        uint256 senderBalance = balanceOf[msg.sender];
-        require(senderBalance > billboardCost, LowBalance());
-
-        // we don't update billboardCost to avoid flash loans causing trickery
-        uint256 authorBalance = balanceOf[billboardAuthor];
-        require(senderBalance > authorBalance, LowBalance());
-
-        _billboard(msg.sender, newBillboard, senderBalance);
-
-        return true;
-    }
+    // TODO: need _withdraw probably too
 
     //
     // standard erc20 things
@@ -258,45 +174,20 @@ contract Bryan {
     //
     // non-standard token things
     //
-    function burn(uint256 amount) public returns (bool success) {
-        _burn(msg.sender, amount);
-        return true;
+    function deposit(uint256 assets) public returns (uint256 shares) {
+        shares = _deposit(msg.sender, assets);
     }
 
-    function burnFrom(address from, uint256 amount) public returns (bool success) {
-        uint256 allowed = allowance[from][msg.sender]; // Saves gas for limited approvals.
-
-        if (allowed != type(uint256).max) allowance[from][msg.sender] = allowed - amount;
-
-        _burn(from, amount);
-        return true;
+    function redeem(uint256 shares, uint256 minAssets) public returns (uint256 assets) {
+        assets = _redeem(msg.sender, shares, minAssets);
     }
 
-    /// @dev the billboard is base64 encoded because it should be filtered before being displayed.
-    function tokenURI() public view returns (string memory) {
-        bytes memory json = abi.encodePacked(
-            '{"name":"',
-            name,
-            '",',
-            '"symbol":"',
-            symbol,
-            '",',
-            '"decimals":',
-            uint256(decimals).toString(),
-            ",",
-            '"description":"',
-            description,
-            '",',
-            '"image":"',
-            image,
-            '",',
-            '"billboard":"',
-            Base64.encode(bytes(billboard)),
-            '",',
-            '"website":"',
-            website,
-            '"}'
-        );
-        return string(abi.encodePacked("data:application/json;base64,", Base64.encode(json)));
+    // TODO: redeemFrom function
+
+    //
+    // Prize things
+    //
+    function claimRewards(uint256 _promotionId, uint8[] calldata _epochIds) public returns (uint256 rewards) {
+        rewards = prizePoolTwabRewards.claimRewards(address(prizeVault), address(this), _promotionId, _epochIds);
     }
 }
