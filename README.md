@@ -1,17 +1,19 @@
 # Bryan's Tokens
 
-A "fan token" that is backed. No pump and dump games here.
+A "fan token" that is backed. No pump and dump games here. Hold my token if you like me. I'll get a benefit, the top 100 holders will get a benefit, and you'll probably get your money back.
 
 ## Warning!
 
 - This is an experiment and a toy, not a financial investment.
 - This is not audited.
+- There is a deposit fee of 1%
+- I have a few more ideas and will probably deploy this contract a few more times.
 
 ## What is this?
 
 Primarily, I am playing with tools to prepare for a more serious project.
 
-I don't know what to call this. The terms "creator token" and "social token" are being experimented with.
+I don't know what to call this exactly. The terms "creator token" and "social token" are being experimented with. I like "fan token".
 
 I don't want to just tip out USDC or WETH. I want to be able to send something more personalized.
 
@@ -21,9 +23,13 @@ So what's an alternative? Backing! My fan token is backed by deposits in pooltog
 
 If you want to support me, holding my token is an easy way. If you don't care about holding my token, you can redeem it for the backing tokens.
 
-Pooltogether is a perfect fit because it adds some fun to small amounts of money and encourages savings.
+[PoolTogether](https://dev.pooltogether.com/protocol/design/) is a perfect fit because it adds some fun to small amounts of money and encourages savings.
 
 I can't decide if I should back the token with ETH or with USDC prize pools. The APY on the ETH pools is a lot smaller. But encouraging savings of ETH is probably better in the long term. The prizes are in ETH no matter what the prize pool takes for deposits.
+
+Deposit fees can be set between 0% and 20%. I'm going to start to 1%.
+
+Prizes and rewards will be distributed with [Empire Builder](https://farcaster.xyz/miniapps/x7DwM6UhLXps/empire-builder). The contract owner (flashprofits.eth) will get 50% of any prizes or rewards (this can be set between 0% and 90%). The top 100 holders of BRY will split the other 50%.
 
 ## Miscellaneous Ideas
 
@@ -46,7 +52,6 @@ I can't decide if I should back the token with ETH or with USDC prize pools. The
 ## Further Reading
 
 - <https://github.com/yearn/tokenized-strategy-periphery/blob/master/src/Auctions/Auction.sol>
-- [Pool together](https://dev.pooltogether.com/protocol/design/)
 
 ## Developer Documentation
 

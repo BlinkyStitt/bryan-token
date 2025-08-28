@@ -103,14 +103,19 @@ contract Bryan is ERC4626EntryFees, Ownable2Step {
         IERC4626 prizeVault = IERC4626(asset());
         IERC20 underlyingToken = IERC20(prizeVault.asset());
 
+        // the user needs to have already done an approval!
         underlyingToken.safeTransferFrom(msg.sender, address(this), assets);
 
+        // TODO: do a max approve at creation and 
         underlyingToken.approve(address(prizeVault), assets);
-
         uint256 vaultShares = prizeVault.deposit(assets, address(this));
 
-        // TODO: do we need approvals for deposit to work? i hope not
-        return deposit(vaultShares, receiver);
+        prizeVault.approve(address(this), vaultShares);
+        shares = this.deposit(vaultShares, address(this));
+
+        transfer(receiver, shares);
+
+        // TODO: forward the tokens
     }
 
     /// @notice withdraw the underlying token
