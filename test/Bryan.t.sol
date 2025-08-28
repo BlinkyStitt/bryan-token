@@ -68,4 +68,20 @@ contract BryanTest is Test {
         assertEq(bryan.balanceOf(address(this)), 0, "our balance of bryan should be empty");
         assertEq(asset.balanceOf(address(this)), assets, "we should have our asset back");
     }
+
+    function test_deposit_and_withdraw_with_fees() public {
+        revert("todo: set fees");
+    }
+
+    function test_harvesting_pool() public {
+        revert("todo: add some POOL to the contract and then sweep it. check fees");
+    }
+
+    function test_harvesting_weth() public {
+        revert("todo: add some WETH to the contract and then sweep it. check fees");        
+    }
+
+    function test_uniswap_v4_hook() public {
+        revert("todo: create a uniswap v4 pool and a hook that wraps/unwraps the underlying token");
+    }
 }
