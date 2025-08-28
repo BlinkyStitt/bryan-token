@@ -7,12 +7,6 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-/// @dev ERC-4626 vault with entry/exit fees expressed in https://en.wikipedia.org/wiki/Basis_point[basis point (bp)].
-///
-/// NOTE: The contract charges fees in terms of assets, not shares. This means that the fees are calculated based on the
-/// amount of assets that are being deposited or withdrawn, and not based on the amount of shares that are being minted or
-/// redeemed. This is an opinionated design decision that should be taken into account when integrating this contract.
-///
 /// WARNING: This contract has not been audited and shouldn't be considered production ready. Consider using it with caution.
 contract Bryan is ERC4626EntryFees, Ownable2Step {
     using Math for uint256;
