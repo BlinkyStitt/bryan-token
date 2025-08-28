@@ -1,2 +1,2 @@
-BryanTest:test_deposit_and_withdraw() (gas: 985425)
-BryanTest:test_ownership() (gas: 42735)
+BryanTest:test_deposit_and_withdraw() (gas: 766240)
+BryanTest:test_ownership() (gas: 29891)
