@@ -17,7 +17,7 @@ contract BryanTest is Test {
 
         IERC20 prizeVault = IERC20(0x7f5C2b379b88499aC2B997Db583f8079503f25b9);
 
-        bryan = new Bryan(owner, prizeVault);
+        bryan = new Bryan(0, 0, owner, prizeVault);
     }
 
     function test_ownership() public {
@@ -69,7 +69,15 @@ contract BryanTest is Test {
         assertEq(asset.balanceOf(address(this)), assets, "we should have our asset back");
     }
 
-    // function test_zaps() public {
-    //     revert("wip");
-    // }
+    function test_zaps() public {
+        IERC20 underlying = bryan.underlying();
+        uint256 underlyingAssets = 1_000 * 1e6;
+        deal(address(underlying), address(this), underlyingAssets, false);
+
+        underlying.approve(address(bryan), type(uint256).max);
+
+        uint256 shares = bryan.zapIn(underlyingAssets, address(this));
+
+        revert("test zapOut");
+    }
 }

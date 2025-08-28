@@ -18,6 +18,9 @@ contract BryanScript is Script {
         address prizePoolTwabRewards = 0xF4c47dacFda99bE38793181af9Fd1A2Ec7576bBF;
         IERC20 prizeVault = IERC20(0x7f5C2b379b88499aC2B997Db583f8079503f25b9);
 
+        uint256 entryFeeBasisPoints = 100;
+        uint256 harvestFeeBasisPoints = 5000;
+
         string memory addressPrefix = "0x0112358D";
 
         // prepare creation code
@@ -36,7 +39,7 @@ contract BryanScript is Script {
 
         // deploy the contract with our found salt
         vm.startBroadcast();
-        bryan = new Bryan{salt: salt}(owner, prizeVault);
+        bryan = new Bryan{salt: salt}(0, 0, owner, prizeVault);
 
         // TODO: make sure the address for bryan matches the address prefix
 

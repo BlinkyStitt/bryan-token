@@ -7,7 +7,6 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-
 /// @dev ERC-4626 vault with entry/exit fees expressed in https://en.wikipedia.org/wiki/Basis_point[basis point (bp)].
 ///
 /// NOTE: The contract charges fees in terms of assets, not shares. This means that the fees are calculated based on the
@@ -16,13 +15,30 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 ///
 /// WARNING: This contract has not been audited and shouldn't be considered production ready. Consider using it with caution.
 contract Bryan is ERC4626EntryFees, Ownable2Step {
+    using Math for uint256;
     using SafeERC20 for IERC20;
+
+    uint256 private constant _BASIS_POINT_SCALE = 1e4;
+
+    /// @dev 100 is 1%
+    uint256 public harvestFeeBasisPoints;
 
     address public treasury;
 
+    /// @dev 100 is 1%
+    uint256 private __entryFeeBasisPoints;
+
     event NewTreasury(address indexed oldTreasury, address indexed newTreasury);
 
-    constructor(address _owner, IERC20 _prizeVault) ERC20("Bryan V3", "BRY3") ERC4626(_prizeVault) Ownable(_owner) {
+    constructor(uint256 _entryFeeBasisPoints, uint256 _harvestFeeBasisPoints, address _owner, IERC20 _prizeVault)
+        ERC20("Fan of Bryan", "BRY")
+        ERC4626(_prizeVault)
+        Ownable(_owner)
+    {
+        __entryFeeBasisPoints = _entryFeeBasisPoints;
+        harvestFeeBasisPoints = _harvestFeeBasisPoints;
+
+        // TODO: i wish name could be calculated here, but solidity constructors don't seem to work like that
         treasury = _owner;
     }
 
@@ -35,6 +51,20 @@ contract Bryan is ERC4626EntryFees, Ownable2Step {
     }
 
     // === owner-only functions ===
+
+    /// @dev max possible is 20%
+    function setEntryFeeBasisPoints(uint256 fee) public onlyOwner {
+        require(fee <= 20 * _BASIS_POINT_SCALE);
+
+        __entryFeeBasisPoints = fee;
+    }
+
+    /// @dev max possible is 90%
+    function setHarvestFeeBasisPoints(uint256 fee) public onlyOwner {
+        require(fee <= 90 * _BASIS_POINT_SCALE);
+
+        harvestFeeBasisPoints = fee;
+    }
 
     function setTreasury(address newTreasury) public onlyOwner {
         emit NewTreasury(treasury, newTreasury);
@@ -55,15 +85,16 @@ contract Bryan is ERC4626EntryFees, Ownable2Step {
 
         uint256 balance = total;
 
-        // TODO: make this configurable? (within some bounds. maybe only going down)
-        uint256 ownerFee = balance / 10;
+        uint256 harvestFee = balance.mulDiv(harvestFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Ceil);
 
-        if (ownerFee > 0) {
-            token.safeTransfer(owner(), ownerFee);
-            balance -= ownerFee;
+        if (harvestFee > 0) {
+            token.safeTransfer(owner(), harvestFee);
+            balance -= harvestFee;
         }
 
-        token.safeTransfer(treasury, balance);
+        if (balance > 0) {
+            token.safeTransfer(treasury, balance);
+        }
     }
 
     /// @notice deposit the underlying token
@@ -95,9 +126,8 @@ contract Bryan is ERC4626EntryFees, Ownable2Step {
 
     // === Fee configuration ===
 
-    // TODO: make this configurable by the owner. no more than 10%
-    function _entryFeeBasisPoints() internal pure override returns (uint256) {
-        return 0; // 100 is 1%
+    function _entryFeeBasisPoints() internal view override returns (uint256) {
+        return __entryFeeBasisPoints;
     }
 
     function _entryFeeRecipient() internal view override returns (address) {
