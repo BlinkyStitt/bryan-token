@@ -2,58 +2,74 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {Bryan, ERC20} from "../src/Bryan.sol";
-// import {console} from "forge-std/console.sol";
+import {Bryan, IERC20, IERC4626} from "../src/Bryan.sol";
+import {console} from "forge-std/console.sol";
 
 contract BryanTest is Test {
     uint256 baseFork;
     Bryan public bryan;
 
     function setUp() public {
-        baseFork = vm.createFork("https://1rpc.io/base", 34771800);
+        baseFork = vm.createFork("https://1rpc.io/base");
         vm.selectFork(baseFork);
 
         address owner = address(this);
 
-        // TODO: need a forked network!
+        IERC20 prizeVault = IERC20(0x7f5C2b379b88499aC2B997Db583f8079503f25b9);
 
-        address prizePoolTwabRewards = 0xF4c47dacFda99bE38793181af9Fd1A2Ec7576bBF;
-        address prizeVault = 0x7f5C2b379b88499aC2B997Db583f8079503f25b9;
-
-        bryan = new Bryan(owner, prizePoolTwabRewards, prizeVault);
+        bryan = new Bryan(owner, prizeVault);
     }
 
     function test_ownership() public {
         address nextOwner = makeAddr("nextOwner");
 
-        bryan.setNextOwner(nextOwner);
+        bryan.transferOwnership(nextOwner);
+
+        // TODO: make sure acceptOwnership from other people fails
 
         vm.prank(nextOwner);
-        bryan.claimOwnership();
+        bryan.acceptOwnership();
 
-        require(nextOwner == bryan.owner());
+        assertEq(nextOwner, bryan.owner(), "wrong new owner");
     }
 
     function test_deposit_and_withdraw() public {
-        ERC20 asset = bryan.asset();
+        // TODO: for some reason we can't deal the ERC4626. We can deal the ERC20 though.
+        IERC20 underlying = bryan.underlying();
+        uint256 underlyingAssets = 1_000 * 1e6;
+        deal(address(underlying), address(this), underlyingAssets, false);
 
-        uint256 assets = 1_000 * 1e6;
+        // asset == prize vault
+        IERC4626 asset = IERC4626(bryan.asset());
+        console.log("asset", address(asset));
 
-        deal(address(asset), address(this), assets, true);
+        // approve and deposit the underlying to get the asset that backs Bryan
+        underlying.approve(address(asset), type(uint256).max);
+        uint256 assets = asset.deposit(underlyingAssets, address(this));
 
+        // set up approvals
         asset.approve(address(bryan), type(uint256).max);
 
-        uint256 shares = bryan.deposit(assets);
+        // test the main deposit function
+        uint256 shares = bryan.deposit(assets, address(this));
 
-        require(assets == shares);
-        require(bryan.prizeVault().balanceOf(address(bryan)) == shares);
-        require(bryan.balanceOf(address(this)) == assets);
+        // TODO: this require is wrong. we want to be sure that the shares we received are worth what we deposited
+        // require(assets == shares);
 
-        uint256 redeemed = bryan.redeem(shares, assets);
+        // TODO: the fees make this annoying
+        assertEq(asset.balanceOf(address(bryan)), assets, "asset balance does not match assets");
+        assertEq(bryan.balanceOf(address(this)), shares, "bryan balance does not match shares");
 
-        require(redeemed == assets);
-        require(bryan.prizeVault().balanceOf(address(bryan)) == 0);
-        require(bryan.balanceOf(address(this)) == 0);
-        require(asset.balanceOf(address(this)) == assets);
+        // test the main redeem function
+        uint256 redeemed = bryan.redeem(shares, address(this), address(this));
+
+        // require(redeemed == assets);
+        assertEq(IERC20(bryan.asset()).balanceOf(address(bryan)), 0, "token's asset balance should be empty");
+        assertEq(bryan.balanceOf(address(this)), 0, "our balance of bryan should be empty");
+        assertEq(asset.balanceOf(address(this)), assets, "we should have our asset back");
     }
+
+    // function test_zaps() public {
+    //     revert("wip");
+    // }
 }
