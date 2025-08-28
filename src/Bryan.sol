@@ -97,38 +97,6 @@ contract Bryan is ERC4626EntryFees, Ownable2Step {
         }
     }
 
-    /// @notice deposit the underlying token
-    /// @dev alternative names: depositUnderlying
-    function zapIn(uint256 assets, address receiver) public returns (uint256 shares) {
-        IERC4626 prizeVault = IERC4626(asset());
-        IERC20 underlyingToken = IERC20(prizeVault.asset());
-
-        // the user needs to have already done an approval!
-        underlyingToken.safeTransferFrom(msg.sender, address(this), assets);
-
-        // TODO: do a max approve at creation and 
-        underlyingToken.approve(address(prizeVault), assets);
-        uint256 vaultShares = prizeVault.deposit(assets, address(this));
-
-        prizeVault.approve(address(this), vaultShares);
-        shares = this.deposit(vaultShares, address(this));
-
-        transfer(receiver, shares);
-
-        // TODO: forward the tokens
-    }
-
-    /// @notice withdraw the underlying token
-    /// @dev alternative names: redeemUnderlying
-    function zapOut(uint256 shares, uint256 minAssets) public returns (uint256 assets) {
-        // these function names are confusing. our shares translate to their assets
-        uint256 underlyingShares = _convertToAssets(shares, Math.Rounding.Floor);
-
-        // TODO: how do we check the user's balance?
-        // TODO: maybe the zaps should be in their own contract
-        revert("wip");
-    }
-
     // === Fee configuration ===
 
     function _entryFeeBasisPoints() internal view override returns (uint256) {

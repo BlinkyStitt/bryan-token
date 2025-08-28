@@ -68,16 +68,4 @@ contract BryanTest is Test {
         assertEq(bryan.balanceOf(address(this)), 0, "our balance of bryan should be empty");
         assertEq(asset.balanceOf(address(this)), assets, "we should have our asset back");
     }
-
-    function test_zaps() public {
-        IERC20 underlying = bryan.underlying();
-        uint256 underlyingAssets = 1_000 * 1e6;
-        deal(address(underlying), address(this), underlyingAssets, false);
-
-        underlying.approve(address(bryan), type(uint256).max);
-
-        uint256 shares = bryan.zapIn(underlyingAssets, address(this));
-
-        revert("test zapOut");
-    }
 }
