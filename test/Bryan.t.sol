@@ -25,7 +25,9 @@ contract BryanTest is Test {
 
         bryan.transferOwnership(nextOwner);
 
-        // TODO: make sure acceptOwnership from other people fails
+        // make sure acceptOwnership from other people fails
+        vm.expectRevert();
+        bryan.acceptOwnership();
 
         vm.prank(nextOwner);
         bryan.acceptOwnership();
@@ -70,14 +72,28 @@ contract BryanTest is Test {
     }
 
     function test_deposit_and_withdraw_with_fees() public {
+        bryan.setEntryFeeBasisPoints(5000);
+
         revert("todo: set fees");
     }
 
+    function test_owner_only() public {
+        revert("todo: make sure calling settings from the account that isn't the owner always fails");
+    }
+
     function test_harvesting_pool() public {
+        bryan.setHarvestFeeBasisPoints(5000);
+
         revert("todo: add some POOL to the contract and then sweep it. check fees");
     }
 
+    function test_claiming_pool_rewards() public {
+        revert("claim POOL rewards");
+    }
+
     function test_harvesting_weth() public {
+        bryan.setHarvestFeeBasisPoints(5000);
+
         revert("todo: add some WETH to the contract and then sweep it. check fees");        
     }
 

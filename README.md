@@ -27,9 +27,11 @@ If you want to support me, holding my token is an easy way. If you don't care ab
 
 I can't decide if I should back the token with ETH or with USDC prize pools. The APY on the ETH pools is a lot smaller. But encouraging savings of ETH is probably better in the long term. The prizes are in ETH no matter what the prize pool takes for deposits.
 
-Deposit fees can be set between 0% and 20%. I'm going to start to 1%.
+Deposit fees can be set between 0% and 20%. I'm going to start at 1%.
 
 Prizes and rewards will be distributed with [Empire Builder](https://farcaster.xyz/miniapps/x7DwM6UhLXps/empire-builder). The contract owner (flashprofits.eth) will get 50% of any prizes or rewards (this can be set between 0% and 90%). The top 100 holders of BRY will split the other 50%.
+
+I have BRY setup as my [Cobuild](https://farcaster.xyz/miniapps/XTipkfp9jZBu/cobuild) token. Interact with me on farcaster to buy some.
 
 ## Miscellaneous Ideas
 
