@@ -8,7 +8,7 @@ import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /// WARNING: This contract has not been audited and shouldn't be considered production ready. Consider using it with caution.
-contract Bryan is ERC4626EntryFees, Ownable2Step {
+contract FanToken is ERC4626EntryFees, Ownable2Step {
     using Math for uint256;
     using SafeERC20 for IERC20;
 
@@ -24,8 +24,8 @@ contract Bryan is ERC4626EntryFees, Ownable2Step {
 
     event NewTreasury(address indexed oldTreasury, address indexed newTreasury);
 
-    constructor(uint256 entryFeeBasisPoints, uint256 _harvestFeeBasisPoints, address _owner, IERC20 _prizeVault)
-        ERC20("Fan of Bryan", "BRY")
+    constructor(string memory _name, string memory _symbol, uint256 entryFeeBasisPoints, uint256 _harvestFeeBasisPoints, address _owner, IERC20 _prizeVault)
+        ERC20(_name, _symbol)
         ERC4626(_prizeVault)
         Ownable(_owner)
     {

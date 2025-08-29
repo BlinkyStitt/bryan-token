@@ -3,12 +3,12 @@ pragma solidity ^0.8.13;
 
 import {LibString} from "solady/utils/LibString.sol";
 import {Script} from "forge-std/Script.sol";
-import {Bryan, IERC20} from "../src/Bryan.sol";
+import {FanToken, IERC20} from "../src/FanToken.sol";
 
 contract BryanScript is Script {
     using LibString for uint256;
 
-    Bryan public bryan;
+    FanToken public bryan;
 
     function setUp() public {}
 
@@ -24,7 +24,7 @@ contract BryanScript is Script {
         string memory addressPrefix = "0x0112358D";
 
         // prepare creation code
-        bytes memory creationCode = abi.encodePacked(type(Bryan).creationCode, abi.encode(owner, prizeVault));
+        bytes memory creationCode = abi.encodePacked(type(FanToken).creationCode, abi.encode(owner, prizeVault));
 
         bytes32 creationCodeHash = keccak256(creationCode);
 
@@ -39,7 +39,7 @@ contract BryanScript is Script {
 
         // deploy the contract with our found salt
         vm.startBroadcast();
-        bryan = new Bryan{salt: salt}(0, 0, owner, prizeVault);
+        bryan = new FanToken{salt: salt}("Fan of Bryan", "BRY", 0, 0, owner, prizeVault);
 
         // TODO: make sure the address for bryan matches the address prefix
 

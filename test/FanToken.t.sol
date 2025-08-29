@@ -2,14 +2,15 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {Bryan, IERC20, IERC4626} from "../src/Bryan.sol";
+import {FanToken, IERC20, IERC4626} from "../src/FanToken.sol";
 import {console} from "forge-std/console.sol";
 
 contract BryanTest is Test {
     uint256 baseFork;
-    Bryan public bryan;
+    FanToken public bryan;
 
     function setUp() public {
+        // TODO: use flags on the test command instead of forcing a fork here?
         baseFork = vm.createFork("https://1rpc.io/base");
         vm.selectFork(baseFork);
 
@@ -17,7 +18,7 @@ contract BryanTest is Test {
 
         IERC20 prizeVault = IERC20(0x7f5C2b379b88499aC2B997Db583f8079503f25b9);
 
-        bryan = new Bryan(0, 0, owner, prizeVault);
+        bryan = new FanToken("Fan of Bryan", "BRY", 0, 0, owner, prizeVault);
     }
 
     function test_ownership() public {
@@ -88,7 +89,7 @@ contract BryanTest is Test {
     }
 
     function test_claiming_pool_rewards() public {
-        revert("claim POOL rewards");
+        revert("todo: claim POOL rewards");
     }
 
     function test_harvesting_weth() public {
