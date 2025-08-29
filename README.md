@@ -51,6 +51,8 @@ I have BRY setup as my [Cobuild](https://farcaster.xyz/miniapps/XTipkfp9jZBu/cob
 
 - should this be a 4626 vault? things are 1:1 when everything works, but what if something goes wrong. i think 4626 has a bunch of protections for that. though maybe a wrapped ERC20 would be fine.
 
+- uniswap v4 hooks are giving me headaches. there is a list of approved hooks somewhere. maybe the constant-sum hook will work well enough to start.
+
 ## Further Reading
 
 - <https://github.com/yearn/tokenized-strategy-periphery/blob/master/src/Auctions/Auction.sol>

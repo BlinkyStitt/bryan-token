@@ -14,4 +14,7 @@ contract FanTokenUniswapV4Hook is BaseHook {
         p.beforeSwap = true;
         p.beforeAddLiquidity = true;
     }
+
+    // TODO: write _beforeSwap
+    // TODO: write _beforeAddLiquidity
 }
