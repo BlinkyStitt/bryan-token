@@ -24,15 +24,14 @@ contract Bryan is ERC4626EntryFees, Ownable2Step {
 
     event NewTreasury(address indexed oldTreasury, address indexed newTreasury);
 
-    constructor(uint256 _entryFeeBasisPoints, uint256 _harvestFeeBasisPoints, address _owner, IERC20 _prizeVault)
+    constructor(uint256 entryFeeBasisPoints, uint256 _harvestFeeBasisPoints, address _owner, IERC20 _prizeVault)
         ERC20("Fan of Bryan", "BRY")
         ERC4626(_prizeVault)
         Ownable(_owner)
     {
-        __entryFeeBasisPoints = _entryFeeBasisPoints;
+        // these underscores are gross. too many different libraries and styles are being mixed together
+        __entryFeeBasisPoints = entryFeeBasisPoints;
         harvestFeeBasisPoints = _harvestFeeBasisPoints;
-
-        // TODO: i wish name could be calculated here, but solidity constructors don't seem to work like that
         treasury = _owner;
     }
 

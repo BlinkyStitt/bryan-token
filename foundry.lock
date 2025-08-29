@@ -1,10 +1,4 @@
 {
-  "lib/solady": {
-    "tag": {
-      "name": "v0.1.24",
-      "rev": "a5bb996e91aae5b0c068087af7594d92068b12f1"
-    }
-  },
   "lib/forge-std": {
     "tag": {
       "name": "v1.10.0",
@@ -16,5 +10,26 @@
       "name": "v5.4.0",
       "rev": "c64a1edb67b6e3f4a15cca8909c9482ad33a02b0"
     }
+  },
+  "lib/solady": {
+    "tag": {
+      "name": "v0.1.24",
+      "rev": "a5bb996e91aae5b0c068087af7594d92068b12f1"
+    }
+  },
+  "lib/uniswap-hooks": {
+    "tag": {
+      "name": "v1.1.0",
+      "rev": "e59fe72c110c3862eec9b332530dce49ca506bbb"
+    }
+  },
+  "lib/v4-core": {
+    "tag": {
+      "name": "v4.0.0",
+      "rev": "e50237c43811bd9b526eff40f26772152a42daba"
+    }
+  },
+  "lib/v4-periphery": {
+    "rev": "60cd93803ac2b7fa65fd6cd351fd5fd4cc8c9db5"
   }
 }

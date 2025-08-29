@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {LibString} from "@solady/utils/LibString.sol";
+import {LibString} from "solady/utils/LibString.sol";
 import {Script} from "forge-std/Script.sol";
 import {Bryan, IERC20} from "../src/Bryan.sol";
 
