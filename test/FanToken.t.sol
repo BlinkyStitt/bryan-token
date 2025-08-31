@@ -16,13 +16,15 @@ contract BryanTest is Test {
         IERC20 prizeVault = IERC20(0x7f5C2b379b88499aC2B997Db583f8079503f25b9);
         IWETH9 weth = IWETH9(address(0x4200000000000000000000000000000000000006));
 
+        // TODO: should we compound everything or nothing?
+        uint256 compoundBasisPoints = 0;
+
         // tests are easier with fees off.
-        uint256 compoundBasisPoints = 1e4;
         uint256 entryFeeBasisPoints = 0;
         uint256 harvestFeeBasisPoints = 0;
 
         bryan = new FanToken(
-            "Fan of Bryan",
+            "Bry Berries",
             "BRY",
             compoundBasisPoints,
             entryFeeBasisPoints,
