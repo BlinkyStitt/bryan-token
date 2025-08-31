@@ -13,7 +13,7 @@ contract BryanTest is Test {
         // TODO: use flags on the test command instead of forcing a fork here?
         address owner = address(this);
 
-        IERC20 prizeVault = IERC20(0x7f5C2b379b88499aC2B997Db583f8079503f25b9);
+        IERC4626 prizeVault = IERC4626(0x7f5C2b379b88499aC2B997Db583f8079503f25b9);
         IWETH9 weth = IWETH9(address(0x4200000000000000000000000000000000000006));
 
         // TODO: should we compound everything or nothing?

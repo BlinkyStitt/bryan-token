@@ -20,6 +20,8 @@ contract FanToken is ERC4626EntryFees, Ownable2Step {
 
     address public treasury;
 
+    IERC20 public immutable underlying;
+
     IWETH9 public immutable WETH;
 
     /// @notice the owner gets a portion of all deposits. A core design choice of this token is to make it easy to tip the owner.
@@ -41,10 +43,12 @@ contract FanToken is ERC4626EntryFees, Ownable2Step {
         uint256 entryFeeBasisPoints,
         uint256 _harvestFeeBasisPoints,
         address _owner,
-        IERC20 _prizeVault,
+        IERC4626 _prizeVault,
         IWETH9 _weth
     ) ERC20(_name, _symbol) ERC4626(_prizeVault) Ownable(_owner) {
         require(_compoundBasisPoints + entryFeeBasisPoints + _harvestFeeBasisPoints <= _BASIS_POINT_SCALE);
+
+        underlying = IERC20(_prizeVault.asset());
 
         // these underscores are gross. too many different libraries and styles are being mixed together
         compoundBasisPoints = _compoundBasisPoints;
@@ -56,14 +60,6 @@ contract FanToken is ERC4626EntryFees, Ownable2Step {
 
     /// @dev allow receiving eth
     receive() external payable {}
-
-    // === getters ===
-
-    /// @dev the asset inside of the prize vault. this is what most users will probably have to deposit
-    function underlying() public view returns (IERC20 _underlying) {
-        IERC4626 _asset = IERC4626(asset());
-        _underlying = IERC20(payable(_asset.asset()));
-    }
 
     // TODO: pricePerShareUnderlying() (with a better name)
 
@@ -107,11 +103,29 @@ contract FanToken is ERC4626EntryFees, Ownable2Step {
 
     // === Custom things ===
 
+    function underlyingBalanceOf(address who) public returns (uint256) {
+        uint256 b = balanceOf(who);
+
+        IERC4626 a = IERC4626(asset());
+
+        return a.convertToAssets(b);
+    }
+
     /**
      * @dev See {IERC4626-deposit}.
      */
-    function depositUnderlying(uint256 assets, address receiver) public virtual returns (uint256) {
-        revert("todo: convert the underlying");
+    function depositUnderlying(uint256 underlyingAssets, address receiver) public virtual returns (uint256) {
+        IERC20 underlyingToken = underlying;
+
+        // TODO: think about the approvals for this
+        // TODO: what does the _msgSender() thing do again?
+        underlyingToken.safeTransferFrom(_msgSender(), address(this), underlyingAssets);
+
+        IERC4626 vaultToken = IERC4626(asset());
+
+        // TODO: set up infinite approval on start instead?
+        underlyingToken.approve(address(vaultToken), underlyingAssets);
+        uint256 assets = vaultToken.deposit(underlyingAssets, address(this));
 
         uint256 maxAssets = maxDeposit(receiver);
         if (assets > maxAssets) {
@@ -119,7 +133,7 @@ contract FanToken is ERC4626EntryFees, Ownable2Step {
         }
 
         uint256 shares = previewDeposit(assets);
-        _deposit(_msgSender(), receiver, assets, shares);
+        _deposit(address(this), receiver, assets, shares);
 
         return shares;
     }
@@ -197,7 +211,7 @@ contract FanToken is ERC4626EntryFees, Ownable2Step {
         }
 
         // if we are harvesting the underlying token, we should deposit it for the asset token
-        IERC20 underlyingToken = underlying();
+        IERC20 underlyingToken = underlying;
         uint256 balance;
         if (token == underlyingToken) {
             total = depositUnderlying(total, address(this));
