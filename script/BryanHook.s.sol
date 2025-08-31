@@ -22,9 +22,7 @@ contract BryanUniswapV4HookScript is Script {
         address create2deployer = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
 
         // hook contracts must have specific flags encoded in the address
-        uint160 flags = uint160(
-            Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
-        );
+        uint160 flags = uint160(Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG);
 
         // function to make sure the flags here match our allowed hooks. I think OZ has a function for this
 

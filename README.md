@@ -1,12 +1,14 @@
 # Bryan's Tokens
 
-A "fan token" that is backed. No pump and dump games here. Hold my token if you like me. I'll get a benefit, the top 100 holders will get a benefit, and you'll probably get your money back.
+A "fan token" that is backed with ETH. No pump and dump games here. Hold my token if you like me. If you don't want to be my fan anymore, you can turn in your tokens for the backed ETH.
+
+This read me and token design are under construction. Nothing is finalized.
 
 ## Warning!
 
 - This is an experiment and a toy, not a financial investment.
 - This is not audited.
-- There is a deposit fee of 1%
+- There is a deposit fee of 1%. The point of this token is to fund more projects like this. A small tip is a good way to do that.
 - I have a few more ideas and will probably deploy this contract a few more times.
 
 ## What is this?
@@ -52,6 +54,20 @@ I have BRY setup as my [Cobuild](https://farcaster.xyz/miniapps/XTipkfp9jZBu/cob
 - should this be a 4626 vault? things are 1:1 when everything works, but what if something goes wrong. i think 4626 has a bunch of protections for that. though maybe a wrapped ERC20 would be fine.
 
 - uniswap v4 hooks are giving me headaches. there is a list of approved hooks somewhere. maybe the constant-sum hook will work well enough to start.
+
+## Design
+
+Can't be evil is my foundational principle for smart contract development.
+
+If something would be nice to change but could be abused, then make it impossible to change.
+
+I would like to be able to change the name and symbol for my token. But that can be abused. So it's immutable for my contracts.
+
+## Bad Things
+
+- Infinite supply.
+- Owner-only functions.
+- Market cap on coins with very small values and very strong price curves.
 
 ## Further Reading
 

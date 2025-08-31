@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {LibString} from "solady/utils/LibString.sol";
 import {Script} from "forge-std/Script.sol";
-import {FanToken, IERC20} from "../src/FanToken.sol";
+import {FanToken, IERC20, IWETH9} from "../src/FanToken.sol";
 
 contract BryanScript is Script {
     using LibString for uint256;
@@ -17,7 +17,9 @@ contract BryanScript is Script {
         address owner = 0x2699C32A793D58691419A054DA69414dF186b181;
         address prizePoolTwabRewards = 0xF4c47dacFda99bE38793181af9Fd1A2Ec7576bBF;
         IERC20 prizeVault = IERC20(0x7f5C2b379b88499aC2B997Db583f8079503f25b9);
+        IWETH9 weth = IWETH9(address(0x4200000000000000000000000000000000000006));
 
+        uint256 compoundBasisPoints = 5000;
         uint256 entryFeeBasisPoints = 100;
         uint256 harvestFeeBasisPoints = 5000;
 
@@ -39,7 +41,16 @@ contract BryanScript is Script {
 
         // deploy the contract with our found salt
         vm.startBroadcast();
-        bryan = new FanToken{salt: salt}("Fan of Bryan", "BRY", 0, 0, owner, prizeVault);
+        bryan = new FanToken{salt: salt}(
+            "Fan of Bryan",
+            "BRY",
+            compoundBasisPoints,
+            entryFeeBasisPoints,
+            harvestFeeBasisPoints,
+            owner,
+            prizeVault,
+            weth
+        );
 
         // TODO: make sure the address for bryan matches the address prefix
 

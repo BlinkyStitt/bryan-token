@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {FanToken, IERC20, IERC4626} from "../src/FanToken.sol";
+import {FanToken, IERC20, IERC4626, IWETH9} from "../src/FanToken.sol";
 import {console} from "forge-std/console.sol";
 
 contract BryanTest is Test {
@@ -17,8 +17,23 @@ contract BryanTest is Test {
         address owner = address(this);
 
         IERC20 prizeVault = IERC20(0x7f5C2b379b88499aC2B997Db583f8079503f25b9);
+        IWETH9 weth = IWETH9(address(0x4200000000000000000000000000000000000006));
 
-        bryan = new FanToken("Fan of Bryan", "BRY", 0, 0, owner, prizeVault);
+        // tests are easier with fees off.
+        uint256 compoundBasisPoints = 1e4;
+        uint256 entryFeeBasisPoints = 0;
+        uint256 harvestFeeBasisPoints = 0;
+
+        bryan = new FanToken(
+            "Fan of Bryan",
+            "BRY",
+            compoundBasisPoints,
+            entryFeeBasisPoints,
+            harvestFeeBasisPoints,
+            owner,
+            prizeVault,
+            weth
+        );
     }
 
     function test_ownership() public {
@@ -95,7 +110,7 @@ contract BryanTest is Test {
     function test_harvesting_weth() public {
         bryan.setHarvestFeeBasisPoints(5000);
 
-        revert("todo: add some WETH to the contract and then sweep it. check fees");        
+        revert("todo: add some WETH to the contract and then sweep it. check fees");
     }
 
     function test_uniswap_v4_hook() public {
