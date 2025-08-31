@@ -11,9 +11,6 @@ contract BryanTest is Test {
 
     function setUp() public {
         // TODO: use flags on the test command instead of forcing a fork here?
-        baseFork = vm.createFork("https://1rpc.io/base");
-        vm.selectFork(baseFork);
-
         address owner = address(this);
 
         IERC20 prizeVault = IERC20(0x7f5C2b379b88499aC2B997Db583f8079503f25b9);
