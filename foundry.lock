@@ -5,10 +5,22 @@
       "rev": "8bbcf6e3f8f62f419e5429a0bd89331c85c37824"
     }
   },
+  "lib/openzeppelin-contracts": {
+    "tag": {
+      "name": "v5.4.0",
+      "rev": "c64a1edb67b6e3f4a15cca8909c9482ad33a02b0"
+    }
+  },
   "lib/solady": {
     "tag": {
       "name": "v0.1.26",
       "rev": "acd959aa4bd04720d640bf4e6a5c71037510cc4b"
+    }
+  },
+  "lib/tokenized-strategy-periphery": {
+    "tag": {
+      "name": "v3.0.2",
+      "rev": "d732e918b208a9b2c33c71ea0ea9e8eb880cfc6e"
     }
   },
   "lib/uniswap-hooks": {
