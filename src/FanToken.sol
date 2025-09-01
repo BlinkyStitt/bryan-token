@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.20;
 
+import {AuctionSwapper} from "./forks/AuctionSwapper.sol";
 import {ERC20, ERC4626, IERC20, IERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {ERC4626EntryFees} from "./ERC4626EntryFees.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
@@ -8,8 +9,8 @@ import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IWETH9} from "v4-periphery/src/interfaces/external/IWETH9.sol";
 
-/// @notice WARNING: This contract has not been audited and shouldn't be considered production ready. Proceed with caution.
-contract FanToken is ERC4626EntryFees, Ownable2Step {
+/// @title FanToken
+contract FanToken is AuctionSwapper, ERC4626EntryFees, Ownable2Step {
     using Math for uint256;
     using SafeERC20 for IERC20;
 
@@ -114,7 +115,7 @@ contract FanToken is ERC4626EntryFees, Ownable2Step {
     /**
      * @dev See {IERC4626-deposit}.
      */
-    function depositUnderlying(uint256 underlyingAssets, address receiver) public virtual returns (uint256) {
+    function depositUnderlying(uint256 underlyingAssets, address receiver) public returns (uint256) {
         IERC20 underlyingToken = underlying;
 
         // TODO: think about the approvals for this
@@ -191,8 +192,9 @@ contract FanToken is ERC4626EntryFees, Ownable2Step {
 
     /// @notice harvest any ERC20 tokens as rewards. Tokens are split between the fan token, the owner, and the treasury.
     /// @dev I expect to call this with WETH and POOL after winning prizes
-    /// @dev
     /// @dev if you want to do something more complex with the coins, have that logic in the treasury contract
+    /// @dev todo: have an option to harvest without swapping that opens up if a harvest with swapping hasn't happened for some time
+    /// @dev todo: what should the return value be? this might have an async sale attached to it
     function harvest(IERC20 token) public returns (uint256 total) {
         // don't allow harvesting the backing token! that would be bad!
         IERC20 assetToken = IERC20(asset());
@@ -221,10 +223,24 @@ contract FanToken is ERC4626EntryFees, Ownable2Step {
             uint256 compoundAmount = total.mulDiv(compoundBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);
 
             // no transfer. we keep the coins here. this will inflate the value of everyone's shares equally
-            balance -= compoundAmount;
+            balance = total - compoundAmount;
         } else {
             // TODO: sell the tokens for the underlying using a dutch auction. Yearn has some really interesting contracts for this.
             balance = total;
+
+            // TODO: what should this be? each token should probably have its own values
+            uint256 startingPrice = 1_000_000;
+
+            _enableAuction(
+                address(token),
+                address(underlyingToken),
+                1 days,
+                1 weeks,
+                startingPrice
+            );
+
+            // return now because the funds are being auctioned off asynchronously
+            return total;
         }
 
         // pay the owner part of the harvest
@@ -235,10 +251,33 @@ contract FanToken is ERC4626EntryFees, Ownable2Step {
             balance -= ownerFee;
         }
 
-        // send the rest of the balance to the treasury. we take the full balance so theres no chance of rounding errors
+        // send the rest of the balance to the treasury. we take the remaining balance so theres no chance of rounding errors
         if (balance > 0) {
             token.safeTransfer(treasury, balance);
         }
+    }
+
+    // === Auction functions ===
+
+    /**
+     * @dev To override if a post take action is desired.
+     *
+     * This could be used to re-deploy the bought token back into the yield source,
+     * or in conjunction with {_preTake} to check that the price sold at was within
+     * some allowed range.
+     *
+     * @param _token Address of the token that the strategy was sent.
+     * @param _amountTaken Amount of the from token taken.
+     * @param _amountPayed Amount of `_token` that was sent to the strategy.
+     */
+    function _postTake(address _token, uint256 _amountTaken, uint256 _amountPayed) internal override {
+        IERC20 underlyingToken = underlying;
+
+        if (_token == address(underlyingToken)) {
+            harvest(IERC20(_token));
+        }
+
+        // TODO: should we do anything else here?
     }
 
     // === Fee configuration ===
