@@ -20,7 +20,7 @@ contract BryanScript is Script {
 
         // constructor arguments
         address owner = 0x2699C32A793D58691419A054DA69414dF186b181; // TODO: use the active account
-        address prizePoolTwabRewards = 0xF4c47dacFda99bE38793181af9Fd1A2Ec7576bBF;  // TODO: actually use this
+        address prizePoolTwabRewards = 0xF4c47dacFda99bE38793181af9Fd1A2Ec7576bBF; // TODO: actually use this
         IERC4626 usdcPrizeVault = IERC4626(0x7f5C2b379b88499aC2B997Db583f8079503f25b9); // TODO: this is the USDC vault. i want the WETH vault
         IERC4626 wethPrizeVault = IERC4626(0x4E42f783db2D0C5bDFf40fDc66FCAe8b1Cda4a43);
         IWETH9 weth = IWETH9(address(0x4200000000000000000000000000000000000006));

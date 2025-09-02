@@ -100,8 +100,6 @@ contract FanToken is AuctionSwapper, ERC4626EntryFees, Ownable2Step {
         return a.convertToAssets(b);
     }
 
-    // TODO: we could write a mintUnderlying, but I don't think they are needed at this point. though maybe that exists as slippage protection?
-
     /// @notice harvest any ERC20 tokens as rewards. Tokens are split between the fan token, the owner, and the treasury.
     /// @dev I expect to call this with WETH and POOL after winning prizes
     /// @dev if you want to do something more complex with the coins, have that logic in the treasury contract

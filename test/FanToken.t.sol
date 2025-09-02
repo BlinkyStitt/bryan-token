@@ -122,7 +122,9 @@ contract BryanTest is Test {
     }
 
     function test_uniswap_v4_hook() public {
-        revert("todo: create a uniswap v4 pool and a hook that wraps/unwraps the underlying token. make sure two pools with our hooks can be combined");
+        revert(
+            "todo: create a uniswap v4 pool and a hook that wraps/unwraps the underlying token. make sure two pools with our hooks can be combined"
+        );
         // TODO: what are some other options? what do
     }
 }

@@ -101,6 +101,10 @@ contract FanTokenFactoryTest is Test {
         assertEq(bryan.balanceOf(address(this)), 0, "our balance of bryan should be empty");
 
         // TODO: something feels wrong about this amount. we should be able to use assertEq here, but we have slightly more tokens than expected
-        assertGt(underlying.balanceOf(address(this)), underlyingAssets * 99 / 100, "we should have our asset back (less the deposit fee)");
+        assertGt(
+            underlying.balanceOf(address(this)),
+            underlyingAssets * 99 / 100,
+            "we should have our asset back (less the deposit fee)"
+        );
     }
 }
