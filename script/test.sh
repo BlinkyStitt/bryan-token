@@ -3,6 +3,8 @@
 set -eux -o pipefail
 
 REORG_SAFETY=${REORG_SAFETY:-5}
+
+# TODO: whats the actual max lag?
 MAX_LAG_BLOCKS=${MAX_LAG_BLOCKS:-5000}
 
 fork_url=https://1rpc.io/base
@@ -24,7 +26,7 @@ block_cache="./cache/block-number/test"
 if [ -e "$block_cache" ]; then
     last_used=$(cat "$block_cache")
 
-    lag=$(( block_number - last_used ))
+    lag=$(( block_number + REORG_SAFETY - last_used ))
     if [ "$lag" -gt "$MAX_LAG_BLOCKS" ]; then
         echo "$block_number" > "$block_cache"
     else
