@@ -5,6 +5,7 @@ import {LibString} from "solady/utils/LibString.sol";
 import {Script} from "forge-std/Script.sol";
 import {FanToken, IERC4626, IWETH9} from "../src/FanToken.sol";
 
+// TODO: rewrite this to prompt the user for inputs instead of having everything hard coded
 contract BryanScript is Script {
     using LibString for uint256;
 
@@ -33,6 +34,7 @@ contract BryanScript is Script {
 
         // find a salt. is it better to do this in deploy.sh or with ffi?
         // TODO: should we use a miner script like the uniswap deployer does? i think this is like 10x faster on my laptop
+        // TODO: this needs to be changed now that there is a factory contract doing the deploy
         string[] memory cmds = new string[](3);
         cmds[0] = "./script/salt_finder.sh";
         cmds[1] = addressPrefix;
@@ -54,18 +56,6 @@ contract BryanScript is Script {
             treasury,
             weth
         );
-
-        /*
-        string memory _name,
-        string memory _symbol,
-        uint256 entryFeeBasisPoints,
-        uint256 _harvestOwnerFeeBasisPoints,
-        uint256 _harvestTreasuryFeeBasisPoints,
-        address _owner,
-        IERC4626 _prizeVault,
-        address _treasury,
-        IWETH9 _weth
-        */
 
         // TODO: make sure the address for bryan matches the address prefix
 

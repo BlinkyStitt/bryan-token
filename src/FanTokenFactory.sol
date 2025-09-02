@@ -78,7 +78,7 @@ contract FanTokenFactory {
         require(deployed[address(fanToken)] == true, InvalidFanToken());
 
         IERC4626 prizeVault = IERC4626(fanToken.asset());
-        
+
         // get the fan tokens
         IERC20(address(fanToken)).safeTransferFrom(msg.sender, address(this), shares);
 

@@ -17,7 +17,7 @@ contract FanToken is AuctionSwapper, ERC4626EntryFees, Ownable2Step {
 
     uint256 private constant _BASIS_POINT_SCALE = 1e4;
 
-    /// @notice this amount of any harvested rewards that will be paid to the owner address. The rest inflate the values 
+    /// @notice this amount of any harvested rewards that will be paid to the owner address. The rest inflate the values
     /// @dev 100 is 1%
     uint256 public harvestOwnerFeeBasisPoints;
 
@@ -66,7 +66,7 @@ contract FanToken is AuctionSwapper, ERC4626EntryFees, Ownable2Step {
         harvestTreasuryFeeBasisPoints = _harvestTreasuryFeeBasisPoints;
 
         // default the treasury to the owner address. the owner can change this
-        if (_treasury == address(0)) {  
+        if (_treasury == address(0)) {
             require(harvestTreasuryFeeBasisPoints == 0);
         } else {
             treasury = _treasury;
@@ -131,7 +131,8 @@ contract FanToken is AuctionSwapper, ERC4626EntryFees, Ownable2Step {
             // optionally split some to a "treasury" address
             if (treasury != address(0)) {
                 // TODO: which way should we round?
-                uint256 treasuryFee = total.mulDiv(harvestTreasuryFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Ceil);
+                uint256 treasuryFee =
+                    total.mulDiv(harvestTreasuryFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Ceil);
                 if (treasuryFee > 0) {
                     IERC20(address(assetToken)).safeTransfer(treasury, treasuryFee);
                 }
@@ -159,13 +160,7 @@ contract FanToken is AuctionSwapper, ERC4626EntryFees, Ownable2Step {
             // TODO: should we just allow the owner to swap on aero/uniswap? i want a "can't be evil" design, so I think this is best
             // TODO: this can be DOSd. someone can send 1 wei and then call harvest
             // TODO: if the owner is calling this and we already have an auction running, replace it
-            _enableAuction(
-                address(token),
-                address(underlyingToken),
-                1 days,
-                1 weeks,
-                startingPrice
-            );
+            _enableAuction(address(token), address(underlyingToken), 1 days, 1 weeks, startingPrice);
         }
     }
 
