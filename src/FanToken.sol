@@ -9,6 +9,8 @@ import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IWETH9} from "v4-periphery/src/interfaces/external/IWETH9.sol";
 
+error CannotHarvestAsset();
+
 /// @title FanToken.
 /// @notice Play pool together as a group of fans.
 contract FanToken is AuctionSwapper, ERC4626EntryFees, Ownable2Step {
@@ -109,7 +111,7 @@ contract FanToken is AuctionSwapper, ERC4626EntryFees, Ownable2Step {
     function harvest(IERC20 token) public returns (uint256 total) {
         // don't allow harvesting the backing token! that would be bad!
         IERC4626 assetToken = IERC4626(asset());
-        require(token != assetToken, "!asset");
+        require(token != assetToken, CannotHarvestAsset());
 
         // if token is 0x0, wrap any ETH in this contract
         if (address(token) == address(WETH) && address(this).balance > 0) {
