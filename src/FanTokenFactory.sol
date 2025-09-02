@@ -1,0 +1,93 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+pragma solidity ^0.8.20;
+
+// TODO: use cloneable instead of deploying a full contract every time?
+
+import {FanToken, SafeERC20, IERC20, IERC4626, IWETH9} from "./FanToken.sol";
+
+error InvalidFanToken();
+
+contract FanTokenFactory {
+    using SafeERC20 for IERC20;
+
+    /// @notice make it easy to deposit by just sending ETH
+    IWETH9 public immutable WETH;
+
+    mapping(address => bool) public deployed;
+
+    // TODO: how should we do indexes on this?
+    event Created(address indexed _owner, address indexed _prizeVault, address indexed _treasury, address _token);
+
+    constructor(IWETH9 _weth) {
+        WETH = _weth;
+    }
+
+    function create(
+        string memory _name,
+        string memory _symbol,
+        uint256 _entryFeeBasisPoints,
+        uint256 _harvestOwnerFeeBasisPoints,
+        uint256 _harvestTreasuryFeeBasisPoints,
+        IERC4626 _prizeVault,
+        address _treasury,
+        bytes32 _salt,
+        uint256 _initialDeposit
+    ) public returns (FanToken fanToken) {
+        // TODO: use fancy cloning code
+        fanToken = new FanToken{salt: _salt}(
+            _name,
+            _symbol,
+            _entryFeeBasisPoints,
+            _harvestOwnerFeeBasisPoints,
+            _harvestTreasuryFeeBasisPoints,
+            msg.sender,
+            _prizeVault,
+            _treasury,
+            WETH
+        );
+
+        // TODO: use a bitmap here?
+        deployed[address(fanToken)] = true;
+
+        emit Created(msg.sender, address(_prizeVault), _treasury, address(fanToken));
+
+        if (_initialDeposit > 0) {
+            deposit(fanToken, _initialDeposit, msg.sender);
+        }
+    }
+
+    function deposit(FanToken fanToken, uint256 underlyingAssets, address receiver) public returns (uint256) {
+        require(deployed[address(fanToken)] == true, InvalidFanToken());
+
+        IERC4626 prizeVault = IERC4626(fanToken.asset());
+        IERC20 underlying = IERC20(prizeVault.asset());
+
+        // get the underlying
+        underlying.safeTransferFrom(msg.sender, address(this), underlyingAssets);
+
+        // deposit the underlying into the prize vault
+        underlying.forceApprove(address(prizeVault), underlyingAssets);
+        uint256 vaultShares = prizeVault.deposit(underlyingAssets, address(this));
+
+        // deposit the prize vault shares for fan tokens
+        IERC20(address(prizeVault)).forceApprove(address(fanToken), vaultShares);
+        return fanToken.deposit(vaultShares, receiver);
+    }
+
+    function redeem(FanToken fanToken, uint256 shares, address receiver) public returns (uint256) {
+        require(deployed[address(fanToken)] == true, InvalidFanToken());
+
+        IERC4626 prizeVault = IERC4626(fanToken.asset());
+        
+        // get the fan tokens
+        IERC20(address(fanToken)).safeTransferFrom(msg.sender, address(this), shares);
+
+        // redeem the fan tokens
+        uint256 vaultShares = fanToken.redeem(shares, address(this), address(this));
+
+        // redeem the vault shares
+        return prizeVault.redeem(vaultShares, receiver, address(this));
+    }
+
+    // TODO: do we need mint/withdraw?
+}

@@ -8,29 +8,32 @@ import {console} from "forge-std/console.sol";
 contract BryanTest is Test {
     uint256 baseFork;
     FanToken public bryan;
+    address treasury;
 
     function setUp() public {
         // TODO: use flags on the test command instead of forcing a fork here?
         address owner = address(this);
 
-        IERC4626 prizeVault = IERC4626(0x7f5C2b379b88499aC2B997Db583f8079503f25b9);
+        IERC4626 prizeVault = IERC4626(0x4E42f783db2D0C5bDFf40fDc66FCAe8b1Cda4a43);
         IWETH9 weth = IWETH9(address(0x4200000000000000000000000000000000000006));
 
-        // TODO: should we compound everything or nothing?
-        uint256 compoundBasisPoints = 0;
+        require(prizeVault.asset() == address(weth));
 
-        // tests are easier with fees off.
-        uint256 entryFeeBasisPoints = 0;
-        uint256 harvestFeeBasisPoints = 0;
+        // tests are easier with fees set to simple amounts.
+        uint256 entryFeeBasisPoints = 100;
+        uint256 harvestOwnerFeeBasisPoints = 1000;
+        uint256 harvestTreasuryFeeBasisPoints = 1000;
+        treasury = makeAddr("treasury");
 
         bryan = new FanToken(
-            "Bry Berries",
-            "BRY",
-            compoundBasisPoints,
+            "ETH from Bryan",
+            "BRY-ETH",
             entryFeeBasisPoints,
-            harvestFeeBasisPoints,
+            harvestOwnerFeeBasisPoints,
+            harvestTreasuryFeeBasisPoints,
             owner,
             prizeVault,
+            treasury,
             weth
         );
     }
@@ -50,19 +53,23 @@ contract BryanTest is Test {
         assertEq(nextOwner, bryan.owner(), "wrong new owner");
     }
 
-    function test_deposit_and_withdraw() public {
-        // TODO: for some reason we can't deal the ERC4626. We can deal the ERC20 though.
+    function _dealAsset(uint256 underlyingAssets, address receiver) internal returns (IERC4626 asset, uint256 assets) {
         IERC20 underlying = bryan.underlying();
-        uint256 underlyingAssets = 1_000 * 1e6;
         deal(address(underlying), address(this), underlyingAssets, false);
 
         // asset == prize vault
-        IERC4626 asset = IERC4626(bryan.asset());
+        asset = IERC4626(bryan.asset());
         console.log("asset", address(asset));
 
         // approve and deposit the underlying to get the asset that backs Bryan
         underlying.approve(address(asset), type(uint256).max);
-        uint256 assets = asset.deposit(underlyingAssets, address(this));
+        assets = asset.deposit(underlyingAssets, receiver);
+    }
+
+    function test_deposit_and_withdraw() public {
+        // TODO: for some reason we can't deal the ERC4626. We can deal the ERC20 though.
+        uint256 underlyingAssets = 1_000 * 1e6;
+        (IERC4626 asset, uint256 assets) = _dealAsset(underlyingAssets, address(this));
 
         // set up approvals
         asset.approve(address(bryan), type(uint256).max);
@@ -80,16 +87,14 @@ contract BryanTest is Test {
         // test the main redeem function
         uint256 redeemed = bryan.redeem(shares, address(this), address(this));
 
-        // require(redeemed == assets);
+        assertGt(redeemed, 0, "none redeemed"); // TODO: what should this amount be?
         assertEq(IERC20(bryan.asset()).balanceOf(address(bryan)), 0, "token's asset balance should be empty");
         assertEq(bryan.balanceOf(address(this)), 0, "our balance of bryan should be empty");
         assertEq(asset.balanceOf(address(this)), assets, "we should have our asset back");
     }
 
     function test_deposit_and_withdraw_with_fees() public {
-        bryan.setEntryFeeBasisPoints(5000);
-
-        revert("todo: set fees");
+        revert("todo: deploy a contract with fees and then try deposit/withdraw on it");
     }
 
     function test_owner_only() public {
@@ -97,7 +102,7 @@ contract BryanTest is Test {
     }
 
     function test_harvesting_pool() public {
-        bryan.setHarvestFeeBasisPoints(5000);
+        // bryan.setHarvestFeeBasisPoints(5000);
 
         revert("todo: add some POOL to the contract and then sweep it. check fees");
     }
@@ -107,7 +112,7 @@ contract BryanTest is Test {
     }
 
     function test_harvesting_weth() public {
-        bryan.setHarvestFeeBasisPoints(5000);
+        // bryan.setHarvestFeeBasisPoints(5000);
 
         revert("todo: add some WETH to the contract and then sweep it. check fees");
     }

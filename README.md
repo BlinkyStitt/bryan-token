@@ -55,6 +55,8 @@ I have BRY setup as my [Cobuild](https://farcaster.xyz/miniapps/XTipkfp9jZBu/cob
 
 - uniswap v4 hooks are giving me headaches. there is a list of approved hooks somewhere. maybe the constant-sum hook will work well enough to start.
 
+- /meme "Is this ~~~a butterfly~~~ sybil resistance?"
+
 ## Design
 
 Can't be evil is my foundational principle for smart contract development.
