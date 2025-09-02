@@ -42,8 +42,8 @@ contract BryanScript is Script {
         // deploy the contract with our found salt
         vm.startBroadcast();
         bryan = new FanToken{salt: salt}(
-            "Fan of Bryan",
-            "BRY",
+            "ETH from Bryan",
+            "BRY-ETH",
             compoundBasisPoints,
             entryFeeBasisPoints,
             harvestFeeBasisPoints,

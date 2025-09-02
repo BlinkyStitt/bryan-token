@@ -231,6 +231,8 @@ contract FanToken is AuctionSwapper, ERC4626EntryFees, Ownable2Step {
             // TODO: what should this be? each token should probably have its own values
             uint256 startingPrice = 1_000_000;
 
+            // TODO: this starts a dutch auction
+            // TODO: but I'm not sure if it is the best choice for a fan token. the owner has the option to set fees to 100%. but 
             _enableAuction(
                 address(token),
                 address(underlyingToken),
@@ -278,6 +280,9 @@ contract FanToken is AuctionSwapper, ERC4626EntryFees, Ownable2Step {
         }
 
         // TODO: should we do anything else here?
+        // TODO: mark the current timestamp for this token. if this timestamp is too old, then we should allow harvesting without the auctions
+        // TODO: if the auctions don't happen in a reasonable time, how do we claw the tokens back?
+        // TODO: what do we need to do on the auction contract so that it calls this post take function?
     }
 
     // === Fee configuration ===

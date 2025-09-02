@@ -6,10 +6,10 @@ import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {HookMiner} from "v4-periphery/src/utils/HookMiner.sol";
 
-import {FanTokenUniswapV4Hook} from "../src/FanTokenUniswapV4Hook.sol";
+import {ERC4626UniswapV4Hook} from "../src/ERC4626UniswapV4Hook.sol";
 
-/// @notice Mines the address and deploys the PointsHook.sol Hook contract
-contract BryanUniswapV4HookScript is Script {
+/// @notice Mines the address and deploys the ERC4626UniswapV4HookScript.sol Hook contract
+contract ERC4626UniswapV4HookScript is Script {
     function setUp() public {}
 
     function run() public {
@@ -29,11 +29,14 @@ contract BryanUniswapV4HookScript is Script {
         // Mine a salt that will produce a hook address with the correct flags
         bytes memory constructorArgs = abi.encode(bryan, poolmanager);
         (address hookAddress, bytes32 salt) =
-            HookMiner.find(create2deployer, flags, type(FanTokenUniswapV4Hook).creationCode, constructorArgs);
+            HookMiner.find(create2deployer, flags, type(ERC4626UniswapV4Hook).creationCode, constructorArgs);
 
         // Deploy the hook using CREATE2
         vm.broadcast();
-        FanTokenUniswapV4Hook bryanHook = new FanTokenUniswapV4Hook{salt: salt}(bryan, IPoolManager(poolmanager));
-        require(address(bryanHook) == hookAddress, "BryanUniswapV4HookScript: hook address mismatch");
+        ERC4626UniswapV4Hook vaultHook = new ERC4626UniswapV4Hook{salt: salt}(bryan, IPoolManager(poolmanager));
+        require(address(vaultHook) == hookAddress, "BryanUniswapV4HookScript: hook address mismatch");
+
+        // TODO: deploy a fanToken.asset() <-> fanToken.undelrying() pool with this hook
+        // TODO: deploy a fanToken <-> fanToken.asset() pool with this hook
     }
 }
