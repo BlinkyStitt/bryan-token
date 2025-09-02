@@ -128,12 +128,13 @@ contract FanToken is AuctionSwapper, ERC4626EntryFees, Ownable2Step {
             total = assetToken.deposit(total, address(this));
 
             // optionally split some to a "treasury" address
-            if (treasury != address(0)) {
+            address treasuryAddress = treasury;
+            if (treasuryAddress != address(0)) {
                 // TODO: which way should we round?
                 uint256 treasuryFee =
                     total.mulDiv(harvestTreasuryFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Ceil);
                 if (treasuryFee > 0) {
-                    IERC20(address(assetToken)).safeTransfer(treasury, treasuryFee);
+                    IERC20(address(assetToken)).safeTransfer(treasuryAddress, treasuryFee);
                 }
             }
 
