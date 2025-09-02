@@ -56,14 +56,21 @@ contract FanTokenFactory {
         }
     }
 
-    function deposit(FanToken fanToken, uint256 underlyingAssets, address receiver) public returns (uint256) {
+    function deposit(FanToken fanToken, uint256 underlyingAssets, address receiver) public payable returns (uint256) {
         require(deployed[address(fanToken)] == true, InvalidFanToken());
 
         IERC4626 prizeVault = IERC4626(fanToken.asset());
         IERC20 underlying = IERC20(prizeVault.asset());
 
-        // get the underlying
-        underlying.safeTransferFrom(msg.sender, address(this), underlyingAssets);
+        if (msg.value > 0) {
+            require(address(underlying) == address(WETH));
+
+            underlyingAssets = msg.value;
+            WETH.deposit{value: msg.value}();
+        } else {
+            // get the underlying
+            underlying.safeTransferFrom(msg.sender, address(this), underlyingAssets);
+        }
 
         // deposit the underlying into the prize vault
         underlying.forceApprove(address(prizeVault), underlyingAssets);

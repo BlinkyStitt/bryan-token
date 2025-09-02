@@ -119,7 +119,6 @@ contract FanToken is AuctionSwapper, ERC4626EntryFees, Ownable2Step {
         // we want to use the entire balance
         total = token.balanceOf(address(this));
         if (total == 0) {
-            // TODO: maybe require total to be greater than a threshold that is set by the contract owner
             return total;
         }
 
@@ -153,14 +152,11 @@ contract FanToken is AuctionSwapper, ERC4626EntryFees, Ownable2Step {
         } else {
             // we can't deposit this token. we need to sell it into the underlying token so that we can compound it
 
-            // TODO: what should this be? each token should probably have its own values
-            uint256 startingPrice = 1_000_000;
-
             // this starts a dutch auction
             // TODO: should we just allow the owner to swap on aero/uniswap? i want a "can't be evil" design, so I think this is best
-            // TODO: this can be DOSd. someone can send 1 wei and then call harvest
-            // TODO: if the owner is calling this and we already have an auction running, replace it
-            _enableAuction(address(token), address(underlyingToken), 1 days, 1 weeks, startingPrice);
+            // TODO: this can be DOSd. someone can send 1 wei and then call harvest! we need to check a minimum balance
+            // TODO: if the owner is calling this and we already have an auction running, replace it?
+            _enableAuction(address(token), address(underlyingToken));
         }
     }
 
@@ -178,20 +174,18 @@ contract FanToken is AuctionSwapper, ERC4626EntryFees, Ownable2Step {
      * @param _amountPayed Amount of `_token` that was sent to the strategy.
      */
     function _postTake(address _token, uint256 _amountTaken, uint256 _amountPayed) internal override {
-        // silence warnings
+        // silence warnings about unused variables
         _amountTaken;
         _amountPayed;
 
-        IERC20 underlyingToken = underlying;
-
-        if (_token == address(underlyingToken)) {
+        if (_token == address(underlying)) {
             harvest(IERC20(_token));
         }
 
         // TODO: should we do anything else here?
         // TODO: do a call in preTake that gets the price from an oracle and requires a minimum price from that? oracles are hard to get right
         // TODO: mark the current timestamp for this token. if this timestamp is too old, then we should allow harvesting without the auctions
-        // TODO: if the auctions don't happen in a reasonable time, how do we claw the tokens back?
+        // TODO: if the auctions fails, where do the tokens end up?
         // TODO: what do we need to do on the auction contract so that it calls this post take function?
     }
 

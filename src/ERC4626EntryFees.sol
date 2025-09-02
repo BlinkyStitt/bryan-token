@@ -41,6 +41,7 @@ abstract contract ERC4626EntryFees is ERC4626 {
         super._deposit(caller, receiver, assets, shares);
 
         if (fee > 0 && recipient != address(this)) {
+            // TODO: is asset the right thing to forward? i think we want to keep it wrapped!
             SafeERC20.safeTransfer(IERC20(asset()), recipient, fee);
         }
     }

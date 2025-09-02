@@ -8,7 +8,7 @@ import {FanTokenFactory, IERC4626, IWETH9} from "../src/FanTokenFactory.sol";
 contract FanTokenFactoryScript is Script {
     using LibString for uint256;
 
-    FanTokenFactoryScript public fanTokenFactory;
+    FanTokenFactory public fanTokenFactory;
 
     function setUp() public {}
 

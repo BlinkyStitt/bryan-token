@@ -6,23 +6,21 @@ import {FanToken, IERC20, IERC4626, IWETH9} from "../src/FanToken.sol";
 import {console} from "forge-std/console.sol";
 
 contract BryanTest is Test {
-    uint256 baseFork;
     FanToken public bryan;
     address treasury;
+    IWETH9 weth;
 
     function setUp() public {
         // TODO: use flags on the test command instead of forcing a fork here?
         address owner = address(this);
 
         IERC4626 prizeVault = IERC4626(0x4E42f783db2D0C5bDFf40fDc66FCAe8b1Cda4a43);
-        IWETH9 weth = IWETH9(address(0x4200000000000000000000000000000000000006));
+        weth = IWETH9(address(0x4200000000000000000000000000000000000006));
 
-        require(prizeVault.asset() == address(weth));
-
-        // tests are easier with fees set to simple amounts.
-        uint256 entryFeeBasisPoints = 100;
-        uint256 harvestOwnerFeeBasisPoints = 1000;
-        uint256 harvestTreasuryFeeBasisPoints = 1000;
+        // tests are easier with fees set to 0
+        uint256 entryFeeBasisPoints = 0;
+        uint256 harvestOwnerFeeBasisPoints = 0;
+        uint256 harvestTreasuryFeeBasisPoints = 0;
         treasury = makeAddr("treasury");
 
         bryan = new FanToken(
@@ -36,6 +34,10 @@ contract BryanTest is Test {
             treasury,
             weth
         );
+    }
+
+    function test_vault_asset() public {
+        require(address(bryan.underlying()) == address(weth));
     }
 
     function test_ownership() public {
@@ -87,10 +89,11 @@ contract BryanTest is Test {
         // test the main redeem function
         uint256 redeemed = bryan.redeem(shares, address(this), address(this));
 
+
         assertGt(redeemed, 0, "none redeemed"); // TODO: what should this amount be?
         assertEq(IERC20(bryan.asset()).balanceOf(address(bryan)), 0, "token's asset balance should be empty");
         assertEq(bryan.balanceOf(address(this)), 0, "our balance of bryan should be empty");
-        assertEq(asset.balanceOf(address(this)), assets, "we should have our asset back");
+        assertEq(asset.balanceOf(address(this)), assets, "we should have our asset back less the fee");
     }
 
     function test_deposit_and_withdraw_with_fees() public {
@@ -108,7 +111,7 @@ contract BryanTest is Test {
     }
 
     function test_claiming_pool_rewards() public {
-        revert("todo: claim POOL rewards");
+        revert("todo: claim POOL rewards on pooltogether's contract");
     }
 
     function test_harvesting_weth() public {
@@ -118,6 +121,7 @@ contract BryanTest is Test {
     }
 
     function test_uniswap_v4_hook() public {
-        revert("todo: create a uniswap v4 pool and a hook that wraps/unwraps the underlying token");
+        revert("todo: create a uniswap v4 pool and a hook that wraps/unwraps the underlying token. make sure two pools with our hooks can be combined");
+        // TODO: what are some other options? what do
     }
 }
