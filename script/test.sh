@@ -1,9 +1,40 @@
 #!/bin/bash
+# run tests on a forked network on a recent block
 set -eux -o pipefail
 
-# TODO: do some queries to pick a good fork block number. we want to use caches for as long as possible, but public nodes don't always offer archive blocks
+REORG_SAFETY=${REORG_SAFETY:-5}
+MAX_LAG_BLOCKS=${MAX_LAG_BLOCKS:-5000}
+
+fork_url=https://1rpc.io/base
+
+block_number=$(cast block-number --rpc-url "$fork_url")
+
+if [ "$block_number" -gt "$REORG_SAFETY" ]; then
+    block_number=$(( block_number - REORG_SAFETY ))
+else
+    block_number=0
+fi
+
+block_cache_dir="./cache/block-number/"
+
+mkdir -p "$block_cache_dir"
+
+block_cache="./cache/block-number/test"
+
+if [ -e "$block_cache" ]; then
+    last_used=$(cat "$block_cache")
+
+    lag=$(( block_number - last_used ))
+    if [ "$lag" -gt "$MAX_LAG_BLOCKS" ]; then
+        echo "$block_number" > "$block_cache"
+    else
+        block_number=$last_used
+    fi
+else
+    echo "$block_number" > "$block_cache"
+fi
 
 exec forge test \
-    --fork-block-number 35003452 \
-    --fork-url https://1rpc.io/base \
+    --fork-block-number "$block_number" \
+    --fork-url "$fork_url" \
     "$@"
