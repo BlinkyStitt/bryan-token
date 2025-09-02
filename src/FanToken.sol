@@ -112,7 +112,7 @@ contract FanToken is AuctionSwapper, ERC4626EntryFees, Ownable2Step {
         require(token != assetToken, "!asset");
 
         // if token is 0x0, wrap any ETH in this contract
-        if (address(this).balance > 0) {
+        if (address(token) == address(WETH) && address(this).balance > 0) {
             WETH.deposit{value: address(this).balance}();
         }
 

@@ -16,7 +16,7 @@ contract BryanScript is Script {
 
     function run() public {
         // TODO: read the environment to get the contract address for the factory
-        fanTokenFactory = revert("TODO: get this from the live deployment");
+        fanTokenFactory = FanTokenFactory(address(0));
 
         // constructor arguments
         address owner = 0x2699C32A793D58691419A054DA69414dF186b181; // TODO: use the active account
@@ -61,10 +61,8 @@ contract BryanScript is Script {
             entryFeeBasisPoints,
             harvestOwnerFeeBasisPoints,
             harvestTreasuryFeeBasisPoints,
-            owner,
             wethPrizeVault,
             treasury,
-            wethPrizeVault,
             salt,
             initialDeposit
         );

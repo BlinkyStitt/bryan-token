@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {LibString} from "solady/utils/LibString.sol";
 import {Script} from "forge-std/Script.sol";
-import {FanTokenFactory, IERC4626, IWETH9} from "../src/FanTokenFactory.sol";
+import {FanTokenFactory, IWETH9} from "../src/FanTokenFactory.sol";
 
 contract FanTokenFactoryScript is Script {
     using LibString for uint256;
