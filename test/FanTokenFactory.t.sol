@@ -6,6 +6,7 @@ import {FanToken, FanTokenFactory, IERC20, IERC4626, IWETH9} from "../src/FanTok
 import {console} from "forge-std/console.sol";
 
 contract FanTokenFactoryTest is Test {
+    IERC4626 prizeVault;
     FanToken public bryan;
     FanTokenFactory public fanTokenFactory;
 
@@ -18,9 +19,9 @@ contract FanTokenFactoryTest is Test {
         fanTokenFactory = new FanTokenFactory(weth);
 
         // TODO: use flags on the test command instead of forcing a fork here?
-        address owner = address(this);
+        address owner = makeAddr("bryan owner");
 
-        IERC4626 prizeVault = IERC4626(0x4E42f783db2D0C5bDFf40fDc66FCAe8b1Cda4a43);
+        prizeVault = IERC4626(0x4E42f783db2D0C5bDFf40fDc66FCAe8b1Cda4a43);
 
         // tests are easier with simple fees (but maybe we should set to 0 for the default tests)
         uint256 entryFeeBasisPoints = 100;
@@ -30,6 +31,7 @@ contract FanTokenFactoryTest is Test {
 
         bytes32 salt = bytes32(0);
 
+        vm.prank(owner);
         bryan = fanTokenFactory.create(
             "ETH from Bryan",
             "BRY-ETH",
@@ -43,6 +45,24 @@ contract FanTokenFactoryTest is Test {
         );
     }
 
+    function test_initial_deposit() public {
+        uint256 initialDeposit = 1 ether;
+        
+        FanToken fanToken = fanTokenFactory.create{value: initialDeposit}(
+            "ETH from Bryan Again",
+            "BRY-ETH-2",
+            0,
+            0,
+            0,
+            prizeVault,
+            address(0),
+            bytes32(0),
+            initialDeposit
+        );
+
+        assertEq(fanToken.underlyingBalanceOf(address(this)), initialDeposit, "initial deposit incorrect");
+    }
+
     function test_vault_asset() public {
         require(address(bryan.underlying()) == address(weth));
     }
@@ -54,7 +74,7 @@ contract FanTokenFactoryTest is Test {
 
         uint256 shares = fanTokenFactory.deposit{value: 1 ether}(bryan, 1 ether, receiver);
 
-        IERC20 prizeVault = IERC20(bryan.asset());
+        prizeVault = IERC4626(bryan.asset());
 
         // TODO: what should the amounts actually be?
         assertGt(bryan.balanceOf(receiver), 0);

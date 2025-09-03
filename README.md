@@ -35,11 +35,19 @@ Prizes and rewards will be distributed with [Empire Builder](https://farcaster.x
 
 I have BRY setup as my [Cobuild](https://farcaster.xyz/miniapps/XTipkfp9jZBu/cobuild) token. Interact with me on farcaster to buy some.
 
+## Problems
+
+harvesting is not safe. we need to track time weighted average balances and pay based on that. otherwise someone might flash deposit a huge amount, call harvest, then flash withdraw. that shouldn't pay anything. deposit fees defend some against this attack, but aren't perfect. i think we just need to use the normal vault/strategy code. they already have protections for all these things. and we can just take a 50% performance fee.
+
+i need an example bot for handling the dutch auctions
+
+the deposit fees don't work how i want. they should be sending the fan token to the owner, not the asset.
+
 ## Miscellaneous Ideas
 
 - A previous version was designed to not have any value. Whoever held the most could set a billboard. I think a dedicated "Billboard" contract makes more sense.
 
-- I don't like having the ability to erase the billboard. But it seems like that's a good idea for this experiment.
+- An old version of the token had a "billboard". Whoever held the most tokens, could set the string. I don't like having the ability to erase the billboard. But it seems like that's a good idea for this experiment. That worked when I gave the BRY out, but the new design is backed and I don't think that works as well.
 
 - A decaying price on the billboard is an interesting idea.
 
@@ -79,6 +87,12 @@ I would like to be able to change the name and symbol for my token. But that can
 
 <https://book.getfoundry.sh/>
 
+### Dependencies
+
+```shell
+brew install lcov
+```
+
 ### Build
 
 ```shell
@@ -95,6 +109,20 @@ forge test
 
 ```shell
 forge fmt
+```
+
+### Code Coverage
+
+Run the tests with coverage:
+
+```shell
+forge coverage --fork-url https://1rpc.io/base --report lcov
+```
+
+Generate the report:
+
+```shell
+genhtml lcov.info --output-dir coverage
 ```
 
 ### Gas Snapshots

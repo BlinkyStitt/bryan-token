@@ -35,14 +35,16 @@ abstract contract ERC4626EntryFees is ERC4626 {
 
     /// @dev Send entry fee to {_entryFeeRecipient}. See {IERC4626-_deposit}.
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal virtual override {
-        uint256 fee = _feeOnTotal(assets, _entryFeeBasisPoints());
-        address recipient = _entryFeeRecipient();
+        // TODO: if receiver is address(this), i think we should revert
+
+        uint256 fee = _feeOnTotal(shares, _entryFeeBasisPoints());
+        address feeRecipient = _entryFeeRecipient();
 
         super._deposit(caller, receiver, assets, shares);
 
-        if (fee > 0 && recipient != address(this)) {
-            // TODO: is asset the right thing to forward? i think we want to keep it wrapped!
-            SafeERC20.safeTransfer(IERC20(asset()), recipient, fee);
+        if (fee > 0 && feeRecipient != address(this)) {
+            // TODO: this takes the asset as the fee, but I think I'd actually prefer to _mint shares
+            SafeERC20.safeTransfer(IERC20(asset()), feeRecipient, fee);
         }
     }
 

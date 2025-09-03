@@ -36,6 +36,8 @@ else
     echo "$block_number" > "$block_cache"
 fi
 
+# TODO: easily run `snapshot` or `coverage` instead of only `test`
+
 exec forge test \
     --fork-block-number "$block_number" \
     --fork-url "$fork_url" \

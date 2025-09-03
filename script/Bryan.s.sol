@@ -34,6 +34,8 @@ contract BryanScript is Script {
 
         // prepare creation code
         revert("todo: this is wrong now. we need a helper function for checking salts from the factory");
+
+        /*
         bytes memory creationCode = abi.encodePacked(type(FanToken).creationCode, abi.encode(owner, wethPrizeVault));
 
         bytes32 creationCodeHash = keccak256(creationCode);
@@ -70,6 +72,7 @@ contract BryanScript is Script {
         // TODO: make sure the address for bryan matches the address prefix
 
         vm.stopBroadcast();
+        */
     }
 
     // TODO: this should probably be in another file

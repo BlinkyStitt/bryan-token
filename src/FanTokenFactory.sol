@@ -6,6 +6,7 @@ pragma solidity ^0.8.20;
 import {FanToken, SafeERC20, IERC20, IERC4626, IWETH9} from "./FanToken.sol";
 
 error InvalidFanToken();
+error IncorrectUnderlying(address underlying);
 
 contract FanTokenFactory {
     using SafeERC20 for IERC20;
@@ -32,7 +33,7 @@ contract FanTokenFactory {
         address _treasury,
         bytes32 _salt,
         uint256 _initialDeposit
-    ) public returns (FanToken fanToken) {
+    ) public payable returns (FanToken fanToken) {
         // TODO: use fancy cloning code
         fanToken = new FanToken{salt: _salt}(
             _name,
@@ -63,7 +64,7 @@ contract FanTokenFactory {
         IERC20 underlying = IERC20(prizeVault.asset());
 
         if (msg.value > 0) {
-            require(address(underlying) == address(WETH));
+            require(address(underlying) == address(WETH), IncorrectUnderlying(address(underlying)));
 
             underlyingAssets = msg.value;
             WETH.deposit{value: msg.value}();
