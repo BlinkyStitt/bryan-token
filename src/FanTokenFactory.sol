@@ -58,6 +58,7 @@ contract FanTokenFactory {
     }
 
     function deposit(FanToken fanToken, uint256 underlyingAssets, address receiver) public payable returns (uint256) {
+        // only allow depositing to a fan token that we deployed
         require(deployed[address(fanToken)] == true, InvalidFanToken());
 
         IERC4626 prizeVault = IERC4626(fanToken.asset());
@@ -66,10 +67,14 @@ contract FanTokenFactory {
         if (msg.value > 0) {
             require(address(underlying) == address(WETH), IncorrectUnderlying(address(underlying)));
 
+            // TODO: should we overwrite underlyingAssets (i think so), or should we require they match? less gas to do it this way
             underlyingAssets = msg.value;
-            WETH.deposit{value: msg.value}();
+
+            WETH.deposit{value: underlyingAssets}();
         } else {
-            // get the underlying
+            require(underlyingAssets > 0, "no underlying assets");
+
+            // get the underlying into this contract so we can do things with it
             underlying.safeTransferFrom(msg.sender, address(this), underlyingAssets);
         }
 
