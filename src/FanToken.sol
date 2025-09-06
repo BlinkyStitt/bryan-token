@@ -90,6 +90,14 @@ contract FanToken is AuctionSwapper, ERC4626EntryFees, Ownable2Step {
         underlying.forceApprove(asset(), type(uint256).max);
     }
 
+    // === Owner only ===
+
+    /// @dev if you want to lock the treasury address, you can `revokeOwnership()`
+    function setTreasury(address newTreasury) public onlyOwner {
+        emit NewTreasury(treasury, newTreasury);
+        treasury = newTreasury;
+    }
+
     // === Custom things ===
 
     /// @notice check an account's balance in the underlying (backing) token
