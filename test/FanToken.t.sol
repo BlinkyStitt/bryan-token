@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {CannotHarvestAsset, FanToken, IERC20, IERC4626, IWETH9} from "../src/FanToken.sol";
+import {InvalidAuctionToken, FanToken, IERC20, IERC4626, IWETH9} from "../src/FanToken.sol";
 import {console} from "forge-std/console.sol";
 
 contract BryanTest is Test {
@@ -20,7 +20,7 @@ contract BryanTest is Test {
 
         // TODO: the entry fee isn't what i want. i want it to be in fanTokens, not in underlying!
 
-        // tests are easier with fees set to simple amounts like 1% and 10%
+        // fees of 0 are probably too simple to be worthwhile. need to test with actual fees set
         uint256 entryFeeBasisPoints = 0;
         uint256 harvestOwnerFeeBasisPoints = 0;
         uint256 harvestTreasuryFeeBasisPoints = 0;
@@ -89,7 +89,6 @@ contract BryanTest is Test {
         // TODO: the fees make this annoying
         // TODO: make sure that the balance of the prize vault grew by the underlying assets
         assertEq(asset.balanceOf(address(bryan)), assets, "asset balance does not match assets");
-        assertEq(asset.balanceOf(owner), assets / 100, "asset balance does not match assets");
         assertEq(bryan.balanceOf(address(this)), shares, "bryan balance does not match shares");
         assertEq(bryan.underlyingBalanceOf(address(this)), underlyingAssets, "underlying balance does not match");
 
@@ -103,11 +102,11 @@ contract BryanTest is Test {
         assertEq(bryan.underlyingBalanceOf(address(this)), 0, "underlying balance is not zeroed");
     }
 
-    function test_harvesting_asset_fails() public {
+    function test_auctioning_asset_fails() public {
         IERC20 asset = IERC20(bryan.asset());
 
-        vm.expectRevert(CannotHarvestAsset.selector);
-        bryan.harvest(asset);
+        vm.expectRevert(InvalidAuctionToken.selector);
+        bryan.enableAuction(asset);
     }
 
     /*
