@@ -53,7 +53,11 @@ contract FanTokenFactoryTest is Test {
 
         assertEq(fanToken.balanceOf(address(this)), initialDeposit, "initial deposits should be 1:1");
 
-        // assertEq(fanToken.balanceOfUnderlying(address(this)), initialDeposit, "balance of underlying from initial deposit is incorrect");
+        assertEq(
+            fanToken.balanceOfUnderlying(address(this)),
+            initialDeposit,
+            "balance of underlying from initial deposit is incorrect"
+        );
     }
 
     function test_vault_asset() public {
@@ -65,7 +69,7 @@ contract FanTokenFactoryTest is Test {
 
         address receiver = makeAddr("receiver");
 
-        uint256 shares = fanTokenFactory.deposit{value: 1 ether}(bryan, 1 ether, receiver);
+        uint256 shares = fanTokenFactory.startDeposit{value: 1 ether}(bryan, 1 ether, receiver);
 
         prizeVault = IERC4626(bryan.asset());
 
@@ -89,7 +93,7 @@ contract FanTokenFactoryTest is Test {
 
         // test the factory's deposit function
         underlying.approve(address(fanTokenFactory), type(uint256).max);
-        uint256 shares = fanTokenFactory.deposit(bryan, underlyingAssets, address(this));
+        uint256 shares = fanTokenFactory.startDeposit(bryan, underlyingAssets, address(this));
 
         console.log("shares:", shares);
 

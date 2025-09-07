@@ -4,7 +4,6 @@ pragma solidity ^0.8.20;
 // TODO: use cloneable instead of deploying a full contract every time?
 
 import {FanToken, SafeERC20, IERC20, IERC4626, IWETH9} from "./FanToken.sol";
-import {console} from "forge-std/console.sol";
 
 error InvalidFanToken();
 error IncorrectUnderlying(address underlying);
@@ -57,11 +56,15 @@ contract FanTokenFactory {
         emit Created(msg.sender, address(_prizeVault), _treasury, address(fanToken));
 
         if (_initialDeposit > 0) {
-            deposit(fanToken, _initialDeposit, msg.sender);
+            startDeposit(fanToken, _initialDeposit, msg.sender);
         }
     }
 
-    function deposit(FanToken fanToken, uint256 underlyingAssets, address receiver) public payable returns (uint256) {
+    function startDeposit(FanToken fanToken, uint256 underlyingAssets, address receiver)
+        public
+        payable
+        returns (uint256)
+    {
         // only allow depositing to a fan token that we deployed
         require(deployed[address(fanToken)] == true, InvalidFanToken());
 
@@ -85,11 +88,11 @@ contract FanTokenFactory {
         // deposit the underlying into the prize vault
         underlying.forceApprove(address(prizeVault), underlyingAssets);
         uint256 vaultShares = prizeVault.deposit(underlyingAssets, address(this));
-        console.log("vaultShares:", vaultShares);
 
         // deposit the prize vault shares for fan tokens
         IERC20(address(prizeVault)).forceApprove(address(fanToken), vaultShares);
-        return fanToken.deposit(vaultShares, receiver);
+
+        return fanToken.startDeposit(vaultShares, receiver);
     }
 
     function redeem(FanToken fanToken, uint256 shares, address receiver) public returns (uint256) {

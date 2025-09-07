@@ -71,7 +71,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
         underlying = IERC20(_prizeVault.asset());
 
-        // TODO: i can't decide if this should have one 
+        // TODO: i can't decide if this should have one
         harvestOwnerFeeBasisPoints = _harvestOwnerFeeBasisPoints;
         harvestTreasuryFeeBasisPoints = _harvestTreasuryFeeBasisPoints;
 
@@ -114,12 +114,15 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         }
     }
 
-    /// @notice finish the deposit from any caller. The current caller does not need to be the same as the 
-    function _finishDeposit(address originalCaller, address receiver, uint256 assets) internal returns (uint256 shares) {
+    /// @notice finish the deposit from any caller. The current caller does not need to be the same as the
+    function _finishDeposit(address originalCaller, address receiver, uint256 assets)
+        internal
+        returns (uint256 shares)
+    {
         PendingDeposit storage pendingDeposit = pendingDepositOf[originalCaller][receiver];
 
         // TODO: custom error
-        require(pendingDeposit.when != 0 && block.timestamp >= pendingDeposit.when, "!now");    
+        require(pendingDeposit.when != 0 && block.timestamp >= pendingDeposit.when, "!now");
 
         if (assets == 0) {
             assets = pendingDeposit.assets;
@@ -145,21 +148,17 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
     // === Public things ===
 
-    // /// @notice check an account's balance in the underlying (backing) token
-    // function balanceOfUnderlying(address who) public view returns (uint256) {
-    //     uint256 fanTokenShares = balanceOf(who);
+    /// @notice check an account's balance in the underlying (backing) token
+    function balanceOfUnderlying(address who) public view returns (uint256) {
+        uint256 fanTokenShares = balanceOf(who);
 
-    //     // TODO: convertToAssets or previewRedeem?
-    //     uint256 prizeVaultShares = previewRedeem(fanTokenShares);
+        // TODO: convertToAssets or previewRedeem?
+        uint256 prizeVaultShares = previewRedeem(fanTokenShares);
 
-    //     IERC4626 prizeVault = IERC4626(asset());
+        IERC4626 prizeVault = IERC4626(asset());
 
-    //     // TODO: convertToAssets or previewRedeem?
-    //     return prizeVault.previewRedeem(prizeVaultShares);
-    // }
-
-    function finishDeposit(address originalCaller, address receiver) public returns (uint256) {
-        return _finishDeposit(originalCaller, receiver, 0);
+        // TODO: convertToAssets or previewRedeem?
+        return prizeVault.previewRedeem(prizeVaultShares);
     }
 
     // TODO: i feel like we should store a minimum trade amount here. but i don't know how to make that open. maybe this should be an only-owner function?
@@ -172,6 +171,10 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         require(from != underlying, InvalidAuctionToken());
 
         return _enableAuction(address(from), address(underlying));
+    }
+
+    function finishDeposit(address originalCaller, address receiver) public returns (uint256) {
+        return _finishDeposit(originalCaller, receiver, 0);
     }
 
     /// @notice compound any underlying tokens. Fees may be sent to the owner or the treasury.
@@ -217,23 +220,28 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     }
 
     /// @notice begin a deposit
+    /// @dev the first deposit shouldn't have any delay
     /// @dev this is necessary to protect against large deposits around the time of a large win
-    /// todo: write a cancelDeposit method?
-    function startDeposit(uint256 assets, address receiver) public {
-        PendingDeposit storage pendingDeposit = pendingDepositOf[msg.sender][receiver];
+    function startDeposit(uint256 assets, address receiver) public returns (uint256 shares) {
+        if (totalSupply() == 0) {
+            shares = super.deposit(assets, receiver);
+        } else {
+            PendingDeposit storage pendingDeposit = pendingDepositOf[msg.sender][receiver];
 
-        // if a deposit is already running, then we don't allow starting a new one
-        // TODO: if receiver is the message.sender, maybe we should allow extending the when indefinitely?
-        require(pendingDeposit.when == 0, "!now");
+            // if a deposit is already running, then we don't allow starting a new one
+            // TODO: if receiver is the message.sender, maybe we should allow extending the when indefinitely?
+            require(pendingDeposit.when == 0, "!now");
 
-        SafeERC20.safeTransferFrom(IERC20(asset()), msg.sender, address(this), assets);
+            shares = previewDeposit(assets);
+            SafeERC20.safeTransferFrom(IERC20(asset()), msg.sender, address(this), assets);
 
-        totalPendingDeposits += assets;
+            totalPendingDeposits += assets;
 
-        pendingBalanceOf[receiver] += assets;
+            pendingBalanceOf[receiver] += assets;
 
-        pendingDeposit.assets += assets;
-        pendingDeposit.when = block.timestamp + DEPOSIT_DELAY;
+            pendingDeposit.assets += assets;
+            pendingDeposit.when = block.timestamp + DEPOSIT_DELAY;
+        }
     }
 
     /// @dev this does not include the pending deposits
@@ -248,5 +256,4 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             WETH.deposit{value: thisBalance}();
         }
     }
-
 }
