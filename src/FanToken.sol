@@ -104,12 +104,11 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// @dev this does NOT transfer the tokens. instead we make sure a `startDeposit` was already called
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
         if (totalSupply() == 0) {
+            // TODO: should this check `totalPendingDeposits == 0`?
             // the first deposit shouldn't have any delay
             super._deposit(caller, receiver, assets, shares);
         } else {
-            // TODO: i think this has bugs
             uint256 finishedShares = _finishDeposit(caller, receiver, assets);
-
             require(finishedShares == shares, "!shares");
         }
     }
@@ -131,15 +130,15 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             require(pendingDeposit.assets == assets, "!assets");
         }
 
+        // TODO: this should maybe be a function argument
+        shares = convertToShares(assets);
+
         pendingDeposit.assets = 0;
         pendingDeposit.when = 0;
 
         totalPendingDeposits -= assets;
 
         pendingBalanceOf[receiver] -= assets;
-
-        // TODO: this should maybe be a function argument
-        shares = previewDeposit(assets);
 
         _mint(receiver, shares);
 
@@ -224,6 +223,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// @dev this is necessary to protect against large deposits around the time of a large win
     function startDeposit(uint256 assets, address receiver) public returns (uint256 shares) {
         if (totalSupply() == 0) {
+            // TODO: should this also check if `totalPendingDeposits == 0`?
             shares = super.deposit(assets, receiver);
         } else {
             PendingDeposit storage pendingDeposit = pendingDepositOf[msg.sender][receiver];

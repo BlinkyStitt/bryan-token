@@ -91,23 +91,32 @@ contract BryanTest is Test {
         // assertEq(assets, bryan.pendingBalanceOf(address(this)), "wrong pending balance");
         // assertEq(assets, bryan.totalPendingDeposits(), "wrong total pending balance");
 
-        // vm.warp(block.timestamp + bryan.DEPOSIT_DELAY() + 1);
-        uint256 shares = bryan.deposit(assets, address(this));
+        uint256 shares = bryan.deposit(assets / 2, address(this));
+        assertEq(shares, assets / 2, "initial deposit failed");
 
-        // shares should currently be 1:1
-        assertEq(shares, underlyingAssets, "bad deposit");
+        assertEq(bryan.totalSupply(), shares, "supply wrong 1");
 
-        // TODO: this require is wrong. we want to be sure that the shares we received are worth what we deposited
-        // require(assets == shares);
+        // todo: deposit without calling start should revert
+        uint256 pendingShares = bryan.startDeposit(assets / 2, address(this));
+        assertEq(pendingShares, shares, "startDeposit failed");
+
+        assertEq(bryan.totalSupply(), shares, "supply wrong 2");
+
+        vm.warp(block.timestamp + bryan.DEPOSIT_DELAY() + 1);
+        // TODO: test depositing from another address. anyone should be able to finalize a deposit
+        uint256 newShares = bryan.deposit(assets / 2, address(this));
+        assertEq(pendingShares, newShares, "finishing deposit failed");
+
+        assertEq(bryan.totalSupply(), shares + newShares, "supply wrong 3");
 
         // TODO: the fees make this annoying
         // TODO: make sure that the balance of the prize vault grew by the underlying assets
         assertEq(asset.balanceOf(address(bryan)), assets, "asset balance does not match assets");
-        assertEq(bryan.balanceOf(address(this)), shares, "bryan balance does not match shares");
+        assertEq(bryan.balanceOf(address(this)), shares + newShares, "bryan balance does not match shares");
         assertEq(bryan.balanceOfUnderlying(address(this)), underlyingAssets, "underlying balance does not match");
 
         // test the main redeem function
-        uint256 redeemed = bryan.redeem(shares, address(this), address(this));
+        uint256 redeemed = bryan.redeem(shares + newShares, address(this), address(this));
 
         assertGt(redeemed, 0, "none redeemed"); // TODO: what should this amount be?
         assertEq(IERC20(bryan.asset()).balanceOf(address(bryan)), 0, "token's asset balance should be empty");
