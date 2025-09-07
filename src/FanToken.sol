@@ -16,6 +16,9 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     using Math for uint256;
     using SafeERC20 for IERC20;
 
+    /// @notice deposits are delayed to stop prizes from being taken unfairly
+    uint256 public immutable DEPOSIT_DELAY;
+
     uint256 private constant _BASIS_POINT_SCALE = 1e4;
 
     /// @notice this amount of any harvested rewards that will be paid to the owner address. The rest inflate the values
@@ -30,11 +33,25 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     address public treasury;
 
     /// @notice the backing token for this fan token
+    /// @dev the linter says this should be capitalized
     IERC20 public immutable underlying;
 
     /// @notice if the underlying ismake it easy to deposit by just sending ETH
     IWETH9 public immutable WETH;
 
+    /// @notice assets held for the DEPOSIT_DELAY
+    uint256 public totalPendingDeposits = 0;
+
+    /// TODO: think more about this. if the asset suffers a loss, I think some trickery can happen here. ironic since we added this to help when we have a large win
+    struct PendingDeposit {
+        uint256 when;
+        uint256 assets;
+    }
+
+    /// TODO: include a nonce here so that multiple deposits don't reset the timer?
+    mapping(address caller => mapping(address receiver => PendingDeposit)) public pendingDepositOf;
+
+    /// @notice the owner is allowed to change the treasury
     event NewTreasury(address indexed oldTreasury, address indexed newTreasury);
 
     /// @dev these underscores are gross. too many different libraries and styles are being mixed together
@@ -80,14 +97,44 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         underlying.forceApprove(asset(), type(uint256).max);
     }
 
-    // === Internal things ===
+    // === Internal ===
 
+    /// @dev this does NOT call the super.deposit. The tokens must already be pending deposit
+    /// @dev this does NOT transfer the tokens. instead we make sure a `startDeposit` was already called
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
-        // TODO: we need to create a deposit queue
-        // TODO: make sure one user can't greif others. we don't want them able to increase our gas costs by dusting us
-        // super._deposit(caller, address(this), assets, shares);
+        if (totalSupply() == 0) {
+            // the first deposit shouldn't have any delay
+            super._deposit(caller, receiver, assets, shares);
+        } else {
+            uint256 finishedShares = _finishDeposit(caller, receiver, assets);
 
-        super._deposit(caller, receiver, assets, shares);
+            require(finishedShares == shares);
+        }
+    }
+
+    /// @notice allow closing deposits 
+    function _finishDeposit(address originalCaller, address receiver, uint256 assets) internal returns (uint256 shares) {
+        PendingDeposit storage pendingDeposit = pendingDepositOf[originalCaller][receiver];
+
+        require(pendingDeposit.when != 0 && block.timestamp >= pendingDeposit.when);    
+
+        if (assets == 0) {
+            assets = pendingDeposit.assets;
+        } else {
+            require(pendingDeposit.assets == assets);
+        }
+
+        pendingDeposit.assets = 0;
+        pendingDeposit.when = 0;
+
+        totalPendingDeposits -= assets;
+
+        // TODO: this should maybe be a function argument
+        shares = previewDeposit(assets);
+
+        _mint(receiver, shares);
+
+        emit Deposit(originalCaller, receiver, assets, shares);
     }
 
     // === Public things ===
@@ -102,6 +149,10 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         IERC4626 prizeVault = IERC4626(asset());
 
         return prizeVault.previewRedeem(prizeVaultShares);
+    }
+
+    function finishDeposit(address originalCaller, address receiver) public returns (uint256) {
+        return _finishDeposit(originalCaller, receiver, 0);
     }
 
     // TODO: i feel like we should store a minimum trade amount here. but i don't know how to make that open. maybe this should be an only-owner function?
@@ -156,6 +207,29 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         }
 
         // leave the remaining balance here. this will inflate the value of everyone's shares equally
+    }
+
+    /// @notice begin a deposit
+    /// @dev this is necessary to protect against large deposits around the time of a large win
+    function startDeposit(uint256 assets, address receiver) public returns (uint256 shares) {
+        PendingDeposit storage pendingDeposit = pendingDepositOf[msg.sender][receiver];
+
+        if (receiver != msg.sender) {
+            // if a deposit is already running, then we don't allow starting a new one
+            require(pendingDeposit.when == 0, "!now");
+        }
+
+        SafeERC20.safeTransferFrom(IERC20(asset()), msg.sender, address(this), assets);
+
+        totalPendingDeposits += assets;
+
+        pendingDeposit.assets += assets;
+        pendingDeposit.when = block.timestamp + DEPOSIT_DELAY;
+    }
+
+    /// @dev this does not include the pending deposits
+    function totalAssets() public view override returns (uint256) {
+        super.totalAssets() - totalPendingDeposits;
     }
 
     /// @notice wrap any ETH in this contract

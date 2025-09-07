@@ -34,6 +34,7 @@ contract FanTokenFactoryTest is Test {
         bryan = fanTokenFactory.create(
             "ETH from Bryan",
             "BRY-ETH",
+            1 days,
             harvestOwnerFeeBasisPoints,
             harvestTreasuryFeeBasisPoints,
             prizeVault,
@@ -47,7 +48,7 @@ contract FanTokenFactoryTest is Test {
         uint256 initialDeposit = 1 ether;
 
         FanToken fanToken = fanTokenFactory.create{value: initialDeposit}(
-            "ETH from Bryan Again", "BRY-ETH-2", 0, 0, prizeVault, address(0), bytes32(0), initialDeposit
+            "ETH from Bryan Again", "BRY-ETH-2", 1 days, 0, 0, prizeVault, address(0), bytes32(0), initialDeposit
         );
 
         assertEq(fanToken.balanceOfUnderlying(address(this)), initialDeposit, "initial deposit incorrect");

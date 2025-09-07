@@ -26,6 +26,7 @@ contract FanTokenFactory {
     function create(
         string memory _name,
         string memory _symbol,
+        uint256 _depositDelay,
         uint256 _harvestOwnerFeeBasisPoints,
         uint256 _harvestTreasuryFeeBasisPoints,
         IERC4626 _prizeVault,
@@ -33,6 +34,10 @@ contract FanTokenFactory {
         bytes32 _salt,
         uint256 _initialDeposit
     ) public payable returns (FanToken fanToken) {
+        // TODO: what minimum/maximum deposit delay should we enfoce?
+        require(_depositDelay >= 1 days);
+        require(_depositDelay <= 2 weeks);
+
         // TODO: use fancy cloning code
         fanToken = new FanToken{salt: _salt}(
             _name,
