@@ -3,7 +3,6 @@ pragma solidity ^0.8.20;
 
 import {AuctionSwapper} from "./forks/AuctionSwapper.sol";
 import {ERC20, ERC4626, IERC20, IERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
-import {ERC4626EntryFees} from "./ERC4626EntryFees.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -13,7 +12,7 @@ error InvalidAuctionToken();
 
 /// @title FanToken.
 /// @notice Play pool together as a group of fans.
-contract FanToken is AuctionSwapper, ERC4626EntryFees, Ownable2Step {
+contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     using Math for uint256;
     using SafeERC20 for IERC20;
 
@@ -27,18 +26,13 @@ contract FanToken is AuctionSwapper, ERC4626EntryFees, Ownable2Step {
     /// @dev 100 is 1%
     uint256 public harvestTreasuryFeeBasisPoints;
 
-    /// @notice the owner gets a portion of all deposits. A core design choice of this token is to make it easy to tip the owner.
-    /// @dev 100 is 1%. Deposits send this percent to the owner.
-    /// @dev I don't like how this doesn't match the pattern for the others. i want this to just be uint256 public entryFeeBasisPoints;
-    uint256 private __entryFeeBasisPoints;
-
     /// @notice the treasury gets a configurable portion of all harvests
     address public treasury;
 
     /// @notice the backing token for this fan token
     IERC20 public immutable underlying;
 
-    /// @notice make it easy to deposit by just sending ETH
+    /// @notice if the underlying ismake it easy to deposit by just sending ETH
     IWETH9 public immutable WETH;
 
     event NewTreasury(address indexed oldTreasury, address indexed newTreasury);
@@ -49,6 +43,7 @@ contract FanToken is AuctionSwapper, ERC4626EntryFees, Ownable2Step {
         string memory _name,
         string memory _symbol,
         uint256 entryFeeBasisPoints,
+        address ___entryFeeRecipient,
         uint256 _harvestOwnerFeeBasisPoints,
         uint256 _harvestTreasuryFeeBasisPoints,
         address _owner,
@@ -62,6 +57,7 @@ contract FanToken is AuctionSwapper, ERC4626EntryFees, Ownable2Step {
         underlying = IERC20(_prizeVault.asset());
 
         __entryFeeBasisPoints = entryFeeBasisPoints;
+        __entryFeeRecipient = ___entryFeeRecipient;
 
         // TODO: more general split contract?
         harvestOwnerFeeBasisPoints = _harvestOwnerFeeBasisPoints;
@@ -90,12 +86,13 @@ contract FanToken is AuctionSwapper, ERC4626EntryFees, Ownable2Step {
         underlying.forceApprove(asset(), type(uint256).max);
     }
 
-    // === Owner only ===
+    // === Internal things ===
 
-    /// @dev if you want to lock the treasury address, you can `revokeOwnership()`
-    function setTreasury(address newTreasury) public onlyOwner {
-        emit NewTreasury(treasury, newTreasury);
-        treasury = newTreasury;
+    function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal virtual {
+        // TODO: we need to create a deposit queue
+        // TODO: make sure one user can't greif others. we don't want them able to increase our gas costs by dusting us
+
+        super._deposit(caller, address(this), assets, shares);
     }
 
     // === Custom things ===
@@ -146,7 +143,7 @@ contract FanToken is AuctionSwapper, ERC4626EntryFees, Ownable2Step {
         address treasuryAddress = treasury;
         if (treasuryAddress != address(0)) {
             // TODO: which way should we round?
-            uint256 treasuryFee = total.mulDiv(harvestTreasuryFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Ceil);
+            uint256 treasuryFee = total.mulDiv(harvestTreasuryFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);
             if (treasuryFee > 0) {
                 IERC20(address(prizeVault)).safeTransfer(treasuryAddress, treasuryFee);
             }
@@ -157,22 +154,12 @@ contract FanToken is AuctionSwapper, ERC4626EntryFees, Ownable2Step {
         if (ownerAddress != address(0)) {
             // pay the owner part of the harvest
             // TODO: which way should we round?
-            uint256 ownerFee = total.mulDiv(harvestOwnerFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Ceil);
+            uint256 ownerFee = total.mulDiv(harvestOwnerFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);
             if (ownerFee > 0) {
                 IERC20(address(prizeVault)).safeTransfer(ownerAddress, ownerFee);
             }
         }
 
         // leave the remaining balance here. this will inflate the value of everyone's shares equally
-    }
-
-    // === Fee configuration ===
-
-    function _entryFeeBasisPoints() internal view override returns (uint256) {
-        return __entryFeeBasisPoints;
-    }
-
-    function _entryFeeRecipient() internal view override returns (address) {
-        return owner();
     }
 }
