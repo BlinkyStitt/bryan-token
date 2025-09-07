@@ -100,8 +100,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
     // === Internal ===
 
-    /// @dev this does NOT call the super.deposit. The tokens must already be pending deposit
-    /// @dev this does NOT transfer the tokens. instead we make sure a `startDeposit` was already called
+    /// @dev after the initial deposit, this does NOT transfer the tokens. instead, make sure `startDeposit` is called first
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
         if (totalSupply() == 0) {
             // TODO: should this check `totalPendingDeposits == 0`?
