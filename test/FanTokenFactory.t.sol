@@ -27,6 +27,7 @@ contract FanTokenFactoryTest is Test {
         uint256 harvestOwnerFeeBasisPoints = 0;
         uint256 harvestTreasuryFeeBasisPoints = 0;
         treasury = makeAddr("treasury");
+        uint256 initialDeposit = 0 ether;
 
         bytes32 salt = bytes32(0);
 
@@ -40,7 +41,7 @@ contract FanTokenFactoryTest is Test {
             prizeVault,
             treasury,
             salt,
-            0
+            initialDeposit
         );
     }
 
