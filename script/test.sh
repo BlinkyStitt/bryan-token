@@ -7,7 +7,7 @@ REORG_SAFETY=${REORG_SAFETY:-5}
 # TODO: whats the actual max lag?
 MAX_LAG_BLOCKS=${MAX_LAG_BLOCKS:-5000}
 
-fork_url=https://1rpc.io/base
+fork_url=https://1rpc.io/${ONERPC_API_KEY}/base
 
 block_number=$(cast block-number --rpc-url "$fork_url")
 
