@@ -51,6 +51,8 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// TODO: include a nonce here so that multiple deposits don't reset the timer?
     mapping(address caller => mapping(address receiver => PendingDeposit)) public pendingDepositOf;
 
+    mapping(address owner => uint256) public pendingBalanceOf;
+
     /// @dev these underscores are gross. too many different libraries and styles are being mixed together
     /// todo: change this into an initializer that can only run once during deploy?
     constructor(
@@ -127,6 +129,8 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         pendingDeposit.when = 0;
 
         totalPendingDeposits -= assets;
+
+        pendingBalanceOf[receiver] -= assets;
 
         // TODO: this should maybe be a function argument
         shares = previewDeposit(assets);
@@ -221,6 +225,8 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         SafeERC20.safeTransferFrom(IERC20(asset()), msg.sender, address(this), assets);
 
         totalPendingDeposits += assets;
+
+        pendingBalanceOf[receiver] += assets;
 
         pendingDeposit.assets += assets;
         pendingDeposit.when = block.timestamp + DEPOSIT_DELAY;
