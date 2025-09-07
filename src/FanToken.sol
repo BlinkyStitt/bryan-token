@@ -7,7 +7,6 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IWETH9} from "v4-periphery/src/interfaces/external/IWETH9.sol";
-import {console} from "forge-std/console.sol";
 
 error InvalidAuctionToken();
 
@@ -130,7 +129,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         }
 
         // TODO: this should maybe be a function argument
-        shares = convertToShares(assets);
+        shares = previewDeposit(assets);
 
         pendingDeposit.assets = 0;
         pendingDeposit.when = 0;
@@ -159,7 +158,8 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         return prizeVault.previewRedeem(prizeVaultShares);
     }
 
-    // TODO: i feel like we should store a minimum trade amount here. but i don't know how to make that open. maybe this should be an only-owner function?
+    /// @notice prepare the auction contract for selling a token
+    /// TODO: i feel like we should store a minimum trade amount here. but i don't know how to make that open. maybe this should be an only-owner function?
     function enableAuction(IERC20 from) public returns (bytes32) {
         IERC20 _asset = IERC20(asset());
 
@@ -218,42 +218,42 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         // leave the remaining balance here. this will inflate the value of everyone's shares equally
     }
 
-    /// @notice begin a deposit
-    /// @dev the first deposit shouldn't have any delay
-    /// @dev this is necessary to protect against large deposits around the time of a large win
+    /// @notice begin a deposit. This takes `assets()`, not `underlying()`
+    /// @dev the first deposit does not have any delay
+    /// @dev the delay is necessary to protect against large deposits around the time of a large win
     function startDeposit(uint256 assets, address receiver) public returns (uint256 shares) {
         if (totalSupply() == 0) {
-            // TODO: should this also check if `totalPendingDeposits == 0`?
             shares = super.deposit(assets, receiver);
         } else {
             PendingDeposit storage pendingDeposit = pendingDepositOf[msg.sender][receiver];
 
             // if a deposit is already running, then we don't allow starting a new one
-            // TODO: if receiver is the message.sender, maybe we should allow extending the when indefinitely?
             require(pendingDeposit.when == 0, "!now");
 
+            // transfer the assets now
             shares = previewDeposit(assets);
             SafeERC20.safeTransferFrom(IERC20(asset()), msg.sender, address(this), assets);
 
+            // update counters
             totalPendingDeposits += assets;
-
             pendingBalanceOf[receiver] += assets;
-
             pendingDeposit.assets += assets;
+
+            // allow claiming the deposit after a delay
             pendingDeposit.when = block.timestamp + DEPOSIT_DELAY;
         }
     }
 
-    /// @dev this does not include the pending deposits
+    /// @dev this does not include pending deposits
     function totalAssets() public view override returns (uint256) {
         return super.totalAssets() - totalPendingDeposits;
     }
 
     /// @notice wrap any ETH in this contract
     function wrapETH() public payable returns (uint256 total) {
-        uint256 thisBalance = address(this).balance;
-        if (thisBalance > 0) {
-            WETH.deposit{value: thisBalance}();
+        uint256 total = address(this).balance;
+        if (total > 0) {
+            WETH.deposit{value: total}();
         }
     }
 }
