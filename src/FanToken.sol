@@ -171,6 +171,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         return _enableAuction(address(from), address(underlying));
     }
 
+    /// @notice finish a deposit that was started by another caller
     function finishDeposit(address originalCaller, address receiver) public returns (uint256) {
         return _finishDeposit(originalCaller, receiver, 0);
     }
