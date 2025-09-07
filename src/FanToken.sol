@@ -30,7 +30,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     uint256 public harvestTreasuryFeeBasisPoints;
 
     /// @notice the treasury gets a configurable portion of all harvests
-    address public treasury;
+    address public immutable treasury;
 
     /// @notice the backing token for this fan token
     /// @dev the linter says this should be capitalized
@@ -50,9 +50,6 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
     /// TODO: include a nonce here so that multiple deposits don't reset the timer?
     mapping(address caller => mapping(address receiver => PendingDeposit)) public pendingDepositOf;
-
-    /// @notice the owner is allowed to change the treasury
-    event NewTreasury(address indexed oldTreasury, address indexed newTreasury);
 
     /// @dev these underscores are gross. too many different libraries and styles are being mixed together
     /// todo: change this into an initializer that can only run once during deploy?
@@ -108,20 +105,22 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         } else {
             uint256 finishedShares = _finishDeposit(caller, receiver, assets);
 
-            require(finishedShares == shares);
+            require(finishedShares == shares, "!shares");
         }
     }
 
-    /// @notice allow closing deposits 
+    /// @notice finish the deposit from any caller. The current caller does not need to be the same as the 
     function _finishDeposit(address originalCaller, address receiver, uint256 assets) internal returns (uint256 shares) {
         PendingDeposit storage pendingDeposit = pendingDepositOf[originalCaller][receiver];
 
-        require(pendingDeposit.when != 0 && block.timestamp >= pendingDeposit.when);    
+        // TODO: custom error
+        require(pendingDeposit.when != 0 && block.timestamp >= pendingDeposit.when, "!now");    
 
         if (assets == 0) {
             assets = pendingDeposit.assets;
         } else {
-            require(pendingDeposit.assets == assets);
+            // TODO: custom error
+            require(pendingDeposit.assets == assets, "!assets");
         }
 
         pendingDeposit.assets = 0;
@@ -139,17 +138,18 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
     // === Public things ===
 
-    /// @notice check an account's balance in the underlying (backing) token
-    function balanceOfUnderlying(address who) public view returns (uint256) {
-        uint256 fanTokenShares = balanceOf(who);
+    // /// @notice check an account's balance in the underlying (backing) token
+    // function balanceOfUnderlying(address who) public view returns (uint256) {
+    //     uint256 fanTokenShares = balanceOf(who);
 
-        // TODO: convertToAssets or previewRedeem? previewRedeem includes fees, so I think is a more useful balance to show.
-        uint256 prizeVaultShares = previewRedeem(fanTokenShares);
+    //     // TODO: convertToAssets or previewRedeem?
+    //     uint256 prizeVaultShares = previewRedeem(fanTokenShares);
 
-        IERC4626 prizeVault = IERC4626(asset());
+    //     IERC4626 prizeVault = IERC4626(asset());
 
-        return prizeVault.previewRedeem(prizeVaultShares);
-    }
+    //     // TODO: convertToAssets or previewRedeem?
+    //     return prizeVault.previewRedeem(prizeVaultShares);
+    // }
 
     function finishDeposit(address originalCaller, address receiver) public returns (uint256) {
         return _finishDeposit(originalCaller, receiver, 0);
@@ -214,10 +214,9 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     function startDeposit(uint256 assets, address receiver) public returns (uint256 shares) {
         PendingDeposit storage pendingDeposit = pendingDepositOf[msg.sender][receiver];
 
-        if (receiver != msg.sender) {
-            // if a deposit is already running, then we don't allow starting a new one
-            require(pendingDeposit.when == 0, "!now");
-        }
+        // if a deposit is already running, then we don't allow starting a new one
+        // TODO: if receiver is the message.sender, maybe we should allow extending the when indefinitely?
+        require(pendingDeposit.when == 0, "!now");
 
         SafeERC20.safeTransferFrom(IERC20(asset()), msg.sender, address(this), assets);
 

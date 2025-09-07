@@ -51,7 +51,9 @@ contract FanTokenFactoryTest is Test {
             "ETH from Bryan Again", "BRY-ETH-2", 1 days, 0, 0, prizeVault, address(0), bytes32(0), initialDeposit
         );
 
-        assertEq(fanToken.balanceOfUnderlying(address(this)), initialDeposit, "initial deposit incorrect");
+        assertEq(fanToken.balanceOf(address(this)), initialDeposit, "initial deposits should be 1:1");
+
+        // assertEq(fanToken.balanceOfUnderlying(address(this)), initialDeposit, "balance of underlying from initial deposit is incorrect");
     }
 
     function test_vault_asset() public {
