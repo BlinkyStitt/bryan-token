@@ -26,7 +26,6 @@ contract FanTokenFactory {
     function create(
         string memory _name,
         string memory _symbol,
-        uint256 _entryFeeBasisPoints,
         uint256 _harvestOwnerFeeBasisPoints,
         uint256 _harvestTreasuryFeeBasisPoints,
         IERC4626 _prizeVault,
@@ -38,7 +37,6 @@ contract FanTokenFactory {
         fanToken = new FanToken{salt: _salt}(
             _name,
             _symbol,
-            _entryFeeBasisPoints,
             _harvestOwnerFeeBasisPoints,
             _harvestTreasuryFeeBasisPoints,
             msg.sender,

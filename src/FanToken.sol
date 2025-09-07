@@ -42,8 +42,6 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     constructor(
         string memory _name,
         string memory _symbol,
-        uint256 entryFeeBasisPoints,
-        address ___entryFeeRecipient,
         uint256 _harvestOwnerFeeBasisPoints,
         uint256 _harvestTreasuryFeeBasisPoints,
         address _owner,
@@ -51,15 +49,11 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         address _treasury,
         IWETH9 _weth
     ) ERC20(_name, _symbol) ERC4626(_prizeVault) Ownable(_owner) {
-        require(entryFeeBasisPoints <= _BASIS_POINT_SCALE);
         require(_harvestOwnerFeeBasisPoints + _harvestTreasuryFeeBasisPoints <= _BASIS_POINT_SCALE);
 
         underlying = IERC20(_prizeVault.asset());
 
-        __entryFeeBasisPoints = entryFeeBasisPoints;
-        __entryFeeRecipient = ___entryFeeRecipient;
-
-        // TODO: more general split contract?
+        // TODO: i can't decide if this should have one 
         harvestOwnerFeeBasisPoints = _harvestOwnerFeeBasisPoints;
         harvestTreasuryFeeBasisPoints = _harvestTreasuryFeeBasisPoints;
 
@@ -79,7 +73,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// @dev allow receiving eth
     receive() external payable {}
 
-    // === Public buttons ===
+    // === Initialization ===
 
     /// @notice reset this contract's approvals. You probably won't ever need to call this.
     function setupApprovals() public {
@@ -88,31 +82,34 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
     // === Internal things ===
 
-    function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal virtual {
+    function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
         // TODO: we need to create a deposit queue
         // TODO: make sure one user can't greif others. we don't want them able to increase our gas costs by dusting us
+        // super._deposit(caller, address(this), assets, shares);
 
-        super._deposit(caller, address(this), assets, shares);
+        super._deposit(caller, receiver, assets, shares);
     }
 
-    // === Custom things ===
+    // === Public things ===
 
     /// @notice check an account's balance in the underlying (backing) token
-    function underlyingBalanceOf(address who) public view returns (uint256) {
+    function balanceOfUnderlying(address who) public view returns (uint256) {
         uint256 fanTokenShares = balanceOf(who);
 
         // TODO: convertToAssets or previewRedeem? previewRedeem includes fees, so I think is a more useful balance to show.
         uint256 prizeVaultShares = previewRedeem(fanTokenShares);
 
-        IERC4626 a = IERC4626(asset());
+        IERC4626 prizeVault = IERC4626(asset());
 
-        return a.previewRedeem(prizeVaultShares);
+        return prizeVault.previewRedeem(prizeVaultShares);
     }
 
     // TODO: i feel like we should store a minimum trade amount here. but i don't know how to make that open. maybe this should be an only-owner function?
     function enableAuction(IERC20 from) public returns (bytes32) {
         IERC20 _asset = IERC20(asset());
 
+        // don't allow auctioning the backing tokens! that would be bad!
+        require(address(from) != address(this), InvalidAuctionToken());
         require(from != _asset, InvalidAuctionToken());
         require(from != underlying, InvalidAuctionToken());
 
@@ -120,14 +117,12 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     }
 
     /// @notice compound any underlying tokens. Fees may be sent to the owner or the treasury.
-    function harvest() public returns (uint256 total) {
-        // don't allow harvesting the backing token! that would be bad!
+    function harvest() public payable returns (uint256 total) {
         IERC4626 prizeVault = IERC4626(asset());
         IERC20 underlyingToken = underlying;
 
-        // if the underlying is WETH, wrap any ETH in this contract
-        if (address(underlyingToken) == address(WETH) && address(this).balance > 0) {
-            WETH.deposit{value: address(this).balance}();
+        if (address(underlying) == address(WETH)) {
+            wrapETH();
         }
 
         // we want to use the entire balance
@@ -162,4 +157,13 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
         // leave the remaining balance here. this will inflate the value of everyone's shares equally
     }
+
+    /// @notice wrap any ETH in this contract
+    function wrapETH() public payable returns (uint256 total) {
+        uint256 thisBalance = address(this).balance;
+        if (thisBalance > 0) {
+            WETH.deposit{value: thisBalance}();
+        }
+    }
+
 }

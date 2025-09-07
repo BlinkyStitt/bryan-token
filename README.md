@@ -37,7 +37,7 @@ I have BRY setup as my [Cobuild](https://farcaster.xyz/miniapps/XTipkfp9jZBu/cob
 
 ## Problems
 
-harvesting is not safe. we need to track time weighted average balances and pay based on that. otherwise someone might flash deposit a huge amount, call harvest, then flash withdraw. that shouldn't pay anything. deposit fees defend some against this attack, but aren't perfect. i think we just need to use the normal vault/strategy code. they already have protections for all these things. and we can just take a 50% performance fee.
+harvesting is not safe. we need to track time weighted average balances and pay based on that. otherwise someone might flash deposit a huge amount, call harvest, then flash withdraw. that shouldn't be paid anything. deposit fees defend some against this attack, but aren't perfect. we could look at yearn's vault/strategy code. they already have protections for all these things. and we can just take a 50% performance fee.
 
 i need an example bot for handling the dutch auctions
 

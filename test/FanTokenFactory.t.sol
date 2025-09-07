@@ -24,7 +24,6 @@ contract FanTokenFactoryTest is Test {
         prizeVault = IERC4626(0x4E42f783db2D0C5bDFf40fDc66FCAe8b1Cda4a43);
 
         // TODO: need tests that have fees!
-        uint256 entryFeeBasisPoints = 0;
         uint256 harvestOwnerFeeBasisPoints = 0;
         uint256 harvestTreasuryFeeBasisPoints = 0;
         treasury = makeAddr("treasury");
@@ -35,7 +34,6 @@ contract FanTokenFactoryTest is Test {
         bryan = fanTokenFactory.create(
             "ETH from Bryan",
             "BRY-ETH",
-            entryFeeBasisPoints,
             harvestOwnerFeeBasisPoints,
             harvestTreasuryFeeBasisPoints,
             prizeVault,
@@ -49,10 +47,10 @@ contract FanTokenFactoryTest is Test {
         uint256 initialDeposit = 1 ether;
 
         FanToken fanToken = fanTokenFactory.create{value: initialDeposit}(
-            "ETH from Bryan Again", "BRY-ETH-2", 0, 0, 0, prizeVault, address(0), bytes32(0), initialDeposit
+            "ETH from Bryan Again", "BRY-ETH-2", 0, 0, prizeVault, address(0), bytes32(0), initialDeposit
         );
 
-        assertEq(fanToken.underlyingBalanceOf(address(this)), initialDeposit, "initial deposit incorrect");
+        assertEq(fanToken.balanceOfUnderlying(address(this)), initialDeposit, "initial deposit incorrect");
     }
 
     function test_vault_asset() public {
