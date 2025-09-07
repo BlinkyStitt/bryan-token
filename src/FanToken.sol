@@ -9,6 +9,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {IWETH9} from "v4-periphery/src/interfaces/external/IWETH9.sol";
 
 error InvalidAuctionToken();
+error FeesTooLarge();
 
 /// @title FanToken.
 /// @notice Play pool together as a group of fans.
@@ -37,7 +38,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// @dev the linter says this should be capitalized
     IERC20 public immutable underlying;
 
-    /// @notice if the underlying ismake it easy to deposit by just sending ETH
+    /// @notice if the underlying is WETH, make it easy to deposit by just sending ETH
     IWETH9 public immutable WETH;
 
     /// @notice assets held for the DEPOSIT_DELAY
@@ -66,7 +67,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         address _treasury,
         IWETH9 _weth
     ) ERC20(_name, _symbol) ERC4626(_prizeVault) Ownable(_owner) {
-        require(_harvestOwnerFeeBasisPoints + _harvestTreasuryFeeBasisPoints <= _BASIS_POINT_SCALE);
+        require(_harvestOwnerFeeBasisPoints + _harvestTreasuryFeeBasisPoints <= _BASIS_POINT_SCALE, FeesTooLarge());
 
         underlying = IERC20(_prizeVault.asset());
 
@@ -76,7 +77,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
         // default the treasury to the owner address. the owner can change this
         if (_treasury == address(0)) {
-            require(harvestTreasuryFeeBasisPoints == 0);
+            require(harvestTreasuryFeeBasisPoints == 0, FeesTooLarge());
         } else {
             treasury = _treasury;
         }
@@ -106,15 +107,14 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             // the first deposit shouldn't have any delay
             super._deposit(caller, receiver, assets, shares);
         } else {
-            uint256 finishedShares = _finishDeposit(caller, receiver, assets);
-            require(finishedShares == shares, "!shares");
+            _finishDeposit(caller, receiver, assets, shares);
         }
     }
 
     /// @notice finish the deposit from any caller. The current caller does not need to be the same as the
-    function _finishDeposit(address originalCaller, address receiver, uint256 assets)
+    function _finishDeposit(address originalCaller, address receiver, uint256 assets, uint256 shares)
         internal
-        returns (uint256 shares)
+        returns (uint256)
     {
         PendingDeposit storage pendingDeposit = pendingDepositOf[originalCaller][receiver];
 
@@ -128,8 +128,9 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             require(pendingDeposit.assets == assets, "!assets");
         }
 
-        // TODO: this should maybe be a function argument
-        shares = previewDeposit(assets);
+        if (shares == 0) {
+            shares = previewDeposit(assets);
+        }
 
         pendingDeposit.assets = 0;
         pendingDeposit.when = 0;
@@ -141,6 +142,8 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         _mint(receiver, shares);
 
         emit Deposit(originalCaller, receiver, assets, shares);
+
+        return shares;
     }
 
     // === Public things ===
@@ -172,8 +175,8 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     }
 
     /// @notice finish a deposit that was started by another caller
-    function finishDeposit(address originalCaller, address receiver) public returns (uint256) {
-        return _finishDeposit(originalCaller, receiver, 0);
+    function finishDeposit(address originalCaller, address receiver) public returns (uint256 shares) {
+        shares = _finishDeposit(originalCaller, receiver, 0, 0);
     }
 
     /// @notice compound any underlying tokens. Fees may be sent to the owner or the treasury.
@@ -251,7 +254,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
     /// @notice wrap any ETH in this contract
     function wrapETH() public payable returns (uint256 total) {
-        uint256 total = address(this).balance;
+        total = address(this).balance;
         if (total > 0) {
             WETH.deposit{value: total}();
         }
