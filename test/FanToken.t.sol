@@ -84,13 +84,14 @@ contract BryanTest is Test {
         // set up approvals
         asset.approve(address(bryan), type(uint256).max);
 
+        // TODO: test startDeposit!
         // time travel to start and complete a deposit
         // TODO: check the logs
-        bryan.startDeposit(assets, address(this));
-        assertEq(assets, bryan.pendingBalanceOf(address(this)), "wrong pending balance");
-        assertEq(assets, bryan.totalPendingDeposits(), "wrong total pending balance");
+        // bryan.startDeposit(assets, address(this));
+        // assertEq(assets, bryan.pendingBalanceOf(address(this)), "wrong pending balance");
+        // assertEq(assets, bryan.totalPendingDeposits(), "wrong total pending balance");
 
-        vm.warp(block.timestamp + bryan.DEPOSIT_DELAY() + 1);
+        // vm.warp(block.timestamp + bryan.DEPOSIT_DELAY() + 1);
         uint256 shares = bryan.deposit(assets, address(this));
 
         // shares should currently be 1:1

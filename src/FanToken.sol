@@ -107,6 +107,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             // the first deposit shouldn't have any delay
             super._deposit(caller, receiver, assets, shares);
         } else {
+            // TODO: i think this has bugs
             uint256 finishedShares = _finishDeposit(caller, receiver, assets);
 
             require(finishedShares == shares, "!shares");
