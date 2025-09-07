@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 // TODO: use cloneable instead of deploying a full contract every time?
 
 import {FanToken, SafeERC20, IERC20, IERC4626, IWETH9} from "./FanToken.sol";
+import {console} from "forge-std/console.sol";
 
 error InvalidFanToken();
 error IncorrectUnderlying(address underlying);
@@ -84,6 +85,7 @@ contract FanTokenFactory {
         // deposit the underlying into the prize vault
         underlying.forceApprove(address(prizeVault), underlyingAssets);
         uint256 vaultShares = prizeVault.deposit(underlyingAssets, address(this));
+        console.log("vaultShares:", vaultShares);
 
         // deposit the prize vault shares for fan tokens
         IERC20(address(prizeVault)).forceApprove(address(fanToken), vaultShares);

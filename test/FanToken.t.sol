@@ -39,7 +39,12 @@ contract BryanTest is Test {
     }
 
     function test_vault_asset() public {
-        require(address(bryan.underlying()) == address(weth));
+        assertEq(address(bryan.underlying()), address(weth), "underlying isn't weth");
+    }
+
+    function test_vault_starts_empty() public {
+        assertEq(bryan.totalSupply(), 0);
+        assertEq(bryan.totalAssets(), 0);
     }
 
     function test_ownership() public {
@@ -80,9 +85,16 @@ contract BryanTest is Test {
         asset.approve(address(bryan), type(uint256).max);
 
         // time travel to start and complete a deposit
-        uint256 pendingShares = bryan.startDeposit(assets, address(this));
+        // TODO: check the logs
+        bryan.startDeposit(assets, address(this));
+        assertEq(assets, bryan.pendingBalanceOf(address(this)), "wrong pending balance");
+        assertEq(assets, bryan.totalPendingDeposits(), "wrong total pending balance");
+
         vm.warp(block.timestamp + bryan.DEPOSIT_DELAY() + 1);
         uint256 shares = bryan.deposit(assets, address(this));
+
+        // shares should currently be 1:1
+        assertEq(shares, underlyingAssets, "bad deposit");
 
         // TODO: this require is wrong. we want to be sure that the shares we received are worth what we deposited
         // require(assets == shares);

@@ -7,6 +7,7 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IWETH9} from "v4-periphery/src/interfaces/external/IWETH9.sol";
+import {console} from "forge-std/console.sol";
 
 error InvalidAuctionToken();
 
@@ -17,7 +18,8 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     using SafeERC20 for IERC20;
 
     /// @notice deposits are delayed to stop prizes from being taken unfairly
-    uint256 public immutable DEPOSIT_DELAY;
+    /// @dev what should this be? i think it needs to be longer than the auction timer with some buffer for bots to kick the auction
+    uint256 public immutable DEPOSIT_DELAY = 2 days;
 
     uint256 private constant _BASIS_POINT_SCALE = 1e4;
 
@@ -215,7 +217,8 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
     /// @notice begin a deposit
     /// @dev this is necessary to protect against large deposits around the time of a large win
-    function startDeposit(uint256 assets, address receiver) public returns (uint256 shares) {
+    /// todo: write a cancelDeposit method?
+    function startDeposit(uint256 assets, address receiver) public {
         PendingDeposit storage pendingDeposit = pendingDepositOf[msg.sender][receiver];
 
         // if a deposit is already running, then we don't allow starting a new one
@@ -234,7 +237,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
     /// @dev this does not include the pending deposits
     function totalAssets() public view override returns (uint256) {
-        super.totalAssets() - totalPendingDeposits;
+        return super.totalAssets() - totalPendingDeposits;
     }
 
     /// @notice wrap any ETH in this contract
