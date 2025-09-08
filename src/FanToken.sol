@@ -190,9 +190,13 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         auctionId = _enableAuction(address(from), address(underlying));
 
         {
+            // a simple balance check is enough
             bool _kickableSetting = false;
-            bool _kickSetting = false;
+            // this transfers the tokens
+            bool _kickSetting = true;
+            // we don't use this
             bool _preTakeSetting = false;
+            // this calls harvest for us when the auction is complete
             bool _postTakeSetting = true;
 
             Auction(auction).setHookFlags(_kickableSetting, _kickSetting, _preTakeSetting, _postTakeSetting);

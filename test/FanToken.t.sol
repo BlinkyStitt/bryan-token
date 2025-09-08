@@ -147,10 +147,9 @@ contract BryanTest is Test {
         bryan.enableAuction(from);
     }
 
-    function test_post_take_blocked(address sender) public {
-        // TODO: is this assume correct? do we need more?
-        vm.assume(sender != address(0));
-        vm.assume(sender != address(bryan));
+    function test_post_take_blocked() public {
+        // vm.assume(sender != address(0));
+        // vm.assume(sender != address(bryan));
 
         IERC20 from = IERC20(0xd652C5425aea2Afd5fb142e120FeCf79e18fafc3); // POOL
 
@@ -160,7 +159,6 @@ contract BryanTest is Test {
         address auction = bryan.auction();
         require(auction != address(0), "auction not set");
 
-        vm.prank(sender);
         vm.expectRevert();
         bryan.postTake(address(0), 0, 0);
     }
@@ -177,7 +175,9 @@ contract BryanTest is Test {
         assertEq(bryan.kickable(address(from)), fromAmount, "kickable amount wrong");
 
         Auction auction = Auction(bryan.auction());
+        require(address(auction) != address(0), "no auction contract");
 
+        // TODO: do we need to call approve here?
         uint256 available = auction.kick(auctionId);
 
         assertEq(fromAmount, available, "auction size incorrect");
@@ -185,12 +185,13 @@ contract BryanTest is Test {
         vm.warp(block.timestamp + 12 hours);
 
         uint256 wantAmount = auction.getAmountNeeded(auctionId, fromAmount);
+        assertGt(wantAmount, 0, "want amount should be nonzero");
 
         address want = auction.want();
         assertEq(want, address(bryan.underlying()), "wrong wnat");
 
         // cheat to have the necessary tokens to fulfill the auction
-        deal(address(want), address(this), wantAmount, true);
+        weth.deposit{value: wantAmount}();
 
         IERC20(want).approve(address(auction), wantAmount);
         uint256 amountFromTaken = auction.take(auctionId);
@@ -224,7 +225,7 @@ contract BryanTest is Test {
     }
 
     function test_wrapping_eth(uint256 value) public {
-        // TODO: what is the actual max?
+        // TODO: what is the actual max? something involving weth's totalSupply
         vm.assume(value < 100 ether);
 
         assertEq(bryan.wrapETH(), 0);
