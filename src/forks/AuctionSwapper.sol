@@ -33,9 +33,13 @@ interface AuctionFactory {
 }
 
 interface Auction {
-    function want() external view returns (address);
-    function enable(address _from) external returns (bytes32);
     function disable(address _from) external;
+    function enable(address _from) external returns (bytes32);
+    function getAmountNeeded(bytes32 _auctionId, uint256 _amountToTake) external returns (uint256);
+    function kick(bytes32 _auctionId) external returns (uint256 available);
+    function setHookFlags(bool _kickable, bool _kick, bool _preTake, bool _postTake) external;
+    function take(bytes32 _auctionId) external returns (uint256);
+    function want() external view returns (address);
 }
 
 /**

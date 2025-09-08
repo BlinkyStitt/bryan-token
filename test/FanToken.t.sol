@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 import {InvalidAuctionToken, FanToken, IERC20, IERC4626, IWETH9} from "../src/FanToken.sol";
+import {Auction} from "../src/forks/AuctionSwapper.sol";
 import {console} from "forge-std/console.sol";
 
 contract BryanTest is Test {
@@ -126,10 +127,114 @@ contract BryanTest is Test {
     }
 
     function test_auctioning_asset_fails() public {
-        IERC20 asset = IERC20(bryan.asset());
+        IERC20 from = IERC20(bryan.asset());
 
         vm.expectRevert(InvalidAuctionToken.selector);
-        bryan.enableAuction(asset);
+        bryan.enableAuction(from);
+    }
+
+    function test_auctioning_underlying_fails() public {
+        IERC20 from = IERC20(address(bryan.underlying()));
+
+        vm.expectRevert(InvalidAuctionToken.selector);
+        bryan.enableAuction(from);
+    }
+
+    function test_auctioning_self_fails() public {
+        IERC20 from = IERC20(address(bryan));
+
+        vm.expectRevert(InvalidAuctionToken.selector);
+        bryan.enableAuction(from);
+    }
+
+    function test_post_take_blocked(address sender) public {
+        // TODO: is this assume correct? do we need more?
+        vm.assume(sender != address(0));
+        vm.assume(sender != address(bryan));
+
+        IERC20 from = IERC20(0xd652C5425aea2Afd5fb142e120FeCf79e18fafc3); // POOL
+
+        // call enable action once to create the auction contract
+        bryan.enableAuction(from);
+
+        address auction = bryan.auction();
+        require(auction != address(0), "auction not set");
+
+        vm.prank(sender);
+        vm.expectRevert();
+        bryan.postTake(address(0), 0, 0);
+    }
+
+    function test_auctioning_pool() public {
+        IERC20 from = IERC20(0xd652C5425aea2Afd5fb142e120FeCf79e18fafc3); // POOL
+
+        bytes32 auctionId = bryan.enableAuction(from);
+
+        uint256 fromAmount = 1 ether;
+
+        deal(address(from), address(bryan), fromAmount, true);
+
+        assertEq(bryan.kickable(address(from)), fromAmount, "kickable amount wrong");
+
+        Auction auction = Auction(bryan.auction());
+
+        uint256 available = auction.kick(auctionId);
+
+        assertEq(fromAmount, available, "auction size incorrect");
+
+        vm.warp(block.timestamp + 12 hours);
+
+        uint256 wantAmount = auction.getAmountNeeded(auctionId, fromAmount);
+
+        address want = auction.want();
+        assertEq(want, address(bryan.underlying()), "wrong wnat");
+
+        // cheat to have the necessary tokens to fulfill the auction
+        deal(address(want), address(this), wantAmount, true);
+
+        IERC20(want).approve(address(auction), wantAmount);
+        uint256 amountFromTaken = auction.take(auctionId);
+
+        assertEq(amountFromTaken, fromAmount, "from amount error");
+    }
+
+    function test_empty_harvest() public {
+        assertEq(bryan.harvest(), 0);
+    }
+
+    function test_harvest_eth() public {
+        require(address(bryan.underlying()) == address(weth), "not weth");
+
+        uint256 amount = 1 ether;
+
+        assertEq(bryan.harvest{value: amount}(), amount, "incorrect eth harvest amount");
+    }
+
+    function test_harvest_weth() public {
+        require(address(bryan.underlying()) == address(weth), "not weth");
+
+        uint256 amount = 1 ether;
+
+        weth.deposit{value: amount}();
+        bool success = weth.transfer(address(bryan), amount);
+
+        require(success, "weth transfer failed");
+
+        assertEq(bryan.harvest(), amount, "incorrect weth harvest amount");
+    }
+
+    function test_wrapping_eth(uint256 value) public {
+        // TODO: what is the actual max?
+        vm.assume(value < 100 ether);
+
+        assertEq(bryan.wrapETH(), 0);
+        assertEq(weth.balanceOf(address(bryan)), 0);
+
+        assertEq(bryan.wrapETH{value: value}(), value);
+        assertEq(weth.balanceOf(address(bryan)), value);
+
+        assertEq(bryan.wrapETH(), 0);
+        assertEq(weth.balanceOf(address(bryan)), value);
     }
 
     /*
@@ -164,5 +269,11 @@ contract BryanTest is Test {
         );
         // TODO: what are some other options? what do
     }
+
+    test_finish_deposit
+
+    test_auction_post_take
+
+    test_enable_auction
     */
 }

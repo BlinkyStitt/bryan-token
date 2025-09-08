@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.20;
 
-import {AuctionSwapper} from "./forks/AuctionSwapper.sol";
+import {Auction, AuctionSwapper} from "./forks/AuctionSwapper.sol";
 import {ERC20, ERC4626, IERC20, IERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
@@ -32,9 +32,10 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     uint256 public harvestTreasuryFeeBasisPoints;
 
     /// @notice the treasury gets a configurable portion of all harvests
+    /// todo: better name for this
     address public immutable treasury;
 
-    /// @notice the backing token for this fan token
+    /// @notice the backing token for this fan token's prize tickets. fan tokens can be redeemed for this token.
     /// @dev the linter says this should be capitalized
     IERC20 public immutable underlying;
 
@@ -178,7 +179,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
     /// @notice prepare the auction contract for selling a token
     /// TODO: i feel like we should store a minimum trade amount here. but i don't know how to make that open. maybe this should be an only-owner function?
-    function enableAuction(IERC20 from) public returns (bytes32) {
+    function enableAuction(IERC20 from) public returns (bytes32 auctionId) {
         IERC20 _asset = IERC20(asset());
 
         // don't allow auctioning the backing tokens! that would be bad!
@@ -186,7 +187,21 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         require(from != _asset, InvalidAuctionToken());
         require(from != underlying, InvalidAuctionToken());
 
-        return _enableAuction(address(from), address(underlying));
+        auctionId = _enableAuction(address(from), address(underlying));
+
+        {
+            bool _kickableSetting = false;
+            bool _kickSetting = false;
+            bool _preTakeSetting = false;
+            bool _postTakeSetting = true;
+
+            Auction(auction).setHookFlags(_kickableSetting, _kickSetting, _preTakeSetting, _postTakeSetting);
+        }
+
+        // TODO: allow calling disable auction if none are pending? i think that just wastes gas
+
+        // TODO: allow resetting this approval with a helper function
+        from.forceApprove(auction, type(uint256).max);
     }
 
     /// @notice finish a deposit that was started by another caller
