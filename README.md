@@ -25,6 +25,12 @@ No pump and dump games here. Backing means we don't need to provide liquidity on
 
 If something would be nice to change but could be abused, then make it impossible to change. For example, I would like to be able to change the name and symbol for my token. But that can be abused. So it's immutable for my contracts.
 
+## Problems Left To Fix
+
+The deposit queue stops people from stealing rewards, but it also means that the owner will probably have a large amount sitting idle. And that means they'll be getting a larger share of the rewards than I had planned. Possible fix: when the owner receives tokens, they get moved to a "sponsor" section that doesn't receive any rewards? I think we need sponsorships, but they are tricky to get right since they might bring back the isseus that led to having a deposit queue.
+
+If the vault suffers losses, we need to make sure the sponsors can't take an unfair share. It might be fine, but this needs investigation. Any losses should be shared fairly.
+
 ## Miscellaneous Ideas and Todos
 
 Primarily, this project gives me a reason to play with some smart contract tools/fras]meworks to prepare for a more serious project.
