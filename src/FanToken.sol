@@ -210,7 +210,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// @dev the first deposit does not have any delay
     /// @dev the delay is necessary to protect against large deposits around the time of a large win
     /// TODO: starting a deposit should also take a number of "sponsorshipAssets"
-    function _startDeposit(address caller, uint256 assets, address receiver) public returns (uint256 shares) {
+    function _startDeposit(address caller, uint256 assets, uint256 sponsorAssets, address receiver) public returns (uint256 shares) {
         if (totalSupply() == 0) {
             shares = super.deposit(assets, receiver);
         } else {
@@ -229,6 +229,10 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             totalPendingDeposits += assets;
             pendingBalanceOf[receiver] += assets;
             pendingDeposit.assets += assets;
+
+            if (sponsorAssets > 0) {
+                revert("todo: mark some of the assets for sponsorship");
+            }
 
             // allow claiming the deposit after a delay
             pendingDeposit.when = block.timestamp + DEPOSIT_DELAY;
@@ -331,14 +335,14 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// @dev the first deposit does not have any delay
     /// @dev the delay is necessary to protect against large deposits around the time of a large win
     /// TODO: starting a deposit should also take a number of "sponsorshipAssets"
-    function startDeposit(uint256 assets, address receiver) public returns (uint256 shares) {
-        return _startDeposit(msg.sender, assets, receiver);
+    function startDeposit(uint256 assets, uint256 sponsorAssets, address receiver) public returns (uint256 shares) {
+        return _startDeposit(msg.sender, assets, sponsorAssets, receiver);
     }
 
-    function startDepositFor(address caller, uint256 assets, address receiver) public returns (uint256 shares) {
+    function startDepositFor(address caller, uint256 assets, uint256 sponsorAssets, address receiver) public returns (uint256 shares) {
         require(msg.sender == FACTORY, "!factory");
 
-        return _startDeposit(caller, assets, receiver);
+        return _startDeposit(caller, assets, sponsorAssets, receiver);
     }
 
     /// @notice opt out of receiving rewards for these tokens

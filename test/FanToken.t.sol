@@ -97,7 +97,7 @@ contract BryanTest is Test {
         assertEq(bryan.totalSupply(), shares, "supply wrong 1");
 
         // todo: deposit without calling start should revert
-        uint256 pendingShares = bryan.startDeposit(assets / 2, address(this));
+        uint256 pendingShares = bryan.startDeposit(assets / 2, 0, address(this));
         assertEq(pendingShares, shares, "startDeposit failed");
 
         assertEq(bryan.totalSupply(), shares, "supply wrong 2");

@@ -28,6 +28,7 @@ contract FanTokenFactoryTest is Test {
         uint256 harvestTreasuryFeeBasisPoints = 0;
         treasury = makeAddr("treasury");
         uint256 initialDeposit = 0 ether;
+        uint256 initialSponsorship = 0 ether;
 
         bytes32 salt = bytes32(0);
 
@@ -41,7 +42,8 @@ contract FanTokenFactoryTest is Test {
             prizeVault,
             treasury,
             salt,
-            initialDeposit
+            initialDeposit,
+            initialSponsorship
         );
     }
 
@@ -49,15 +51,21 @@ contract FanTokenFactoryTest is Test {
         uint256 initialDeposit = 1 ether;
 
         FanToken fanToken = fanTokenFactory.create{value: initialDeposit}(
-            "ETH from Bryan Again", "BRY-ETH-2", 1 days, 0, 0, prizeVault, address(0), bytes32(0), initialDeposit
+            "ETH from Bryan Again", "BRY-ETH-2", 1 days, 0, 0, prizeVault, address(0), bytes32(0), initialDeposit, initialDeposit / 2
         );
 
         assertEq(fanToken.balanceOf(address(this)), initialDeposit, "initial deposits should be 1:1");
 
         assertEq(
             fanToken.balanceOfUnderlying(address(this)),
-            initialDeposit,
+            initialDeposit / 2,
             "balance of underlying from initial deposit is incorrect"
+        );
+
+        assertEq(
+            fanToken.sponsorshipOf(address(this)),
+            initialDeposit / 2,
+            "balance of sponsorship from initial deposit is incorrect"
         );
     }
 
@@ -70,7 +78,7 @@ contract FanTokenFactoryTest is Test {
 
         address receiver = makeAddr("receiver");
 
-        uint256 shares = fanTokenFactory.startDeposit{value: 1 ether}(bryan, 1 ether, receiver);
+        uint256 shares = fanTokenFactory.startDeposit{value: 1 ether}(bryan, 1 ether, 0, receiver);
 
         prizeVault = IERC4626(bryan.asset());
 
@@ -94,7 +102,7 @@ contract FanTokenFactoryTest is Test {
 
         // test the factory's deposit function
         underlying.approve(address(fanTokenFactory), type(uint256).max);
-        uint256 shares = fanTokenFactory.startDeposit(bryan, underlyingAssets, address(this));
+        uint256 shares = fanTokenFactory.startDeposit(bryan, underlyingAssets, 0, address(this));
 
         console.log("shares:", shares);
 

@@ -32,7 +32,8 @@ contract FanTokenFactory {
         IERC4626 _prizeVault,
         address _treasury,
         bytes32 _salt,
-        uint256 _initialDeposit
+        uint256 _initialDeposit,
+        uint256 _initialSponsorship
     ) public payable returns (FanToken fanToken) {
         // TODO: what minimum/maximum deposit delay should we enfoce?
         require(_depositDelay >= 1 days);
@@ -56,11 +57,11 @@ contract FanTokenFactory {
         emit Created(msg.sender, address(_prizeVault), _treasury, address(fanToken));
 
         if (_initialDeposit > 0) {
-            startDeposit(fanToken, _initialDeposit, msg.sender);
+            startDeposit(fanToken, _initialDeposit, _initialSponsorship, msg.sender);
         }
     }
 
-    function startDeposit(FanToken fanToken, uint256 underlyingAssets, address receiver)
+    function startDeposit(FanToken fanToken, uint256 underlyingAssets, uint256 sponsorshipUnderlyingAssets, address receiver)
         public
         payable
         returns (uint256)
@@ -79,6 +80,7 @@ contract FanTokenFactory {
 
             WETH.deposit{value: underlyingAssets}();
         } else {
+            // TODO: custom error instead of string errors
             require(underlyingAssets > 0, "no underlying assets");
 
             // get the underlying into this contract so we can do things with it
@@ -92,7 +94,14 @@ contract FanTokenFactory {
         // deposit the prize vault shares for fan tokens
         IERC20(address(prizeVault)).forceApprove(address(fanToken), vaultShares);
 
-        return fanToken.startDepositFor(msg.sender, vaultShares, receiver);
+        // TODO: how should we handle sponsorships here?
+        // TODO: convertToShares or previewRedeem?
+        uint256 sponsorVaultShares = fanToken.convertToShares(sponsorshipUnderlyingAssets);
+
+        // TODO: i don't think we need this, but it will make us revert early
+        require(sponsorVaultShares <= vaultShares, "sponshorship too large");
+
+        return fanToken.startDepositFor(msg.sender, vaultShares, sponsorVaultShares, receiver);
     }
 
     function redeem(FanToken fanToken, uint256 shares, address receiver) public returns (uint256) {
