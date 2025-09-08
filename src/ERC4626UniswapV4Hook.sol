@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.26;
 
 import {
@@ -13,8 +13,6 @@ import {
 
 /**
  * @dev A hook that replaces swaps with ERC4626 vault deposits/redeems
- * TODO: write the contract
- * TODO: i think we will deploy two uniswap v4 pools to use this. one will be asset() <-> underlying(). and the other will be fantoken <-> asset()
  * TODO: how will uniswap interfaces know that this hook has liquidity? We need to have it query the underlying contact and maxRedeem I think
  */
 contract ERC4626UniswapV4Hook is BaseHook {

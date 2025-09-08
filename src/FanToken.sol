@@ -283,7 +283,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
     /// @dev this does not include pending deposits
     function totalAssets() public view override returns (uint256) {
-        return super.totalAssets() - totalPendingDeposits;
+        return super.totalAssets() - totalPendingDeposits - totalSponsorDeposits;
     }
 
     /// @notice wrap any ETH in this contract

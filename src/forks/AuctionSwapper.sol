@@ -2,7 +2,7 @@
 //
 // The original contract depends on a helper from OZ 4.x but we have OZ 5.x. I couldn't figure out how to make remappings handle mixing them.
 //
-// TODO: a new version of this is in development
+// TODO: a new version of the auction process is in development. this version does not support cow swap, but that seems like a good idea
 pragma solidity >=0.8.18;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
