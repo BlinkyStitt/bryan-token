@@ -31,6 +31,8 @@ The deposit queue stops people from stealing rewards, but it also means that the
 
 If the vault suffers losses, we need to make sure the sponsors can't take an unfair share. It might be fine, but this needs investigation. Any losses should be shared fairly.
 
+In startDeposit, when msg.sender is the factory, I think there is a DOS vector. I think the factory needs a special entry point.
+
 ## Miscellaneous Ideas and Todos
 
 Primarily, this project gives me a reason to play with some smart contract tools/fras]meworks to prepare for a more serious project.

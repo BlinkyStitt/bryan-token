@@ -45,16 +45,25 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// @notice assets held for the DEPOSIT_DELAY
     uint256 public totalPendingDeposits = 0;
 
-    /// TODO: think more about this. if the asset suffers a loss, I think some trickery can happen here. ironic since we added this to help when we have a large win
+    uint256 public totalSponsorDeposits = 0;
+
     struct PendingDeposit {
         uint256 when;
         uint256 assets;
+        uint256 sponsorshipAssets;
     }
 
     /// TODO: include a nonce here so that multiple deposits don't reset the timer?
     mapping(address caller => mapping(address receiver => PendingDeposit)) public pendingDepositOf;
 
+    /// TODO: i'm not sure if tracking this is worth the gas
     mapping(address owner => uint256) public pendingBalanceOf;
+
+    /// @dev sponsor tokens do not earn any rewards
+    mapping(address owner => uint256) public sponsorshipOf;
+
+    /// @dev sponsor tokens have a deposit queue
+    mapping(address owner => uint256) public pendingSponsorshipOf;
 
     /// @dev these underscores are gross. too many different libraries and styles are being mixed together
     /// todo: change this into an initializer that can only run once during deploy?
@@ -133,16 +142,21 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             shares = previewDeposit(assets);
         }
 
-        pendingDeposit.assets = 0;
         pendingDeposit.when = 0;
+        pendingDeposit.assets = 0;
+        pendingDeposit.sponsorshipAssets = 0;
 
         totalPendingDeposits -= assets;
 
         pendingBalanceOf[receiver] -= assets;
 
-        _mint(receiver, shares);
-
         emit Deposit(originalCaller, receiver, assets, shares);
+
+        if (pendingDeposit.sponsorshipAssets > 0) {
+            revert("todo: write this");
+        } else {
+            _mint(receiver, shares);
+        }
 
         return shares;
     }
@@ -160,6 +174,32 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
      */
     function _postTake(address _token, uint256 _amountTaken, uint256 _amountPayed) internal override {
         harvest();
+    }
+
+    /// TODO: should this take assets or shares?
+    function _sponsor(address who, uint256 shares) internal returns (uint256 assets) {
+        assets = convertToAssets(shares);
+
+        _burn(msg.sender, shares);
+        totalSponsorDeposits += assets;
+
+        // unchecked is safe because this is always <= totalSponsorDeposits which fits in a uint256
+        unchecked {
+            sponsorshipOf[who] += assets;
+        }
+    }
+
+    /// TODO: should this take assets or shares?
+    function _sponsorExit(address who, uint256 assets) internal returns (uint256 shares) {
+        sponsorshipOf[who] -= assets;
+
+        // unchecked is safe because the total is always >= one user's total
+        unchecked {
+            totalSponsorDeposits -= assets;
+        }
+
+        shares = convertToShares(assets);
+        _mint(msg.sender, shares);
     }
 
     // === Public things ===
@@ -258,6 +298,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// @notice begin a deposit. This takes `assets()`, not `underlying()`
     /// @dev the first deposit does not have any delay
     /// @dev the delay is necessary to protect against large deposits around the time of a large win
+    /// TODO: starting a deposit should also take a number of "sponsorshipAssets"
     function startDeposit(uint256 assets, address receiver) public returns (uint256 shares) {
         if (totalSupply() == 0) {
             shares = super.deposit(assets, receiver);
@@ -280,6 +321,18 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             pendingDeposit.when = block.timestamp + DEPOSIT_DELAY;
         }
     }
+
+    /// @notice opt out of receiving rewards for these tokens
+    function sponsor(uint256 shares) public returns (uint256 assets) {
+        assets = _sponsor(msg.sender, shares);
+    }
+
+    /// @notice end your sponsorship of the fan token
+    function sponsorExit(uint256 assets) public returns (uint256 shares) {
+        shares = _sponsorExit(msg.sender, assets);
+    }
+
+    // TODO: sponsorFrom?
 
     /// @dev this does not include pending deposits
     function totalAssets() public view override returns (uint256) {
