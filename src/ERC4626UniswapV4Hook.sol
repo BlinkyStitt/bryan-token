@@ -25,7 +25,7 @@ contract ERC4626UniswapV4Hook is BaseHook {
 
     function _beforeAddLiquidity(address, PoolKey calldata, ModifyLiquidityParams calldata, bytes calldata)
         internal
-        virtual
+        override
         returns (bytes4)
     {
         // todo: i think this should revert. there's no need to have actual liquidity in this contract.
