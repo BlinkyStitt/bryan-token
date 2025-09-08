@@ -5,7 +5,7 @@ set -eux -o pipefail
 REORG_SAFETY=${REORG_SAFETY:-5}
 
 # TODO: whats the actual max lag?
-MAX_LAG_BLOCKS=${MAX_LAG_BLOCKS:-5000}
+MAX_LAG_BLOCKS=${MAX_LAG_BLOCKS:-4096}
 
 fork_url=https://1rpc.io/${ONERPC_API_KEY}/base
 
