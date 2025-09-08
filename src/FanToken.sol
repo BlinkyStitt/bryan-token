@@ -146,6 +146,21 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         return shares;
     }
 
+    /**
+     * @dev To override if a post take action is desired.
+     *
+     * This could be used to re-deploy the bought token back into the yield source,
+     * or in conjunction with {_preTake} to check that the price sold at was within
+     * some allowed range.
+     *
+     * @param _token Address of the token that the strategy was sent.
+     * @param _amountTaken Amount of the from token taken.
+     * @param _amountPayed Amount of `_token` that was sent to the strategy.
+     */
+    function _postTake(address _token, uint256 _amountTaken, uint256 _amountPayed) internal override {
+        harvest();
+    }
+
     // === Public things ===
 
     /// @notice check an account's balance in the underlying (backing) token

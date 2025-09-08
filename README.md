@@ -1,23 +1,47 @@
-# Bryan's Tokens
+# Fan Tokens
 
-A "fan token" that is backed with ETH. No pump and dump games here. Hold my token if you like me. If you don't want to be my fan anymore, you can turn in your tokens for the backed ETH.
+I want to send tips to people using cryptocurrency, but I don't want to just tip out USDC or ETH. I want to be able to send something more personalized. So I made "fan tokens" as a kind of wrapping paper around these other tokens.
 
-This read me and token design are under construction. Nothing is finalized.
+Hold a fan token if you like the owner.
+
+Every day, [PoolTogether prizes](https://pooltogether.com/) might go out to all of the fan token holders.
+
+You shouldn't buy this token. This token is meant to be given as a gift. If you have any, it's probably from an interaction with the owner on farcaster.
+
+Fan tokens can be created for free by depositing pooltogether tickets.
+
+If you received some fan tokens and don't want to participate in the game, you can return them for the backing pooltogether tickets (which are themselves backed by valuable tokens like ETH or USDC).
 
 ## Warning!
 
-- This is an experiment and a toy, not a financial investment.
+- This is an experiment and a toy.
 - This is not audited.
-- There is a deposit fee of 1%. The point of this token is to fund more projects like this. A small tip is a good way to do that.
-- I have a few more ideas and will probably deploy this contract a few more times.
 
-## What is this?
+## Design
 
-Primarily, I am playing with tools to prepare for a more serious project.
+Can't be evil is my foundational principle for smart contract development. That means contracts should be immutable and functions should not be restricted to privileged users.
+
+No pump and dump games here. Backing means we don't need to provide liquidity on an AMM.
+
+If something would be nice to change but could be abused, then make it impossible to change. For example, I would like to be able to change the name and symbol for my token. But that can be abused. So it's immutable for my contracts.
+
+## Miscellaneous Ideas and Todos
+
+Primarily, this project gives me a reason to play with some smart contract tools/fras]meworks to prepare for a more serious project.
+
+The fan token owner can create the token with any name and symbol and fees that they want. But these settings cannot be changed.
+
+The owner can transfer ownership but not change the treasury address.
+
+I tend towards having everything be immutable. If you want to change something, just deploy a new fan token. Users can migrate if they wish.
+
+A fan token is like a branded [PoolTogether](https://pooltogether.com/) ticket.
 
 I don't know what to call this exactly. The terms "creator token" and "social token" are being experimented with. I like "fan token".
 
-I don't want to just tip out USDC or WETH. I want to be able to send something more personalized.
+There are no deposit or withdrawal fees on the fan.
+
+In order to prevent shenanigans after winning a large prize, there is a 2 day delay on deposits.
 
 I want the tip to be valuable in some way, but I really do not want people to buy my token and push a price curve around. Having to provide liquidity and deal with price curves and such just doesn't feel good to me.
 
@@ -33,55 +57,38 @@ Deposit fees can be set between 0% and 20%. I'm going to start at 1%.
 
 Prizes and rewards will be distributed with [Empire Builder](https://farcaster.xyz/miniapps/x7DwM6UhLXps/empire-builder). The contract owner (flashprofits.eth) will get 50% of any prizes or rewards (this can be set between 0% and 90%). The top 100 holders of BRY will split the other 50%.
 
-I have BRY setup as my [Cobuild](https://farcaster.xyz/miniapps/XTipkfp9jZBu/cobuild) token. Interact with me on farcaster to buy some.
+A previous version was designed to not have any value. Whoever held the most could set a billboard. I think a dedicated "Billboard" contract makes more sense.
 
-## Problems
+An old version of the token had a "billboard". Whoever held the most tokens, could set the string. I don't like having the ability to erase the billboard. But it seems like that's a good idea for this experiment. That worked when I gave the BRY out, but the new design is backed and I don't think that works as well.
 
-harvesting is not safe. we need to track time weighted average balances and pay based on that. otherwise someone might flash deposit a huge amount, call harvest, then flash withdraw. that shouldn't be paid anything. deposit fees defend some against this attack, but aren't perfect. we could look at yearn's vault/strategy code. they already have protections for all these things. and we can just take a 50% performance fee.
+A decaying price on the billboard is an interesting idea.
 
-i need an example bot for handling the dutch auctions
+Most systems that allow crypto posting like this burn the tokens when someone writes. But I don't like burns.
 
-the deposit fees don't work how i want. they should be sending the fan token to the owner, not the asset.
+allow signatures for claiming and for transfers (permit2).
 
-## Miscellaneous Ideas
+a billboard contract that can be set by whoever has participated in the most prize winnings. will need to track winnings very differently for that to work though.
 
-- A previous version was designed to not have any value. Whoever held the most could set a billboard. I think a dedicated "Billboard" contract makes more sense.
+a migrator contract that converts from b1 to b2 to b3
 
-- An old version of the token had a "billboard". Whoever held the most tokens, could set the string. I don't like having the ability to erase the billboard. But it seems like that's a good idea for this experiment. That worked when I gave the BRY out, but the new design is backed and I don't think that works as well.
+should this be a 4626 vault? things are 1:1 when everything works, but what if something goes wrong. i think 4626 has a bunch of protections for that. though maybe a wrapped ERC20 would be fine.
 
-- A decaying price on the billboard is an interesting idea.
+uniswap v4 hooks are giving me headaches. there is a list of approved hooks somewhere. maybe the constant-sum hook will work well enough to start.
 
-- Most systems that allow crypto posting like this burn the tokens when someone writes. But I don't like burns.
+Should there be an "opt-out" option that automatically redeems during a transfer?
 
-- allow signatures for claiming and for transfers (permit2).
+I need an example bot for handling the dutch auctions. Yearn is already running infrastructure for these though so I we get that for "free".
 
-- a script that makes it easy to call "yoink" to set the billboard
+I need an example bot for calling harvest.
 
-- a migrator contract that converts from b1 to b2 to b3
-
-- should this be a 4626 vault? things are 1:1 when everything works, but what if something goes wrong. i think 4626 has a bunch of protections for that. though maybe a wrapped ERC20 would be fine.
-
-- uniswap v4 hooks are giving me headaches. there is a list of approved hooks somewhere. maybe the constant-sum hook will work well enough to start.
-
-- /meme "Is this ~~~a butterfly~~~ sybil resistance?"
-
-## Design
-
-Can't be evil is my foundational principle for smart contract development.
-
-If something would be nice to change but could be abused, then make it impossible to change.
-
-I would like to be able to change the name and symbol for my token. But that can be abused. So it's immutable for my contracts.
-
-## Bad Things
-
-- Infinite supply.
-- Owner-only functions.
-- Market cap on coins with very small values and very strong price curves.
+I need a mini-app for managing deposits and redeems. Also for deploying your own tokens. And seeing the pooltogether odds for the token.
 
 ## Further Reading
 
 - <https://github.com/yearn/tokenized-strategy-periphery/blob/master/src/Auctions/Auction.sol>
+- [PoolTime](https://farcaster.xyz/miniapps/T97hT9WJH64p/pooltime) - A PoolTogether mini-app
+- [Noice](https://farcaster.xyz/miniapps/jzc2pVtLe_oa/noice)
+- [Cobuild](https://farcaster.xyz/miniapps/XTipkfp9jZBu/cobuild)
 
 ## Developer Documentation
 
@@ -102,7 +109,7 @@ forge build
 ### Test
 
 ```shell
-forge test
+./script/test.sh -vvv
 ```
 
 ### Format
