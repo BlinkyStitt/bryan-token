@@ -197,6 +197,8 @@ contract BryanTest is Test {
         uint256 amountFromTaken = auction.take(auctionId);
 
         assertEq(amountFromTaken, fromAmount, "from amount error");
+
+        revert("todo: make sure the weth value of our shares went up");
     }
 
     function test_empty_harvest() public {
