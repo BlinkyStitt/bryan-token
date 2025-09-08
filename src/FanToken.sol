@@ -17,6 +17,8 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     using Math for uint256;
     using SafeERC20 for IERC20;
 
+    address public immutable FACTORY;
+
     /// @notice deposits are delayed to stop prizes from being taken unfairly
     /// @dev what should this be? i think it needs to be longer than the auction timer with some buffer for bots to kick the auction
     uint256 public immutable DEPOSIT_DELAY = 2 days;
@@ -78,6 +80,8 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         IWETH9 _weth
     ) ERC20(_name, _symbol) ERC4626(_prizeVault) Ownable(_owner) {
         require(_harvestOwnerFeeBasisPoints + _harvestTreasuryFeeBasisPoints <= _BASIS_POINT_SCALE, FeesTooLarge());
+
+        FACTORY = msg.sender;
 
         underlying = IERC20(_prizeVault.asset());
 
@@ -202,6 +206,34 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         _mint(msg.sender, shares);
     }
 
+    /// @notice begin a deposit. This takes `assets()`, not `underlying()`
+    /// @dev the first deposit does not have any delay
+    /// @dev the delay is necessary to protect against large deposits around the time of a large win
+    /// TODO: starting a deposit should also take a number of "sponsorshipAssets"
+    function _startDeposit(address caller, uint256 assets, address receiver) public returns (uint256 shares) {
+        if (totalSupply() == 0) {
+            shares = super.deposit(assets, receiver);
+        } else {
+            PendingDeposit storage pendingDeposit = pendingDepositOf[caller][receiver];
+
+            // if a deposit is already running, then we don't allow starting a new one
+            require(pendingDeposit.when == 0, "!now");
+
+            // transfer the assets now
+            shares = previewDeposit(assets);
+
+            // this is from msg.sender, NOT caller. i don't love that.
+            SafeERC20.safeTransferFrom(IERC20(asset()), msg.sender, address(this), assets);
+
+            // update counters
+            totalPendingDeposits += assets;
+            pendingBalanceOf[receiver] += assets;
+            pendingDeposit.assets += assets;
+
+            // allow claiming the deposit after a delay
+            pendingDeposit.when = block.timestamp + DEPOSIT_DELAY;
+        }
+    }
     // === Public things ===
 
     /// @notice check an account's balance in the underlying (backing) token
@@ -300,26 +332,13 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// @dev the delay is necessary to protect against large deposits around the time of a large win
     /// TODO: starting a deposit should also take a number of "sponsorshipAssets"
     function startDeposit(uint256 assets, address receiver) public returns (uint256 shares) {
-        if (totalSupply() == 0) {
-            shares = super.deposit(assets, receiver);
-        } else {
-            PendingDeposit storage pendingDeposit = pendingDepositOf[msg.sender][receiver];
+        return _startDeposit(msg.sender, assets, receiver);
+    }
 
-            // if a deposit is already running, then we don't allow starting a new one
-            require(pendingDeposit.when == 0, "!now");
+    function startDepositFor(address caller, uint256 assets, address receiver) public returns (uint256 shares) {
+        require(msg.sender == FACTORY, "!factory");
 
-            // transfer the assets now
-            shares = previewDeposit(assets);
-            SafeERC20.safeTransferFrom(IERC20(asset()), msg.sender, address(this), assets);
-
-            // update counters
-            totalPendingDeposits += assets;
-            pendingBalanceOf[receiver] += assets;
-            pendingDeposit.assets += assets;
-
-            // allow claiming the deposit after a delay
-            pendingDeposit.when = block.timestamp + DEPOSIT_DELAY;
-        }
+        return _startDeposit(caller, assets, receiver);
     }
 
     /// @notice opt out of receiving rewards for these tokens

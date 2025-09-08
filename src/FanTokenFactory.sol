@@ -92,7 +92,7 @@ contract FanTokenFactory {
         // deposit the prize vault shares for fan tokens
         IERC20(address(prizeVault)).forceApprove(address(fanToken), vaultShares);
 
-        return fanToken.startDeposit(vaultShares, receiver);
+        return fanToken.startDepositFor(msg.sender, vaultShares, receiver);
     }
 
     function redeem(FanToken fanToken, uint256 shares, address receiver) public returns (uint256) {

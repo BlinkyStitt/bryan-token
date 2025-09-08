@@ -78,8 +78,6 @@ contract BryanScript is Script {
     // TODO: this should probably be in another file
     function claimPool() public pure {
         revert("claim POOL if its over a threshold");
-        revert("sweep the POOL to the owner");
-        // originally, i wanted to send the POOL to the treasury, but the treasury only seems to want white listed assets
     }
 
     // TODO: this should probably be in another file
@@ -87,8 +85,7 @@ contract BryanScript is Script {
         revert("claim WETH if its over a threshold");
     }
 
-    // TODO: this should probably be in another file
-    function sweep() public pure {
-        revert("sweep an arbitrary token");
+    function kickAuction() public pure {
+        revert("start an auction for the relevant tokens (probably POOL)");
     }
 }

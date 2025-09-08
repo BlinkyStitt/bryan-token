@@ -101,8 +101,8 @@ contract FanTokenFactoryTest is Test {
         IERC4626 asset = IERC4626(bryan.asset());
         uint256 assets = bryan.previewRedeem(shares);
 
-        // TODO: this require is wrong. we want to be sure that the shares we received are worth what we deposited
-        // require(assets == shares);
+        // TODO: check against a specific value
+        assertGt(assets, 0, "no assets redeemed");
 
         // TODO: the fees make this annoying. TODO: I'm also not sure these are even the right checks. think about these more
         assertGt(asset.balanceOf(address(bryan)), 0, "asset balance does not match assets");

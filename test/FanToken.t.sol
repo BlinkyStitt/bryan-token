@@ -22,7 +22,6 @@ contract BryanTest is Test {
         // TODO: the entry fee isn't what i want. i want it to be in fanTokens, not in underlying!
 
         // fees of 0 are probably too simple to be worthwhile. need to test with actual fees set
-        uint256 entryFeeBasisPoints = 0;
         uint256 harvestOwnerFeeBasisPoints = 0;
         uint256 harvestTreasuryFeeBasisPoints = 0;
         treasury = makeAddr("treasury");
@@ -169,6 +168,7 @@ contract BryanTest is Test {
         bytes32 auctionId = bryan.enableAuction(from);
 
         uint256 fromAmount = 1 ether;
+        console.log("fromAmount", fromAmount);
 
         deal(address(from), address(bryan), fromAmount, true);
 
@@ -185,20 +185,29 @@ contract BryanTest is Test {
         vm.warp(block.timestamp + 12 hours);
 
         uint256 wantAmount = auction.getAmountNeeded(auctionId, fromAmount);
+        console.log("wantAmount", wantAmount);
         assertGt(wantAmount, 0, "want amount should be nonzero");
 
         address want = auction.want();
-        assertEq(want, address(bryan.underlying()), "wrong wnat");
+        console.log("want", want);
+        assertEq(want, address(bryan.underlying()), "wrong want");
 
         // cheat to have the necessary tokens to fulfill the auction
         weth.deposit{value: wantAmount}();
 
         IERC20(want).approve(address(auction), wantAmount);
         uint256 amountFromTaken = auction.take(auctionId);
+        console.log("amountFromTaken", want);
 
         assertEq(amountFromTaken, fromAmount, "from amount error");
 
-        revert("todo: make sure the weth value of our shares went up");
+        // thanks to the post take hook, this was deposited
+        assertEq(IERC20(want).balanceOf(address(bryan)), 0);
+
+        // TODO: i don't like this amount being hard coded.
+        assertEq(IERC20(bryan.asset()).balanceOf(address(bryan)), 244140625000000000000);
+
+        // TODO: check that the weth balances increased correctly
     }
 
     function test_empty_harvest() public {
