@@ -189,7 +189,8 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
      *
      * Emits a {Transfer} event.
      *
-     * TODO: I'm not sure about the events.
+     * TODO: I'm not sure about the events. Maybe it should have a Sponsor event, too?
+     * TODO: I'm sure this could be a lot more gas efficient. definitely get rid of the string errors
      */
     function _updateSponsorship(
         address from,
@@ -199,29 +200,18 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         uint256 assets,
         uint256 shares
     ) internal virtual {
-        if (from == to) {
-            // this is a self transfer. this get here by calling `sponsor`
-            if (isSponsorFrom && isSponsorTo) {
-                // nothing needs to happen
-                return;
-            } else if (isSponsorFrom && !isSponsorTo) {
-                revert("todo: turn off sponsorship. transfer sponsored tokens with minting real tokens");
-            } else if (!isSponsorFrom && isSponsorTo) {
-                revert("todo: turn off sponsorship. burn tokens and increase sponsored balance of to");
-            } else if (!isSponsorFrom && !isSponsorTo) {
-                // nothing needs to happen
-                return;
-            } else {
-                revert Unimplemented("self: this shouldn't be possible");
-            }
-        } else if (from == address(0)) {
+        if (from == address(0)) {
             // this is a mint
             require(!isSponsorFrom, Unimplemented("mint: from can't be a sponsor"));
 
             if (isSponsorTo) {
-                // mint sponsored tokens
+                // mint sponsored tokens. the assets have already been transfered here
                 totalSponsorDeposits += assets;
                 balanceOfSponsor[to] += assets;
+
+                // TODO: i'm pretty sure we don't want to call super._update here
+
+                return;
             } else {
                 revert Unimplemented("mint: to should always be a sponsor");
             }
@@ -230,24 +220,54 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             require(!isSponsorTo, Unimplemented("burn: to can't be a sponsor"));
 
             if (isSponsorFrom) {
-                revert("todo: burn from sponsored balance of 'from'");
+                // burn from sponsored balance of 'from'. the assets will be claimable by the remaining token holders
+                balanceOfSponsor[from] -= assets;
+                totalSponsorDeposits -= assets;
+
+                // TODO: i'm pretty sure we don't want to call super._update here
+
+                return;
             } else {
                 revert Unimplemented("burn: from should always be a sponsor");
             }
-        } else if (from != to) {
-            // this is a transfer
-            if (isSponsorFrom && isSponsorTo) {
-                revert("todo: transfer sponsored tokens from 'from' to 'to'");
-            } else if (isSponsorFrom && !isSponsorTo) {
-                revert("todo: convert sponsored -> real; decrease sponsored of 'from', mint real to 'to'");
-            } else if (!isSponsorFrom && isSponsorTo) {
-                revert("todo: convert real -> sponsored; burn real from 'from', increase sponsored of 'to'");
-            } else if (!isSponsorFrom && !isSponsorTo) {
-                revert Unimplemented("transfer: sponsored should always be set for at least one of them");
-            } else {
-                revert Unimplemented("transfer: this shouldn't be possible");
-            }
         } else {
+            // this is a transfer
+
+            if (isSponsorFrom && isSponsorTo) {
+                // nothing needs to happen
+                return;
+            } else if (isSponsorFrom && !isSponsorTo) {
+                // turn off sponsorship. transfer sponsored tokens with minting real tokens");
+
+                if (from == to) {
+                    // this is a self transfer. we get here by calling `sponsor`
+                    isSponsor[from] = false;
+                }
+
+                balanceOfSponsor[from] -= assets;
+                totalSponsorDeposits -= assets;
+
+                super._mint(to, shares);
+
+                return;
+            } else if (!isSponsorFrom && isSponsorTo) {
+                // turn on sponsorship. burn real tokens and increase sponsored balance
+                if (from == to) {
+                    // this is a self transfer. we get here by calling `sponsor`
+                    isSponsor[from] = true;
+                }
+
+                super._burn(from, shares);
+
+                totalSponsorDeposits += assets;
+                balanceOfSponsor[to] += assets;
+
+                return;
+            } else if (!isSponsorFrom && !isSponsorTo) {
+                // nothing needs to happen
+                return;
+            }
+
             revert Unimplemented("self: this shouldn't be possible");
         }
     }
@@ -436,10 +456,38 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
     // TODO: sponsorFrom?
 
-    /// @dev this does not include pending deposits
+    /// === erc-4262 overrides. audit these carefully! ===
+
+    /// @dev this does not include pending or sponsor deposits
     function totalAssets() public view override returns (uint256) {
         return super.totalAssets() - totalPendingDeposits - totalSponsorDeposits;
     }
+
+    /**
+     * @dev See {IERC4626-maxWithdraw}.
+     */
+    function maxWithdraw(address owner) public view override returns (uint256) {
+        if (isSponsor[owner]) {
+            // TODO: should this be convertToShares or one of the others?
+            return convertToShares(balanceOfSponsor[owner]);
+        } else {
+            return _convertToAssets(balanceOf(owner), Math.Rounding.Floor);
+        }
+    }
+
+    /**
+     * @dev See {IERC4626-maxRedeem}.
+     */
+    function maxRedeem(address owner) public view override returns (uint256) {
+        if (isSponsor[owner]) {
+            // TODO: should this be convertToShares or one of the others?
+            return convertToShares(balanceOfSponsor[owner]);
+        } else {
+            return balanceOf(owner);
+        }
+    }
+
+    // === minor helpers ===
 
     /// @notice wrap any ETH in this contract
     function wrapETH() public payable returns (uint256 total) {

@@ -33,6 +33,10 @@ If the vault suffers losses, we need to make sure the sponsors can't take an unf
 
 In startDeposit, when msg.sender is the factory, I think there is a DOS vector. I think the factory needs a special entry point.
 
+Gas golf by adding some "unchecked" when we know its impossible. better to wait until the end on that since things might get moved around
+
+What happens if 100% of the tokens are burned after there is some liquidity in the system?
+
 ## Miscellaneous Ideas and Todos
 
 Primarily, this project gives me a reason to play with some smart contract tools/fras]meworks to prepare for a more serious project.
