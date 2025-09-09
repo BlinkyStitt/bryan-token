@@ -173,62 +173,58 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
      * this function.
      *
      * Emits a {Transfer} event.
+     *
+     * TODO: I'm not sure about the events.
      */
-    /// TODO: this is getting rather complex. that concerns me. write it cleanly, then add tests, then gas golf it
     function _updateSponsorship(address from, bool isSponsorFrom, address to, bool isSponsorTo) internal virtual {
         if (from == to) {
-            // this is a transfer
+            // this is a self transfer. this get here by calling `sponsor`
             if (isSponsorFrom && isSponsorTo) {
-                revert("todo: transfer sponsored tokens");
+                // nothing needs to happen
+                return;
             } else if (isSponsorFrom && !isSponsorTo) {
-                revert("todo: transfer sponsored tokens with minting real tokens");
+                revert("todo: turn off sponsorship. transfer sponsored tokens with minting real tokens");
             } else if (!isSponsorFrom && isSponsorTo) {
-                revert("todo: burn tokens and increase sponsored balance of to");
+                revert("todo: turn off sponsorship. burn tokens and increase sponsored balance of to");
             } else if (!isSponsorFrom && !isSponsorTo) {
-                revert Unimplemented("sponsor should always be set for at least one of them");
+                // nothing needs to happen
+                return;
             } else {
-                revert Unimplemented("this shouldn't be possible");
+                revert Unimplemented("self: this shouldn't be possible");
             }
         } else if (from == address(0)) {
             // this is a mint
-            if (isSponsorFrom && isSponsorTo) {
-                revert("wip");
-            } else if (isSponsorFrom && !isSponsorTo) {
-                revert("wip");
-            } else if (!isSponsorFrom && isSponsorTo) {
-                revert("wip");
-            } else if (!isSponsorFrom && !isSponsorTo) {
-                revert("wip");
+            require(!isSponsorFrom, Unimplemented("mint: from can't be a sponsor"));
+
+            if (isSponsorTo) {
+                revert("todo: mint sponsored tokens");
             } else {
-                revert Unimplemented("wip");
+                revert Unimplemented("mint: to should always be a sponsor");
             }
         } else if (to == address(0)) {
             // this is a burn
-            if (isSponsorFrom && isSponsorTo) {
-                revert("wip");
-            } else if (isSponsorFrom && !isSponsorTo) {
-                revert("wip");
-            } else if (!isSponsorFrom && isSponsorTo) {
-                revert("wip");
-            } else if (!isSponsorFrom && !isSponsorTo) {
-                revert("wip");
+            require(!isSponsorTo, Unimplemented("burn: to can't be a sponsor"));
+
+            if (isSponsorFrom) {
+                revert("todo: burn from sponsored balance of 'from'");
             } else {
-                revert Unimplemented("wip");
+                revert Unimplemented("burn: from should always be a sponsor");
             }
         } else if (from != to) {
+            // this is a transfer
             if (isSponsorFrom && isSponsorTo) {
-                revert("wip");
+                revert("todo: transfer sponsored tokens from 'from' to 'to'");
             } else if (isSponsorFrom && !isSponsorTo) {
-                revert("wip");
+                revert("todo: convert sponsored -> real; decrease sponsored of 'from', mint real to 'to'");
             } else if (!isSponsorFrom && isSponsorTo) {
-                revert("wip");
+                revert("todo: convert real -> sponsored; burn real from 'from', increase sponsored of 'to'");
             } else if (!isSponsorFrom && !isSponsorTo) {
-                revert("wip");
+                revert Unimplemented("transfer: sponsored should always be set for at least one of them");
             } else {
-                revert Unimplemented("wip");
+                revert Unimplemented("transfer: this shouldn't be possible");
             }
         } else {
-            revert Unimplemented("wip");
+            revert Unimplemented("self: this shouldn't be possible");
         }
     }
 
