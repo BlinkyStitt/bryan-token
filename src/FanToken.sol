@@ -191,10 +191,14 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
      *
      * TODO: I'm not sure about the events.
      */
-    function _updateSponsorship(address from, bool isSponsorFrom, address to, bool isSponsorTo) internal virtual {
-        console.log("from:", from, isSponsorFrom);
-        console.log("to:", to, isSponsorTo);
-
+    function _updateSponsorship(
+        address from,
+        bool isSponsorFrom,
+        address to,
+        bool isSponsorTo,
+        uint256 assets,
+        uint256 shares
+    ) internal virtual {
         if (from == to) {
             // this is a self transfer. this get here by calling `sponsor`
             if (isSponsorFrom && isSponsorTo) {
@@ -215,7 +219,9 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             require(!isSponsorFrom, Unimplemented("mint: from can't be a sponsor"));
 
             if (isSponsorTo) {
-                revert("todo: mint sponsored tokens");
+                // mint sponsored tokens
+                totalSponsorDeposits += assets;
+                balanceOfSponsor[to] += assets;
             } else {
                 revert Unimplemented("mint: to should always be a sponsor");
             }
@@ -257,13 +263,9 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         bool isSponsorFrom = isSponsor[from];
         bool isSponsorTo = isSponsor[to];
 
-        console.log(from, "isSponsorFrom:", isSponsorFrom);
-        console.log(to, "isSponsorTo:", isSponsorTo);
-        console.log("shares:", shares);
-
         if (isSponsorFrom || isSponsorTo) {
-            // TODO: pass shares here? pass assets here?
-            _updateSponsorship(from, isSponsorFrom, to, isSponsorTo);
+            uint256 assets = convertToAssets(shares);
+            _updateSponsorship(from, isSponsorFrom, to, isSponsorTo, assets, shares);
         } else {
             super._update(from, to, shares);
         }
@@ -417,7 +419,19 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// todo: what return value?
     function sponsor(bool state) public {
         // todo: force keep it on for the owner/treasury?
-        _updateSponsorship(msg.sender, isSponsor[msg.sender], msg.sender, state);
+        bool senderIsSponsor = isSponsor[msg.sender];
+
+        uint256 assets;
+        uint256 shares;
+        if (senderIsSponsor) {
+            assets = balanceOfSponsor[msg.sender];
+            shares = convertToShares(assets);
+        } else {
+            shares = balanceOf(msg.sender);
+            assets = convertToAssets(shares);
+        }
+
+        _updateSponsorship(msg.sender, senderIsSponsor, msg.sender, state, assets, shares);
     }
 
     // TODO: sponsorFrom?
