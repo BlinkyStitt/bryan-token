@@ -11,6 +11,8 @@ contract BryanTest is Test {
     address treasury;
     IWETH9 weth;
     address owner;
+    address factory;
+    address alice;
 
     function setUp() public {
         // TODO: use flags on the test command instead of forcing a fork here?
@@ -25,7 +27,9 @@ contract BryanTest is Test {
         uint256 harvestOwnerFeeBasisPoints = 0;
         uint256 harvestTreasuryFeeBasisPoints = 0;
         treasury = makeAddr("treasury");
+        factory = makeAddr("factory");
 
+        vm.prank(factory);
         bryan = new FanToken(
             "ETH from Bryan",
             "BRY-ETH",
@@ -74,6 +78,14 @@ contract BryanTest is Test {
         // approve and deposit the underlying to get the asset that backs Bryan
         underlying.approve(address(asset), type(uint256).max);
         assets = asset.deposit(underlyingAssets, receiver);
+    }
+
+    function test_expected_default_sponsors() public {
+        assertEq(bryan.isSponsor(address(0)), false);
+        assertEq(bryan.isSponsor(address(bryan)), true);
+        assertEq(bryan.isSponsor(owner), true);
+        assertEq(bryan.isSponsor(treasury), true);
+        assertEq(bryan.isSponsor(factory), true);
     }
 
     function test_deposit_and_withdraw() public {
@@ -242,6 +254,7 @@ contract BryanTest is Test {
     function test_wrapping_eth(uint256 value) public {
         // TODO: what is the actual max? something involving weth's totalSupply
         vm.assume(value < 100 ether);
+        vm.assume(value > 0); // we call wrapETH at the start and end, so no real point in skipping it
 
         assertEq(bryan.wrapETH(), 0);
         assertEq(weth.balanceOf(address(bryan)), 0);

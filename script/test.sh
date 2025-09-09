@@ -5,7 +5,8 @@ set -eux -o pipefail
 REORG_SAFETY=${REORG_SAFETY:-5}
 
 # TODO: whats the actual max lag?
-MAX_LAG_BLOCKS=${MAX_LAG_BLOCKS:-4096}
+# TODO: we don't do all 4096 because we need a slow test run to have long enough
+MAX_LAG_BLOCKS=${MAX_LAG_BLOCKS:-4000}
 
 fork_url=${BASE_RPC_URL}
 

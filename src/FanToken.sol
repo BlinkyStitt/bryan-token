@@ -8,6 +8,8 @@ import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IWETH9} from "v4-periphery/src/interfaces/external/IWETH9.sol";
 
+import {console} from "forge-std/console.sol";
+
 error InvalidAuctionToken();
 error FeesTooLarge();
 error FactoryOnly();
@@ -81,6 +83,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         IWETH9 _weth
     ) ERC20(_name, _symbol) ERC4626(_prizeVault) Ownable(_owner) {
         require(_harvestOwnerFeeBasisPoints + _harvestTreasuryFeeBasisPoints <= _BASIS_POINT_SCALE, FeesTooLarge());
+        require(_owner != address(0), "this looks like a mistake");
 
         FACTORY = msg.sender;
 
@@ -102,10 +105,22 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
         setupApprovals();
 
-        // TODO: should the treasury be a sponsor address? maybe that should be an option
         isSponsor[_owner] = true;
-        isSponsor[_treasury] = true;
+
+        if (_treasury != address(0)) {
+            // TODO: this should maybe be optional
+            isSponsor[_treasury] = true;
+        }
+
         isSponsor[address(this)] = true;
+
+        // TODO: i'm not sure about this. i think it just adds gas overhead. but it also seems like a good idea
+        // TODO: maybe we should have a _transfer override that makes sure we aren't letting users call transfer to the factory
+        isSponsor[msg.sender] = true;
+
+        console.log("owner:", _owner);
+        console.log("treasury:", _treasury);
+        console.log("this:", address(this));
     }
 
     /// @dev allow receiving eth
@@ -177,6 +192,9 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
      * TODO: I'm not sure about the events.
      */
     function _updateSponsorship(address from, bool isSponsorFrom, address to, bool isSponsorTo) internal virtual {
+        console.log("from:", from, isSponsorFrom);
+        console.log("to:", to, isSponsorTo);
+
         if (from == to) {
             // this is a self transfer. this get here by calling `sponsor`
             if (isSponsorFrom && isSponsorTo) {
@@ -238,6 +256,10 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     function _update(address from, address to, uint256 shares) internal override {
         bool isSponsorFrom = isSponsor[from];
         bool isSponsorTo = isSponsor[to];
+
+        console.log(from, "isSponsorFrom:", isSponsorFrom);
+        console.log(to, "isSponsorTo:", isSponsorTo);
+        console.log("shares:", shares);
 
         if (isSponsorFrom || isSponsorTo) {
             // TODO: pass shares here? pass assets here?
@@ -394,6 +416,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// @notice sponsored tokens contribute to prizes, but do not earn any prizes themselves.
     /// todo: what return value?
     function sponsor(bool state) public {
+        // todo: force keep it on for the owner/treasury?
         _updateSponsorship(msg.sender, isSponsor[msg.sender], msg.sender, state);
     }
 
