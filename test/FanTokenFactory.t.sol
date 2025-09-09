@@ -28,7 +28,6 @@ contract FanTokenFactoryTest is Test {
         uint256 harvestTreasuryFeeBasisPoints = 0;
         treasury = makeAddr("treasury");
         uint256 initialDeposit = 0 ether;
-        uint256 initialSponsorship = 0 ether;
 
         bytes32 salt = bytes32(0);
 
@@ -42,8 +41,7 @@ contract FanTokenFactoryTest is Test {
             prizeVault,
             treasury,
             salt,
-            initialDeposit,
-            initialSponsorship
+            initialDeposit
         );
     }
 
@@ -51,19 +49,19 @@ contract FanTokenFactoryTest is Test {
         uint256 initialDeposit = 1 ether;
 
         FanToken fanToken = fanTokenFactory.create{value: initialDeposit}(
-            "ETH from Bryan Again", "BRY-ETH-2", 1 days, 0, 0, prizeVault, address(0), bytes32(0), initialDeposit, initialDeposit / 2
+            "ETH from Bryan Again", "BRY-ETH-2", 1 days, 0, 0, prizeVault, address(0), bytes32(0), initialDeposit
         );
 
         assertEq(fanToken.balanceOf(address(this)), initialDeposit, "initial deposits should be 1:1");
 
         assertEq(
-            fanToken.balanceOfUnderlying(address(this)),
+            fanToken.balanceOfSponsor(address(this)),
             initialDeposit / 2,
             "balance of underlying from initial deposit is incorrect"
         );
 
         assertEq(
-            fanToken.sponsorshipOf(address(this)),
+            fanToken.balanceOfSponsor(address(this)),
             initialDeposit / 2,
             "balance of sponsorship from initial deposit is incorrect"
         );
@@ -78,7 +76,10 @@ contract FanTokenFactoryTest is Test {
 
         address receiver = makeAddr("receiver");
 
-        uint256 shares = fanTokenFactory.startDeposit{value: 1 ether}(bryan, 1 ether, 0, receiver);
+        // TODO: this is the first call to startDeposit for this contract. we need to 
+        uint256 when = fanTokenFactory.startDeposit{value: 1 ether}(bryan, 1 ether, receiver);
+
+        assertEq(when, 0, "first deposit should be instant");
 
         prizeVault = IERC4626(bryan.asset());
 
@@ -94,43 +95,47 @@ contract FanTokenFactoryTest is Test {
     }
 
     function test_factory_deposit_and_withdraw() public {
+        address alice = makeAddr("alice");
+        vm.startPrank(alice);
+
         // TODO: for some reason we can't deal the ERC4626. We can deal the ERC20 though.
         uint256 underlyingAssets = 1_000 * 1e6;
 
         IERC20 underlying = bryan.underlying();
-        deal(address(underlying), address(this), underlyingAssets, false);
+        deal(address(underlying), alice, underlyingAssets, false);
 
         // test the factory's deposit function
         underlying.approve(address(fanTokenFactory), type(uint256).max);
-        uint256 shares = fanTokenFactory.startDeposit(bryan, underlyingAssets, 0, address(this));
-
-        console.log("shares:", shares);
+        uint256 when = fanTokenFactory.startDeposit(bryan, underlyingAssets, alice);
+        assertEq(when, 0, "first deposit should be instant");
 
         IERC4626 asset = IERC4626(bryan.asset());
+        uint256 shares = bryan.balanceOf(alice);
+        console.log("shares:", shares);
+
         uint256 assets = bryan.previewRedeem(shares);
+        console.log("assets:", assets);
 
         // TODO: check against a specific value
         assertGt(assets, 0, "no assets redeemed");
 
         // TODO: the fees make this annoying. TODO: I'm also not sure these are even the right checks. think about these more
         assertGt(asset.balanceOf(address(bryan)), 0, "asset balance does not match assets");
-        assertEq(bryan.balanceOf(address(this)), shares, "bryan balance does not match shares");
 
         // test the main redeem function
         // TODO: send to a "receiver" address just to make the accounting clean?
         bryan.approve(address(fanTokenFactory), type(uint256).max);
-        uint256 redeemed = fanTokenFactory.redeem(bryan, shares, address(this));
+        uint256 redeemed = fanTokenFactory.redeem(bryan, shares, address(alice));
+        console.log("redeemed:", redeemed);
 
         // TODO: the fees make this annoying. TODO: I'm also not sure these are even the right checks. think about these more
         assertGt(redeemed, 0, "none redeemed"); // TODO: what should this amount be?
-        assertEq(IERC20(bryan.asset()).balanceOf(address(bryan)), 0, "token's asset balance should be empty");
-        assertEq(bryan.balanceOf(address(this)), 0, "our balance of bryan should be empty");
-
-        // TODO: something feels wrong about this amount. we should be able to use assertEq here, but we have slightly more tokens than expected
-        assertGt(
-            underlying.balanceOf(address(this)),
-            underlyingAssets * 99 / 100,
-            "we should have our asset back (less the deposit fee)"
+        assertEq(
+            underlying.balanceOf(address(alice)),
+            underlyingAssets,
+            "we should have our asset back"
         );
+        assertEq(IERC20(bryan.asset()).balanceOf(address(bryan)), 0, "token's asset balance should be empty");
+        assertEq(bryan.balanceOf(address(alice)), 0, "our balance of bryan should be empty");
     }
 }

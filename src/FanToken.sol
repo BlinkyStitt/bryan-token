@@ -10,6 +10,7 @@ import {IWETH9} from "v4-periphery/src/interfaces/external/IWETH9.sol";
 
 error InvalidAuctionToken();
 error FeesTooLarge();
+error FactoryOnly();
 
 /// @title FanToken.
 /// @notice Play pool together as a group of fans.
@@ -52,20 +53,19 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     struct PendingDeposit {
         uint256 when;
         uint256 assets;
-        uint256 sponsorshipAssets;
     }
 
     /// TODO: include a nonce here so that multiple deposits don't reset the timer?
     mapping(address caller => mapping(address receiver => PendingDeposit)) public pendingDepositOf;
 
     /// TODO: i'm not sure if tracking this is worth the gas
-    mapping(address owner => uint256) public pendingBalanceOf;
+    mapping(address who => uint256) public balanceOfPending;
 
     /// @dev sponsor tokens do not earn any rewards
-    mapping(address owner => uint256) public sponsorshipOf;
+    /// TODO: bitmap?
+    mapping(address who => bool) public isSponsor;
 
-    /// @dev sponsor tokens have a deposit queue
-    mapping(address owner => uint256) public pendingSponsorshipOf;
+    mapping(address who => uint256) public balanceOfSponsor;
 
     /// @dev these underscores are gross. too many different libraries and styles are being mixed together
     /// todo: change this into an initializer that can only run once during deploy?
@@ -100,6 +100,11 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         WETH = _weth;
 
         setupApprovals();
+
+        // TODO: should the treasury be a sponsor address? maybe that should be an option
+        isSponsor[_owner] = true;
+        isSponsor[_treasury] = true;
+        isSponsor[address(this)] = true;
     }
 
     /// @dev allow receiving eth
@@ -148,21 +153,108 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
         pendingDeposit.when = 0;
         pendingDeposit.assets = 0;
-        pendingDeposit.sponsorshipAssets = 0;
 
         totalPendingDeposits -= assets;
 
-        pendingBalanceOf[receiver] -= assets;
+        balanceOfPending[receiver] -= assets;
 
+        // TODO: different event if this is a sponsor
         emit Deposit(originalCaller, receiver, assets, shares);
 
-        if (pendingDeposit.sponsorshipAssets > 0) {
-            revert("todo: write this");
-        } else {
-            _mint(receiver, shares);
-        }
+        _mint(receiver, shares);
 
         return shares;
+    }
+
+    /**
+     * @dev Transfers a `value` amount of tokens from `from` to `to`, or alternatively mints (or burns) if `from`
+     * (or `to`) is the zero address. All customizations to transfers, mints, and burns should be done by overriding
+     * this function.
+     *
+     * Emits a {Transfer} event.
+     */
+    /// TODO: this is getting rather complex. that concerns me
+    function _updateSponsorship(address from, bool isSponsorFrom, address to, bool isSponsorTo) internal virtual {
+        /*
+        // TODO: this is not right
+        if (isSponsorFrom) {
+            if (state) {
+                // they are already a sponsor. no need to do anything
+                return;
+            } else {
+                assets = balanceOfSponsor[msg.sender];
+                shares = previewDeposit(assets);
+            }
+        } else {
+            if (state) {
+                shares = balanceOf(msg.sender);
+                assets = convertToAssets(shares);
+            } else {
+                // they are already not a sponsor. no need to do anything
+                return;
+            }
+        }
+        */
+
+        if (from == address(0)) {
+            revert("wip");
+            /*
+            // Overflow check required: The rest of the code assumes that totalSupply never overflows
+            totalSponsorDeposits += value;
+            */
+        } else {
+            revert("wip");
+            /*
+            uint256 fromBalance = _balances[from];
+            if (fromBalance < value) {
+                revert ERC20InsufficientBalance(from, fromBalance, value);
+            }
+            unchecked {
+                // Overflow not possible: value <= fromBalance <= totalSupply.
+                _balances[from] = fromBalance - value;
+            }
+            */
+        }
+
+        if (to == address(0)) {
+            revert("wip");
+            /*
+            unchecked {
+                // Overflow not possible: value <= totalSupply or value <= fromBalance <= totalSupply.
+                totalSponsorDeposits -= value;
+            }
+            */
+        } else {
+            revert("wip");
+            /*
+            unchecked {
+                // Overflow not possible: balance + value is at most totalSupply, which we know fits into a uint256.
+                _balances[to] += value;
+            }
+            */
+        }
+
+        revert("todo: what event");
+        // emit Transfer(from, to, value);
+    }
+
+    /**
+     * @dev Transfers a `value` amount of tokens from `from` to `to`, or alternatively mints (or burns) if `from`
+     * (or `to`) is the zero address. All customizations to transfers, mints, and burns should be done by overriding
+     * this function.
+     *
+     * Emits a {Transfer} event.
+     */
+    function _update(address from, address to, uint256 shares) internal override {
+        bool isSponsorFrom = isSponsor[from];
+        bool isSponsorTo = isSponsor[to];
+
+        if (isSponsorFrom || isSponsorTo) {
+            // TODO: pass shares here? pass assets here?
+            _updateSponsorship(from, isSponsorFrom, to, isSponsorTo);
+        } else {
+            super._update(from, to, shares);
+        }
     }
 
     /**
@@ -180,62 +272,27 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         harvest();
     }
 
-    /// TODO: should this take assets or shares?
-    function _sponsor(address who, uint256 shares) internal returns (uint256 assets) {
-        assets = convertToAssets(shares);
-
-        _burn(msg.sender, shares);
-        totalSponsorDeposits += assets;
-
-        // unchecked is safe because this is always <= totalSponsorDeposits which fits in a uint256
-        unchecked {
-            sponsorshipOf[who] += assets;
-        }
-    }
-
-    /// TODO: should this take assets or shares?
-    function _sponsorExit(address who, uint256 assets) internal returns (uint256 shares) {
-        sponsorshipOf[who] -= assets;
-
-        // unchecked is safe because the total is always >= one user's total
-        unchecked {
-            totalSponsorDeposits -= assets;
-        }
-
-        shares = convertToShares(assets);
-        _mint(msg.sender, shares);
-    }
-
     /// @notice begin a deposit. This takes `assets()`, not `underlying()`
     /// @dev the first deposit does not have any delay
     /// @dev the delay is necessary to protect against large deposits around the time of a large win
-    /// TODO: starting a deposit should also take a number of "sponsorshipAssets"
-    function _startDeposit(address caller, uint256 assets, uint256 sponsorAssets, address receiver) public returns (uint256 shares) {
+    function _startDeposit(address caller, uint256 assets, address receiver) public returns (uint256 when) {
         if (totalSupply() == 0) {
-            shares = super.deposit(assets, receiver);
+            uint256 shares = super.deposit(assets, receiver);
+            when = 0;
         } else {
             PendingDeposit storage pendingDeposit = pendingDepositOf[caller][receiver];
-
-            // if a deposit is already running, then we don't allow starting a new one
-            require(pendingDeposit.when == 0, "!now");
-
-            // transfer the assets now
-            shares = previewDeposit(assets);
 
             // this is from msg.sender, NOT caller. i don't love that.
             SafeERC20.safeTransferFrom(IERC20(asset()), msg.sender, address(this), assets);
 
             // update counters
             totalPendingDeposits += assets;
-            pendingBalanceOf[receiver] += assets;
+            balanceOfPending[receiver] += assets;
             pendingDeposit.assets += assets;
 
-            if (sponsorAssets > 0) {
-                revert("todo: mark some of the assets for sponsorship");
-            }
-
             // allow claiming the deposit after a delay
-            pendingDeposit.when = block.timestamp + DEPOSIT_DELAY;
+            // if a deposit is already running, we reset the timestamp
+            pendingDeposit.when = when = block.timestamp + DEPOSIT_DELAY;
         }
     }
     // === Public things ===
@@ -334,25 +391,21 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// @notice begin a deposit. This takes `assets()`, not `underlying()`
     /// @dev the first deposit does not have any delay
     /// @dev the delay is necessary to protect against large deposits around the time of a large win
-    /// TODO: starting a deposit should also take a number of "sponsorshipAssets"
-    function startDeposit(uint256 assets, uint256 sponsorAssets, address receiver) public returns (uint256 shares) {
-        return _startDeposit(msg.sender, assets, sponsorAssets, receiver);
+    function startDeposit(uint256 assets, address receiver) public returns (uint256 claimWhen) {
+        return _startDeposit(msg.sender, assets, receiver);
     }
 
-    function startDepositFor(address caller, uint256 assets, uint256 sponsorAssets, address receiver) public returns (uint256 shares) {
-        require(msg.sender == FACTORY, "!factory");
-
-        return _startDeposit(caller, assets, sponsorAssets, receiver);
+    /// @notice the factory is allowed to start deposits for a trusted `caller`
+    function startDepositFor(address caller, uint256 assets, address receiver) public returns (uint256 claimWhen) {
+        require(msg.sender == FACTORY, FactoryOnly());
+        return _startDeposit(caller, assets, receiver);
     }
 
     /// @notice opt out of receiving rewards for these tokens
-    function sponsor(uint256 shares) public returns (uint256 assets) {
-        assets = _sponsor(msg.sender, shares);
-    }
-
-    /// @notice end your sponsorship of the fan token
-    function sponsorExit(uint256 assets) public returns (uint256 shares) {
-        shares = _sponsorExit(msg.sender, assets);
+    /// TODO: what is this return value?
+    function sponsor(bool state) public {
+        // TODO: this is way too complex.
+        _updateSponsorship(msg.sender, isSponsor[msg.sender], msg.sender, state);
     }
 
     // TODO: sponsorFrom?

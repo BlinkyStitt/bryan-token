@@ -81,6 +81,8 @@ contract BryanTest is Test {
         uint256 underlyingAssets = 1_000 * 1e6;
         (IERC4626 asset, uint256 assets) = _dealAsset(underlyingAssets, address(this));
 
+        uint256 deposit_delay = bryan.DEPOSIT_DELAY();
+
         // set up approvals
         asset.approve(address(bryan), type(uint256).max);
 
@@ -97,15 +99,17 @@ contract BryanTest is Test {
         assertEq(bryan.totalSupply(), shares, "supply wrong 1");
 
         // todo: deposit without calling start should revert
-        uint256 pendingShares = bryan.startDeposit(assets / 2, 0, address(this));
-        assertEq(pendingShares, shares, "startDeposit failed");
+        uint256 when = bryan.startDeposit(assets / 2, address(this));
+        assertEq(when, block.timestamp + deposit_delay, "startDeposit failed");
+        assertEq(bryan.balanceOfPending(address(this)), assets / 2, "finishing deposit failed");
 
         assertEq(bryan.totalSupply(), shares, "supply wrong 2");
 
-        vm.warp(block.timestamp + bryan.DEPOSIT_DELAY() + 1);
+        vm.warp(block.timestamp + deposit_delay);
         // TODO: test depositing from another address. anyone should be able to finalize a deposit
         uint256 newShares = bryan.deposit(assets / 2, address(this));
-        assertEq(pendingShares, newShares, "finishing deposit failed");
+
+        assertEq(bryan.balanceOfPending(address(this)), 0, "finishing deposit failed");
 
         assertEq(bryan.totalSupply(), shares + newShares, "supply wrong 3");
 
@@ -287,5 +291,9 @@ contract BryanTest is Test {
     test_auction_post_take
 
     test_enable_auction
+
+    test_no_mint
+
+    test_burn
     */
 }
