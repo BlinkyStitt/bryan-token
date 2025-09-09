@@ -11,6 +11,7 @@ import {IWETH9} from "v4-periphery/src/interfaces/external/IWETH9.sol";
 error InvalidAuctionToken();
 error FeesTooLarge();
 error FactoryOnly();
+error Unimplemented(string err);
 
 /// @title FanToken.
 /// @notice Play pool together as a group of fans.
@@ -167,7 +168,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     }
 
     /**
-     * @dev Transfers a `value` amount of tokens from `from` to `to`, or alternatively mints (or burns) if `from`
+     * @dev Transfers a `value` amount of sponsored tokens from `from` to `to`, or alternatively mints (or burns) if `from`
      * (or `to`) is the zero address. All customizations involving sponsored transfers, mints, and burns should be done by overriding
      * this function.
      *
@@ -175,7 +176,60 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
      */
     /// TODO: this is getting rather complex. that concerns me. write it cleanly, then add tests, then gas golf it
     function _updateSponsorship(address from, bool isSponsorFrom, address to, bool isSponsorTo) internal virtual {
-        revert("wip");
+        if (from == to) {
+            // this is a transfer
+            if (isSponsorFrom && isSponsorTo) {
+                revert("todo: transfer sponsored tokens");
+            } else if (isSponsorFrom && !isSponsorTo) {
+                revert("todo: transfer sponsored tokens with minting real tokens");
+            } else if (!isSponsorFrom && isSponsorTo) {
+                revert("todo: burn tokens and increase sponsored balance of to");
+            } else if (!isSponsorFrom && !isSponsorTo) {
+                revert Unimplemented("sponsor should always be set for at least one of them");
+            } else {
+                revert Unimplemented("this shouldn't be possible");
+            }
+        } else if (from == address(0)) {
+            // this is a mint
+            if (isSponsorFrom && isSponsorTo) {
+                revert("wip");
+            } else if (isSponsorFrom && !isSponsorTo) {
+                revert("wip");
+            } else if (!isSponsorFrom && isSponsorTo) {
+                revert("wip");
+            } else if (!isSponsorFrom && !isSponsorTo) {
+                revert("wip");
+            } else {
+                revert Unimplemented("wip");
+            }
+        } else if (to == address(0)) {
+            // this is a burn
+            if (isSponsorFrom && isSponsorTo) {
+                revert("wip");
+            } else if (isSponsorFrom && !isSponsorTo) {
+                revert("wip");
+            } else if (!isSponsorFrom && isSponsorTo) {
+                revert("wip");
+            } else if (!isSponsorFrom && !isSponsorTo) {
+                revert("wip");
+            } else {
+                revert Unimplemented("wip");
+            }
+        } else if (from != to) {
+            if (isSponsorFrom && isSponsorTo) {
+                revert("wip");
+            } else if (isSponsorFrom && !isSponsorTo) {
+                revert("wip");
+            } else if (!isSponsorFrom && isSponsorTo) {
+                revert("wip");
+            } else if (!isSponsorFrom && !isSponsorTo) {
+                revert("wip");
+            } else {
+                revert Unimplemented("wip");
+            }
+        } else {
+            revert Unimplemented("wip");
+        }
     }
 
     /**
