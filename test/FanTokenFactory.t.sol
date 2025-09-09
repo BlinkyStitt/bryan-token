@@ -76,7 +76,7 @@ contract FanTokenFactoryTest is Test {
 
         address receiver = makeAddr("receiver");
 
-        // TODO: this is the first call to startDeposit for this contract. we need to 
+        // TODO: this is the first call to startDeposit for this contract. we need to
         uint256 when = fanTokenFactory.startDeposit{value: 1 ether}(bryan, 1 ether, receiver);
 
         assertEq(when, 0, "first deposit should be instant");
@@ -130,11 +130,7 @@ contract FanTokenFactoryTest is Test {
 
         // TODO: the fees make this annoying. TODO: I'm also not sure these are even the right checks. think about these more
         assertGt(redeemed, 0, "none redeemed"); // TODO: what should this amount be?
-        assertEq(
-            underlying.balanceOf(address(alice)),
-            underlyingAssets,
-            "we should have our asset back"
-        );
+        assertEq(underlying.balanceOf(address(alice)), underlyingAssets, "we should have our asset back");
         assertEq(IERC20(bryan.asset()).balanceOf(address(bryan)), 0, "token's asset balance should be empty");
         assertEq(bryan.balanceOf(address(alice)), 0, "our balance of bryan should be empty");
     }

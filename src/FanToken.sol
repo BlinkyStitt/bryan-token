@@ -168,74 +168,14 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
     /**
      * @dev Transfers a `value` amount of tokens from `from` to `to`, or alternatively mints (or burns) if `from`
-     * (or `to`) is the zero address. All customizations to transfers, mints, and burns should be done by overriding
+     * (or `to`) is the zero address. All customizations involving sponsored transfers, mints, and burns should be done by overriding
      * this function.
      *
      * Emits a {Transfer} event.
      */
-    /// TODO: this is getting rather complex. that concerns me
+    /// TODO: this is getting rather complex. that concerns me. write it cleanly, then add tests, then gas golf it
     function _updateSponsorship(address from, bool isSponsorFrom, address to, bool isSponsorTo) internal virtual {
-        /*
-        // TODO: this is not right
-        if (isSponsorFrom) {
-            if (state) {
-                // they are already a sponsor. no need to do anything
-                return;
-            } else {
-                assets = balanceOfSponsor[msg.sender];
-                shares = previewDeposit(assets);
-            }
-        } else {
-            if (state) {
-                shares = balanceOf(msg.sender);
-                assets = convertToAssets(shares);
-            } else {
-                // they are already not a sponsor. no need to do anything
-                return;
-            }
-        }
-        */
-
-        if (from == address(0)) {
-            revert("wip");
-            /*
-            // Overflow check required: The rest of the code assumes that totalSupply never overflows
-            totalSponsorDeposits += value;
-            */
-        } else {
-            revert("wip");
-            /*
-            uint256 fromBalance = _balances[from];
-            if (fromBalance < value) {
-                revert ERC20InsufficientBalance(from, fromBalance, value);
-            }
-            unchecked {
-                // Overflow not possible: value <= fromBalance <= totalSupply.
-                _balances[from] = fromBalance - value;
-            }
-            */
-        }
-
-        if (to == address(0)) {
-            revert("wip");
-            /*
-            unchecked {
-                // Overflow not possible: value <= totalSupply or value <= fromBalance <= totalSupply.
-                totalSponsorDeposits -= value;
-            }
-            */
-        } else {
-            revert("wip");
-            /*
-            unchecked {
-                // Overflow not possible: balance + value is at most totalSupply, which we know fits into a uint256.
-                _balances[to] += value;
-            }
-            */
-        }
-
-        revert("todo: what event");
-        // emit Transfer(from, to, value);
+        revert("wip");
     }
 
     /**
@@ -401,10 +341,9 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         return _startDeposit(caller, assets, receiver);
     }
 
-    /// @notice opt out of receiving rewards for these tokens
-    /// TODO: what is this return value?
+    /// @notice sponsored tokens contribute to prizes, but do not earn any prizes themselves.
+    /// todo: what return value?
     function sponsor(bool state) public {
-        // TODO: this is way too complex.
         _updateSponsorship(msg.sender, isSponsor[msg.sender], msg.sender, state);
     }
 

@@ -81,7 +81,7 @@ contract BryanTest is Test {
         uint256 underlyingAssets = 1_000 * 1e6;
         (IERC4626 asset, uint256 assets) = _dealAsset(underlyingAssets, address(this));
 
-        uint256 deposit_delay = bryan.DEPOSIT_DELAY();
+        uint256 depositDelay = bryan.DEPOSIT_DELAY();
 
         // set up approvals
         asset.approve(address(bryan), type(uint256).max);
@@ -100,12 +100,12 @@ contract BryanTest is Test {
 
         // todo: deposit without calling start should revert
         uint256 when = bryan.startDeposit(assets / 2, address(this));
-        assertEq(when, block.timestamp + deposit_delay, "startDeposit failed");
+        assertEq(when, block.timestamp + depositDelay, "startDeposit failed");
         assertEq(bryan.balanceOfPending(address(this)), assets / 2, "finishing deposit failed");
 
         assertEq(bryan.totalSupply(), shares, "supply wrong 2");
 
-        vm.warp(block.timestamp + deposit_delay);
+        vm.warp(block.timestamp + depositDelay);
         // TODO: test depositing from another address. anyone should be able to finalize a deposit
         uint256 newShares = bryan.deposit(assets / 2, address(this));
 
