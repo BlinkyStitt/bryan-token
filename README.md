@@ -19,9 +19,9 @@ If you received some fan tokens and don't want to participate in the game, you c
 
 ## Design
 
-Can't be evil is my foundational principle for smart contract development. That means contracts should be immutable and functions should not be restricted to privileged users.
+"Can't be evil" is a core principle for this smart contract development. That means contracts should be immutable and functions should not be restricted to privileged users. The contract should be maximally fair.
 
-No pump and dump games here. Backing means we don't need to provide liquidity on an AMM.
+No pump and dump games here. Backing means we don't need to provide liquidity on an AMM. Backing makes it much less likely that people will lose any money from holding a fan token.
 
 If something would be nice to change but could be abused, then make it impossible to change. For example, I would like to be able to change the name and symbol for my token. But that can be abused. So it's immutable for my contracts.
 
@@ -34,6 +34,8 @@ If the vault suffers losses, we need to make sure the sponsors can't take an unf
 Gas golf by adding some "unchecked" when we know its impossible. better to wait until the end on that since things might get moved around
 
 What happens if 100% of the tokens are burned/sponsored after there is some liquidity in the system?
+
+If someone does a dust attack and then kicks an auction, they might be able to do some trickery with the deposit queue
 
 ## Miscellaneous Ideas and Todos
 
@@ -94,6 +96,8 @@ I need an example bot for calling harvest.
 I need a mini-app for managing deposits and redeems. Also for deploying your own tokens. And seeing the pooltogether odds for the token.
 
 Should fan tokens be able to hold NFTs? we'll need some ERC165 things
+
+Allow cancelling a pending deposit
 
 ## Further Reading
 

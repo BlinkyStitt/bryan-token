@@ -133,10 +133,18 @@ contract FanTokenTest is Test {
 
         assertEq(bryan.totalSupply(), shares, "supply wrong 2");
 
+        // switch sponsoring on
+        bryan.sponsor(true);
+
+        // TODO: assert some things about balances
+
         vm.warp(block.timestamp + depositDelay);
         // TODO: test depositing from another address. anyone should be able to finalize a deposit
         uint256 newShares = bryan.deposit(assets / 2, address(this));
         console.log("shares from second deposit:", newShares);
+
+        // switch sponsoring off
+        bryan.sponsor(false);
 
         assertEq(bryan.balanceOfPending(address(this)), 0, "finishing deposit failed");
 
@@ -197,6 +205,9 @@ contract FanTokenTest is Test {
     }
 
     function test_auctioning_pool() public {
+        IERC20 prizeVault = IERC20(bryan.asset());
+        console.log("prizeVault:", address(prizeVault));
+
         IERC20 from = IERC20(0xd652C5425aea2Afd5fb142e120FeCf79e18fafc3); // POOL
 
         bytes32 auctionId = bryan.enableAuction(from);
@@ -240,13 +251,8 @@ contract FanTokenTest is Test {
         // thanks to the post take hook, this was deposited
         assertEq(IERC20(want).balanceOf(address(bryan)), 0);
 
-        IERC20 prizeVault = IERC20(bryan.asset());
-        console.log("prizeVault:", address(prizeVault));
-
         // TODO: i don't like this amount being hard coded.
         assertEq(prizeVault.balanceOf(address(bryan)), 244140625000000000000);
-
-        // TODO: check that the weth balances increased correctly
     }
 
     function test_empty_harvest() public {

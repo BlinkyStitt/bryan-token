@@ -22,8 +22,8 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     address public immutable FACTORY;
 
     /// @notice deposits are delayed to stop prizes from being taken unfairly
-    /// @dev what should this be? i think it needs to be longer than the auction timer with some buffer for bots to kick the auction
-    uint256 public immutable DEPOSIT_DELAY = 2 days;
+    /// @dev what should this be? i think it needs to be longer than two auctions with some buffer for bots to kick the auction
+    uint256 public immutable DEPOSIT_DELAY = 3 days;
 
     uint256 private constant _BASIS_POINT_SCALE = 1e4;
 
@@ -177,6 +177,64 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     }
 
     /**
+     * @dev To override if a post take action is desired.
+     *
+     * This could be used to re-deploy the bought token back into the yield source,
+     * or in conjunction with {_preTake} to check that the price sold at was within
+     * some allowed range.
+     *
+     * @param _token Address of the token that the strategy was sent.
+     * @param _amountTaken Amount of the from token taken.
+     * @param _amountPayed Amount of `_token` that was sent to the strategy.
+     */
+    function _postTake(address _token, uint256 _amountTaken, uint256 _amountPayed) internal override {
+        harvest();
+    }
+
+    /// @notice begin a deposit. This takes `assets()`, not `underlying()`
+    /// @dev the first deposit does not have any delay
+    /// @dev the delay is necessary to protect against large deposits around the time of a large win
+    function _startDeposit(address caller, uint256 assets, address receiver) public returns (uint256 when) {
+        if (totalSupply() == 0) {
+            uint256 shares = super.deposit(assets, receiver);
+            when = 0;
+        } else {
+            PendingDeposit storage pendingDeposit = pendingDepositOf[caller][receiver];
+
+            // this is from msg.sender, NOT caller. i don't love that.
+            SafeERC20.safeTransferFrom(IERC20(asset()), msg.sender, address(this), assets);
+
+            // update counters
+            totalPendingDeposits += assets;
+            balanceOfPending[receiver] += assets;
+            pendingDeposit.assets += assets;
+
+            // allow claiming the deposit after a delay
+            // if a deposit is already running, we reset the timestamp
+            pendingDeposit.when = when = block.timestamp + DEPOSIT_DELAY;
+        }
+    }
+
+    /**
+     * @dev Transfers a `value` amount of tokens from `from` to `to`, or alternatively mints (or burns) if `from`
+     * (or `to`) is the zero address. All customizations to transfers, mints, and burns should be done by overriding
+     * this function.
+     *
+     * Emits a {Transfer} event.
+     */
+    function _update(address from, address to, uint256 shares) internal override {
+        bool isSponsorFrom = isSponsor[from];
+        bool isSponsorTo = isSponsor[to];
+
+        if (isSponsorFrom || isSponsorTo) {
+            uint256 assets = convertToAssets(shares);
+            _updateSponsorship(from, isSponsorFrom, to, isSponsorTo, assets, shares);
+        } else {
+            super._update(from, to, shares);
+        }
+    }
+
+    /**
      * @dev Transfers a `value` amount of sponsored tokens from `from` to `to`, or alternatively mints (or burns) if `from`
      * (or `to`) is the zero address. All customizations involving sponsored transfers, mints, and burns should be done by overriding
      * this function.
@@ -266,63 +324,6 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         }
     }
 
-    /**
-     * @dev Transfers a `value` amount of tokens from `from` to `to`, or alternatively mints (or burns) if `from`
-     * (or `to`) is the zero address. All customizations to transfers, mints, and burns should be done by overriding
-     * this function.
-     *
-     * Emits a {Transfer} event.
-     */
-    function _update(address from, address to, uint256 shares) internal override {
-        bool isSponsorFrom = isSponsor[from];
-        bool isSponsorTo = isSponsor[to];
-
-        if (isSponsorFrom || isSponsorTo) {
-            uint256 assets = convertToAssets(shares);
-            _updateSponsorship(from, isSponsorFrom, to, isSponsorTo, assets, shares);
-        } else {
-            super._update(from, to, shares);
-        }
-    }
-
-    /**
-     * @dev To override if a post take action is desired.
-     *
-     * This could be used to re-deploy the bought token back into the yield source,
-     * or in conjunction with {_preTake} to check that the price sold at was within
-     * some allowed range.
-     *
-     * @param _token Address of the token that the strategy was sent.
-     * @param _amountTaken Amount of the from token taken.
-     * @param _amountPayed Amount of `_token` that was sent to the strategy.
-     */
-    function _postTake(address _token, uint256 _amountTaken, uint256 _amountPayed) internal override {
-        harvest();
-    }
-
-    /// @notice begin a deposit. This takes `assets()`, not `underlying()`
-    /// @dev the first deposit does not have any delay
-    /// @dev the delay is necessary to protect against large deposits around the time of a large win
-    function _startDeposit(address caller, uint256 assets, address receiver) public returns (uint256 when) {
-        if (totalSupply() == 0) {
-            uint256 shares = super.deposit(assets, receiver);
-            when = 0;
-        } else {
-            PendingDeposit storage pendingDeposit = pendingDepositOf[caller][receiver];
-
-            // this is from msg.sender, NOT caller. i don't love that.
-            SafeERC20.safeTransferFrom(IERC20(asset()), msg.sender, address(this), assets);
-
-            // update counters
-            totalPendingDeposits += assets;
-            balanceOfPending[receiver] += assets;
-            pendingDeposit.assets += assets;
-
-            // allow claiming the deposit after a delay
-            // if a deposit is already running, we reset the timestamp
-            pendingDeposit.when = when = block.timestamp + DEPOSIT_DELAY;
-        }
-    }
     // === Public things ===
 
     /// @notice check an account's balance in the underlying (backing) token
@@ -334,7 +335,16 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
         IERC4626 prizeVault = IERC4626(asset());
 
-        // TODO: convertToAssets or previewRedeem?
+        // TODO: convertToAssets or previewRedeem? i'm pretty sure preview is correct
+        return prizeVault.previewRedeem(prizeVaultShares);
+    }
+
+    function balanceOfSponsoredUnderlying(address who) public view returns (uint256) {
+        uint256 prizeVaultShares = balanceOfSponsor[who];
+
+        IERC4626 prizeVault = IERC4626(asset());
+
+        // TODO: convertToAssets or previewRedeem? i'm pretty sure preview is correct
         return prizeVault.previewRedeem(prizeVaultShares);
     }
 
