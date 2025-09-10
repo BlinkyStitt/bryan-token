@@ -6,7 +6,7 @@ import {InvalidAuctionToken, FanToken, IERC20, IERC4626, IWETH9} from "../src/Fa
 import {Auction} from "../src/forks/AuctionSwapper.sol";
 import {console} from "forge-std/console.sol";
 
-contract BryanTest is Test {
+contract FanTokenTest is Test {
     FanToken public bryan;
     address treasury;
     IWETH9 weth;
@@ -42,10 +42,12 @@ contract BryanTest is Test {
         );
     }
 
+    /// @dev make sure the vault's underlying is weth
     function test_vault_asset() public {
         assertEq(address(bryan.underlying()), address(weth), "underlying isn't weth");
     }
 
+    /// @dev coverage for supply and assets
     function test_vault_starts_empty() public {
         assertEq(bryan.totalSupply(), 0);
         assertEq(bryan.totalAssets(), 0);
@@ -54,6 +56,15 @@ contract BryanTest is Test {
     function test_ownership() public {
         address nextOwner = makeAddr("nextOwner");
 
+        console.log("changing ownership from", owner, "to", nextOwner);
+
+        assertEq(owner, bryan.owner());
+
+        // make sure random accounts can't call transferOwnership
+        vm.expectRevert();
+        bryan.transferOwnership(nextOwner);
+
+        // only the owner should be able to call transfer ownership
         vm.prank(owner);
         bryan.transferOwnership(nextOwner);
 
@@ -61,12 +72,15 @@ contract BryanTest is Test {
         vm.expectRevert();
         bryan.acceptOwnership();
 
+        // only the next owner should be able to accept ownership
         vm.prank(nextOwner);
         bryan.acceptOwnership();
 
+        // make sure the owner changed
         assertEq(nextOwner, bryan.owner(), "wrong new owner");
     }
 
+    /// @dev helper function for turning underlying assets into erc4626 shares
     function _dealAsset(uint256 underlyingAssets, address receiver) internal returns (IERC4626 asset, uint256 assets) {
         IERC20 underlying = bryan.underlying();
         deal(address(underlying), address(this), underlyingAssets, false);
@@ -90,7 +104,7 @@ contract BryanTest is Test {
 
     function test_deposit_and_withdraw() public {
         // TODO: for some reason we can't deal the ERC4626. We can deal the ERC20 though.
-        uint256 underlyingAssets = 1_000 * 1e6;
+        uint256 underlyingAssets = 1 ether;
         (IERC4626 asset, uint256 assets) = _dealAsset(underlyingAssets, address(this));
 
         uint256 depositDelay = bryan.DEPOSIT_DELAY();
@@ -106,12 +120,14 @@ contract BryanTest is Test {
         // assertEq(assets, bryan.totalPendingDeposits(), "wrong total pending balance");
 
         uint256 shares = bryan.deposit(assets / 2, address(this));
+        console.log(shares, "shares for", assets / 2, "assets");
         assertEq(shares, assets / 2, "initial deposit failed");
 
         assertEq(bryan.totalSupply(), shares, "supply wrong 1");
 
         // todo: deposit without calling start should revert
         uint256 when = bryan.startDeposit(assets / 2, address(this));
+        console.log("second deposit of", assets / 2, "assets available at", when);
         assertEq(when, block.timestamp + depositDelay, "startDeposit failed");
         assertEq(bryan.balanceOfPending(address(this)), assets / 2, "finishing deposit failed");
 
@@ -120,6 +136,7 @@ contract BryanTest is Test {
         vm.warp(block.timestamp + depositDelay);
         // TODO: test depositing from another address. anyone should be able to finalize a deposit
         uint256 newShares = bryan.deposit(assets / 2, address(this));
+        console.log("shares from second deposit:", newShares);
 
         assertEq(bryan.balanceOfPending(address(this)), 0, "finishing deposit failed");
 
@@ -133,6 +150,7 @@ contract BryanTest is Test {
 
         // test the main redeem function
         uint256 redeemed = bryan.redeem(shares + newShares, address(this), address(this));
+        console.log("redeemed", shares + newShares, "shares into", redeemed);
 
         assertGt(redeemed, 0, "none redeemed"); // TODO: what should this amount be?
         assertEq(IERC20(bryan.asset()).balanceOf(address(bryan)), 0, "token's asset balance should be empty");
@@ -193,35 +211,40 @@ contract BryanTest is Test {
         Auction auction = Auction(bryan.auction());
         require(address(auction) != address(0), "no auction contract");
 
-        // TODO: do we need to call approve here?
+        // TODO: do we need to approvals here? i don't think so
         uint256 available = auction.kick(auctionId);
 
         assertEq(fromAmount, available, "auction size incorrect");
 
+        // TODO: wait until a specific price?
         vm.warp(block.timestamp + 12 hours);
 
-        uint256 wantAmount = auction.getAmountNeeded(auctionId, fromAmount);
-        console.log("wantAmount", wantAmount);
-        assertGt(wantAmount, 0, "want amount should be nonzero");
-
         address want = auction.want();
-        console.log("want", want);
+        console.log("want:", want);
+
+        uint256 auctionAmountNeeded = auction.getAmountNeeded(auctionId, fromAmount);
+        console.log("auction amount needed:", auctionAmountNeeded, want);
+        assertGt(auctionAmountNeeded, 0, "want amount should be nonzero");
+
         assertEq(want, address(bryan.underlying()), "wrong want");
 
         // cheat to have the necessary tokens to fulfill the auction
-        weth.deposit{value: wantAmount}();
+        weth.deposit{value: auctionAmountNeeded}();
 
-        IERC20(want).approve(address(auction), wantAmount);
+        IERC20(want).approve(address(auction), auctionAmountNeeded);
         uint256 amountFromTaken = auction.take(auctionId);
-        console.log("amountFromTaken", want);
+        console.log("amountFromTaken:", amountFromTaken, want);
 
         assertEq(amountFromTaken, fromAmount, "from amount error");
 
         // thanks to the post take hook, this was deposited
         assertEq(IERC20(want).balanceOf(address(bryan)), 0);
 
+        IERC20 prizeVault = IERC20(bryan.asset());
+        console.log("prizeVault:", address(prizeVault));
+
         // TODO: i don't like this amount being hard coded.
-        assertEq(IERC20(bryan.asset()).balanceOf(address(bryan)), 244140625000000000000);
+        assertEq(prizeVault.balanceOf(address(bryan)), 244140625000000000000);
 
         // TODO: check that the weth balances increased correctly
     }

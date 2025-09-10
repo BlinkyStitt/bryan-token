@@ -95,6 +95,8 @@ I need an example bot for calling harvest.
 
 I need a mini-app for managing deposits and redeems. Also for deploying your own tokens. And seeing the pooltogether odds for the token.
 
+Should fan tokens be able to hold NFTs? we'll need some ERC165 things
+
 ## Further Reading
 
 - <https://github.com/yearn/tokenized-strategy-periphery/blob/master/src/Auctions/Auction.sol>

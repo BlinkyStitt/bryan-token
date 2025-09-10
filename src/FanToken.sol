@@ -8,8 +8,6 @@ import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IWETH9} from "v4-periphery/src/interfaces/external/IWETH9.sol";
 
-import {console} from "forge-std/console.sol";
-
 error InvalidAuctionToken();
 error FeesTooLarge();
 error FactoryOnly();
@@ -117,10 +115,6 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         // TODO: i'm not sure about this. i think it just adds gas overhead. but it also seems like a good idea
         // TODO: maybe we should have a _transfer override that makes sure we aren't letting users call transfer to the factory
         isSponsor[msg.sender] = true;
-
-        console.log("owner:", _owner);
-        console.log("treasury:", _treasury);
-        console.log("this:", address(this));
     }
 
     /// @dev allow receiving eth
