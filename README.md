@@ -31,11 +31,9 @@ The deposit queue stops people from stealing rewards, but it also means that the
 
 If the vault suffers losses, we need to make sure the sponsors can't take an unfair share. It might be fine, but this needs investigation. Any losses should be shared fairly.
 
-In startDeposit, when msg.sender is the factory, I think there is a DOS vector. I think the factory needs a special entry point.
-
 Gas golf by adding some "unchecked" when we know its impossible. better to wait until the end on that since things might get moved around
 
-What happens if 100% of the tokens are burned after there is some liquidity in the system?
+What happens if 100% of the tokens are burned/sponsored after there is some liquidity in the system?
 
 ## Miscellaneous Ideas and Todos
 

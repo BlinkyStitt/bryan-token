@@ -63,12 +63,14 @@ contract FanTokenFactoryTest is Test {
     }
 
     function test_factory_payable_deposit() public {
-        deal(address(this), 1 ether);
+        uint256 underlyingAssets = 1 ether;
+
+        deal(address(this), underlyingAssets);
 
         address receiver = makeAddr("receiver");
 
         // TODO: this is the first call to startDeposit for this contract. we need to
-        uint256 when = fanTokenFactory.startDeposit{value: 1 ether}(bryan, 1 ether, receiver);
+        uint256 when = fanTokenFactory.startDeposit{value: underlyingAssets}(bryan, underlyingAssets, receiver);
 
         assertEq(when, 0, "first deposit should be instant");
 
@@ -77,9 +79,6 @@ contract FanTokenFactoryTest is Test {
         // TODO: what should the amounts actually be?
         assertGt(bryan.balanceOf(receiver), 0, "receiver should have a balance");
         assertGt(prizeVault.balanceOf(address(bryan)), 0, "token should have a balance");
-        // TODO: make sure some fees went to the owner
-        // TODO: check on the fees going to the owner
-        // TODO: check on the fees going to the treasury
 
         // TODO: test fees! I want this fee to be sent as bryan, not as prizeVault!
         // assertGt(prizeVault.balanceOf(bryan.owner()), 0);
@@ -90,7 +89,7 @@ contract FanTokenFactoryTest is Test {
         vm.startPrank(alice);
 
         // TODO: for some reason we can't deal the ERC4626. We can deal the ERC20 though.
-        uint256 underlyingAssets = 1_000 * 1e6;
+        uint256 underlyingAssets = 1 ether;
 
         IERC20 underlying = bryan.underlying();
         deal(address(underlying), alice, underlyingAssets, false);
