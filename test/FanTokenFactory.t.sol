@@ -35,7 +35,6 @@ contract FanTokenFactoryTest is Test {
         bryan = fanTokenFactory.create(
             "ETH from Bryan",
             "BRY-ETH",
-            1 days,
             harvestOwnerFeeBasisPoints,
             harvestTreasuryFeeBasisPoints,
             prizeVault,
@@ -49,13 +48,16 @@ contract FanTokenFactoryTest is Test {
         uint256 initialDeposit = 1 ether;
 
         FanToken fanToken = fanTokenFactory.create{value: initialDeposit}(
-            "ETH from Bryan Again", "BRY-ETH-2", 1 days, 0, 0, prizeVault, address(0), bytes32(0), initialDeposit
+            "ETH from Bryan Again", "BRY-ETH-2", 0, 0, prizeVault, address(0), bytes32(0), initialDeposit
         );
 
-        assertEq(fanToken.balanceOf(address(this)), 0, "initial deposits should be sponsored");
+        uint256 initialShares = fanToken.convertToShares(initialDeposit);
+        console.log("initial shares");
+
+        assertEq(fanToken.balanceOf(address(this)), initialShares, "there should be some initial shares");
 
         // TODO: what should the value of this actually be?
-        assertGt(fanToken.balanceOfSponsor(address(this)), 0, "initial deposits should be 1:1");
+        assertEq(fanToken.balanceOfSponsor(address(this)), initialDeposit, "initial deposits should be 1:1");
     }
 
     function test_vault_asset() public {

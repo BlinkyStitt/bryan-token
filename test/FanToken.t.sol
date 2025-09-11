@@ -134,6 +134,7 @@ contract FanTokenTest is Test {
         assertEq(bryan.totalSupply(), shares, "supply wrong 2");
 
         // switch sponsoring on
+        console.log("enabling sponsorship");
         bryan.sponsor(true);
 
         // TODO: assert some things about balances
@@ -144,6 +145,7 @@ contract FanTokenTest is Test {
         console.log("shares from second deposit:", newShares);
 
         // switch sponsoring off
+        console.log("disabling sponsorship");
         bryan.sponsor(false);
 
         assertEq(bryan.balanceOfPending(address(this)), 0, "finishing deposit failed");

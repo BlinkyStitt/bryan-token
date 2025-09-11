@@ -7,6 +7,9 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IWETH9} from "v4-periphery/src/interfaces/external/IWETH9.sol";
+import {SponsorToken} from "./SponsorToken.sol";
+
+import {console} from "forge-std/console.sol";
 
 error InvalidAuctionToken();
 error FeesTooLarge();
@@ -39,6 +42,9 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// todo: better name for this
     address public immutable treasury;
 
+    /// @notice users can opt out of receiving rewards
+    SponsorToken public immutable sponsorToken;
+
     /// @notice the backing token for this fan token's prize tickets. fan tokens can be redeemed for this token.
     /// @dev the linter says this should be capitalized
     IERC20 public immutable underlying;
@@ -47,9 +53,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     IWETH9 public immutable WETH;
 
     /// @notice assets held for the DEPOSIT_DELAY
-    uint256 public totalPendingDeposits = 0;
-
-    uint256 public totalSponsorDeposits = 0;
+    uint256 public totalPendingAssets = 0;
 
     struct PendingDeposit {
         uint256 when;
@@ -59,13 +63,14 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// TODO: include a nonce here so that multiple deposits don't reset the timer?
     mapping(address caller => mapping(address receiver => PendingDeposit)) public pendingDepositOf;
 
+    /// @dev this is the number of assets, not the number of shares
     /// TODO: i'm not sure if tracking this is worth the gas
     mapping(address who => uint256) public balanceOfPending;
 
     /// @dev sponsor tokens do not earn any rewards
-    /// TODO: bitmap?
     mapping(address who => bool) public isSponsor;
 
+    /// @dev this is the number of assets, not the number of shares
     mapping(address who => uint256) public balanceOfSponsor;
 
     /// @dev these underscores are gross. too many different libraries and styles are being mixed together
@@ -115,6 +120,12 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         // TODO: i'm not sure about this. i think it just adds gas overhead. but it also seems like a good idea
         // TODO: maybe we should have a _transfer override that makes sure we aren't letting users call transfer to the factory
         isSponsor[msg.sender] = true;
+
+        // TODO: is this an okay name
+        string memory sponsorName = string(abi.encodePacked("Sponsored ", _name));
+        string memory sponsorSymbol = string(abi.encodePacked("s", _symbol));
+
+        sponsorToken = new SponsorToken(sponsorName, sponsorSymbol);
     }
 
     /// @dev allow receiving eth
@@ -132,7 +143,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// @dev after the initial deposit, this does NOT transfer the tokens. instead, make sure `startDeposit` is called first
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
         if (totalSupply() == 0) {
-            // TODO: should this check `totalPendingDeposits == 0`?
+            // TODO: should this check `totalPendingAssets == 0`?
             // the first deposit shouldn't have any delay
             super._deposit(caller, receiver, assets, shares);
         } else {
@@ -164,7 +175,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         pendingDeposit.when = 0;
         pendingDeposit.assets = 0;
 
-        totalPendingDeposits -= assets;
+        totalPendingAssets -= assets;
 
         balanceOfPending[receiver] -= assets;
 
@@ -194,7 +205,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// @notice begin a deposit. This takes `assets()`, not `underlying()`
     /// @dev the first deposit does not have any delay
     /// @dev the delay is necessary to protect against large deposits around the time of a large win
-    function _startDeposit(address caller, uint256 assets, address receiver) public returns (uint256 when) {
+    function _startDeposit(address caller, uint256 assets, address receiver) internal returns (uint256 when) {
         if (totalSupply() == 0) {
             uint256 shares = super.deposit(assets, receiver);
             when = 0;
@@ -205,122 +216,13 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             SafeERC20.safeTransferFrom(IERC20(asset()), msg.sender, address(this), assets);
 
             // update counters
-            totalPendingDeposits += assets;
+            totalPendingAssets += assets;
             balanceOfPending[receiver] += assets;
             pendingDeposit.assets += assets;
 
             // allow claiming the deposit after a delay
             // if a deposit is already running, we reset the timestamp
             pendingDeposit.when = when = block.timestamp + DEPOSIT_DELAY;
-        }
-    }
-
-    /**
-     * @dev Transfers a `value` amount of tokens from `from` to `to`, or alternatively mints (or burns) if `from`
-     * (or `to`) is the zero address. All customizations to transfers, mints, and burns should be done by overriding
-     * this function.
-     *
-     * Emits a {Transfer} event.
-     */
-    function _update(address from, address to, uint256 shares) internal override {
-        bool isSponsorFrom = isSponsor[from];
-        bool isSponsorTo = isSponsor[to];
-
-        if (isSponsorFrom || isSponsorTo) {
-            uint256 assets = convertToAssets(shares);
-            _updateSponsorship(from, isSponsorFrom, to, isSponsorTo, assets, shares);
-        } else {
-            super._update(from, to, shares);
-        }
-    }
-
-    /**
-     * @dev Transfers a `value` amount of sponsored tokens from `from` to `to`, or alternatively mints (or burns) if `from`
-     * (or `to`) is the zero address. All customizations involving sponsored transfers, mints, and burns should be done by overriding
-     * this function.
-     *
-     * Emits a {Transfer} event.
-     *
-     * TODO: I'm not sure about the events. Maybe it should have a Sponsor event, too?
-     * TODO: I'm sure this could be a lot more gas efficient. definitely get rid of the string errors
-     */
-    function _updateSponsorship(
-        address from,
-        bool isSponsorFrom,
-        address to,
-        bool isSponsorTo,
-        uint256 assets,
-        uint256 shares
-    ) internal virtual {
-        if (from == address(0)) {
-            // this is a mint
-            require(!isSponsorFrom, Unimplemented("mint: from can't be a sponsor"));
-
-            if (isSponsorTo) {
-                // mint sponsored tokens. the assets have already been transfered here
-                totalSponsorDeposits += assets;
-                balanceOfSponsor[to] += assets;
-
-                // TODO: i'm pretty sure we don't want to call super._update here
-
-                return;
-            } else {
-                revert Unimplemented("mint: to should always be a sponsor");
-            }
-        } else if (to == address(0)) {
-            // this is a burn
-            require(!isSponsorTo, Unimplemented("burn: to can't be a sponsor"));
-
-            if (isSponsorFrom) {
-                // burn from sponsored balance of 'from'. the assets will be claimable by the remaining token holders
-                balanceOfSponsor[from] -= assets;
-                totalSponsorDeposits -= assets;
-
-                // TODO: i'm pretty sure we don't want to call super._update here
-
-                return;
-            } else {
-                revert Unimplemented("burn: from should always be a sponsor");
-            }
-        } else {
-            // this is a transfer
-
-            if (isSponsorFrom && isSponsorTo) {
-                // nothing needs to happen
-                return;
-            } else if (isSponsorFrom && !isSponsorTo) {
-                // turn off sponsorship. transfer sponsored tokens with minting real tokens");
-
-                if (from == to) {
-                    // this is a self transfer. we get here by calling `sponsor`
-                    isSponsor[from] = false;
-                }
-
-                balanceOfSponsor[from] -= assets;
-                totalSponsorDeposits -= assets;
-
-                super._mint(to, shares);
-
-                return;
-            } else if (!isSponsorFrom && isSponsorTo) {
-                // turn on sponsorship. burn real tokens and increase sponsored balance
-                if (from == to) {
-                    // this is a self transfer. we get here by calling `sponsor`
-                    isSponsor[from] = true;
-                }
-
-                super._burn(from, shares);
-
-                totalSponsorDeposits += assets;
-                balanceOfSponsor[to] += assets;
-
-                return;
-            } else if (!isSponsorFrom && !isSponsorTo) {
-                // nothing needs to happen
-                return;
-            }
-
-            revert Unimplemented("self: this shouldn't be possible");
         }
     }
 
@@ -332,15 +234,6 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
         // TODO: convertToAssets or previewRedeem?
         uint256 prizeVaultShares = previewRedeem(fanTokenShares);
-
-        IERC4626 prizeVault = IERC4626(asset());
-
-        // TODO: convertToAssets or previewRedeem? i'm pretty sure preview is correct
-        return prizeVault.previewRedeem(prizeVaultShares);
-    }
-
-    function balanceOfSponsoredUnderlying(address who) public view returns (uint256) {
-        uint256 prizeVaultShares = balanceOfSponsor[who];
 
         IERC4626 prizeVault = IERC4626(asset());
 
@@ -408,6 +301,8 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             // TODO: which way should we round?
             uint256 treasuryFee = total.mulDiv(harvestTreasuryFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);
             if (treasuryFee > 0) {
+                // TODO: send this to the SponsorToken and credit the treasury
+                // TODO: send them fan tokens instead of prize vault
                 IERC20(address(prizeVault)).safeTransfer(treasuryAddress, treasuryFee);
             }
         }
@@ -419,11 +314,16 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             // TODO: which way should we round?
             uint256 ownerFee = total.mulDiv(harvestOwnerFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);
             if (ownerFee > 0) {
+                // TODO: send this to the SponsorToken and credit the owner
+                // TODO: send them fan tokens instead of prize vault
                 IERC20(address(prizeVault)).safeTransfer(ownerAddress, ownerFee);
             }
         }
 
         // leave the remaining balance here. this will inflate the value of everyone's shares equally
+
+        // correct the accounting for the sponsored tokens
+        sponsorToken.burnExcess();
     }
 
     /// @notice begin a deposit. This takes `assets()`, not `underlying()`
@@ -434,62 +334,46 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     }
 
     /// @notice the factory is allowed to start deposits for a trusted `caller`
-    function startDepositFor(address caller, uint256 assets, address receiver) public returns (uint256 claimWhen) {
+    function _factoryStartDeposit(address caller, uint256 assets, address receiver) public returns (uint256 claimWhen) {
         require(msg.sender == FACTORY, FactoryOnly());
         return _startDeposit(caller, assets, receiver);
     }
 
     /// @notice sponsored tokens contribute to prizes, but do not earn any prizes themselves.
     /// todo: what return value?
+    /// TODO: time lock on this
     function sponsor(bool state) public {
         // todo: force keep it on for the owner/treasury?
         bool senderIsSponsor = isSponsor[msg.sender];
 
-        uint256 assets;
-        uint256 shares;
-        if (senderIsSponsor) {
-            assets = balanceOfSponsor[msg.sender];
-            shares = convertToShares(assets);
+        uint256 shares = balanceOf(msg.sender);
+
+        if (state) {
+            // sponsorship should be on
+            if (senderIsSponsor) {
+                // sponsorship is already on. nothing to do
+                return;                
+            }
+            isSponsor[msg.sender] = state;
+
+            // transfer the tokens
+            _update(msg.sender, address(sponsorToken), shares);
+
+            // update accounting on the sponsor token side
+            sponsorToken._internalMint(msg.sender, shares);
         } else {
-            shares = balanceOf(msg.sender);
-            assets = convertToAssets(shares);
-        }
+            // sponsorship should be off
+            if (!senderIsSponsor) {
+                // sponsorship is already off. nothing to do
+                return;
+            }
+            isSponsor[msg.sender] = state;
 
-        _updateSponsorship(msg.sender, senderIsSponsor, msg.sender, state, assets, shares);
-    }
-
-    // TODO: sponsorFrom?
-
-    /// === erc-4262 overrides. audit these carefully! ===
-
-    /// @dev this does not include pending or sponsor deposits
-    function totalAssets() public view override returns (uint256) {
-        return super.totalAssets() - totalPendingDeposits - totalSponsorDeposits;
-    }
-
-    /**
-     * @dev See {IERC4626-maxWithdraw}.
-     */
-    function maxWithdraw(address owner) public view override returns (uint256) {
-        if (isSponsor[owner]) {
-            // TODO: should this be convertToShares or one of the others?
-            return convertToShares(balanceOfSponsor[owner]);
-        } else {
-            return _convertToAssets(balanceOf(owner), Math.Rounding.Floor);
+            sponsorToken._internalBurn(msg.sender, shares);
         }
     }
 
-    /**
-     * @dev See {IERC4626-maxRedeem}.
-     */
-    function maxRedeem(address owner) public view override returns (uint256) {
-        if (isSponsor[owner]) {
-            // TODO: should this be convertToShares or one of the others?
-            return convertToShares(balanceOfSponsor[owner]);
-        } else {
-            return balanceOf(owner);
-        }
-    }
+    // TODO: sponsorFrom? need an "operator" mapping i think
 
     // === minor helpers ===
 
