@@ -15,13 +15,17 @@ error FeesTooLarge();
 error FactoryOnly();
 error Unimplemented(string err);
 
+interface IFanTokenFactory {
+    function version() external returns (string memory);
+}
+
 /// @title FanToken.
 /// @notice Play pool together as a group of fans.
 contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     using Math for uint256;
     using SafeERC20 for IERC20;
 
-    address public immutable FACTORY;
+    IFanTokenFactory public immutable FACTORY;
 
     /// @notice deposits are delayed to stop prizes from being taken unfairly
     /// @dev what should this be? i think it needs to be longer than two auctions with some buffer for bots to kick the auction
@@ -86,7 +90,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         require(_harvestOwnerFeeBasisPoints + _harvestTreasuryFeeBasisPoints <= _BASIS_POINT_SCALE, FeesTooLarge());
         require(_owner != address(0), "this looks like a mistake");
 
-        FACTORY = msg.sender;
+        FACTORY = IFanTokenFactory(msg.sender);
 
         underlying = IERC20(_prizeVault.asset());
 
@@ -172,10 +176,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
         balanceOfPending[receiver] -= assets;
 
-        // TODO: different event if this is a sponsor
-        emit Deposit(originalCaller, receiver, assets, shares);
-
-        _mint(receiver, shares);
+        _update(address(0), receiver, shares);
 
         return shares;
     }
@@ -219,94 +220,6 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         }
     }
 
-    /**
-     * @dev Transfers a `value` amount of tokens from `from` to `to`, or alternatively mints (or burns) if `from`
-     * (or `to`) is the zero address. All customizations to transfers, mints, and burns should be done by overriding
-     * this function.
-     *
-     * If a sender or receiver is a sponsor, this has extra logic.
-     *
-     * Emits a {Transfer} event.
-     */
-    function _update(address from, address to, uint256 shares) internal override {
-        /*
-        // this is the super _update code for reference.
-        if (from == address(0)) {
-            // Overflow check required: The rest of the code assumes that totalSupply never overflows
-            _totalSupply += value;
-        } else {
-            uint256 fromBalance = _balances[from];
-            if (fromBalance < value) {
-                revert ERC20InsufficientBalance(from, fromBalance, value);
-            }
-            unchecked {
-                // Overflow not possible: value <= fromBalance <= totalSupply.
-                _balances[from] = fromBalance - value;
-            }
-        }
-
-        if (to == address(0)) {
-            unchecked {
-                // Overflow not possible: value <= totalSupply or value <= fromBalance <= totalSupply.
-                _totalSupply -= value;
-            }
-        } else {
-            unchecked {
-                // Overflow not possible: balance + value is at most totalSupply, which we know fits into a uint256.
-                _balances[to] += value;
-            }
-        }
-
-        emit Transfer(from, to, value);
-        */
-
-        bool isSponsorFrom = isSponsor[from];
-        bool isSponsorTo = isSponsor[to];
-
-        if (isSponsorTo || isSponsorFrom) {
-            uint256 assets = previewRedeem(shares);
-
-            // these if/else conditions can probably be simplified
-            if (isSponsorFrom && isSponsorTo) {
-                // TODO: pretty errors if the balance isn't large enough
-
-                // a transfer between two sponsors. only move the sponsored balances. no need to touch other tokens
-                // this one is simple
-                balanceOfSponsor[from] -= assets;
-                balanceOfSponsor[to] += assets;
-
-                emit Transfer(from, to, shares);
-            } else if (isSponsorFrom && !isSponsorTo) {
-                // a transfer from a sponsor
-                balanceOfSponsor[from] -= assets;
-                emit Transfer(from, address(this), shares);
-                
-                if (to == address(0)) {
-                    // a burn sends to the 0 address. we want to burn the fan tokens too
-                    totalSponsorAssets -= assets;
-                    super._update(address(this), address(0), shares);
-                } else {
-                    // the fan tokens are on address(this) rather than the from. trasnfer them
-                    super._update(address(this), to, shares);
-                }
-            } else if (isSponsorTo && !isSponsorFrom) {
-                balanceOfSponsor[to] += assets;
-                if (from == address(0)) {
-                    // a mint to a sponsor
-
-
-                    // the fan tokens go to this address
-                    super._update(address(0), address(this), shares);
-                } else {
-                    // a transfer to a sponsor
-                }
-            }
-        } else {
-            // do the normal update flow when no sponsors are involved
-            super._update(from, to, shares);
-        }
-    }
-
     // === Public things ===
 
     /// @notice check an account's balance in the underlying (backing) token
@@ -344,6 +257,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             // this calls harvest for us when the auction is complete
             bool _postTakeSetting = true;
 
+            // TODO: there is a new auction contract. i think they got rid of hooks
             Auction(auction).setHookFlags(_kickableSetting, _kickSetting, _preTakeSetting, _postTakeSetting);
         }
 
@@ -460,45 +374,54 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     function setSponsorship(bool state) public {
         harvestSponsorship();
 
+        _setSponsorship(msg.sender, state);
+    }
+
+    function _update(address from, address to, uint256 amount) internal override {
+        super._update(from, to, amount);
+
+        // this might be too gas heavy. but i think it ensures we always have the right accounting.
+        _setSponsorship(from, isSponsor[from]);
+        _setSponsorship(to, isSponsor[to]);
+    }
+
+    function _setSponsorship(address who, bool state) internal {
         // todo? require msg.sender != owner() && msg.sender != treasury?
-        bool senderIsSponsor = isSponsor[msg.sender];
+        bool senderIsSponsor = isSponsor[who];
 
         if (state) {
             // sponsorship should be on
-            if (senderIsSponsor) {
-                // sponsorship is already on. nothing to do
-                return;
+            if (!senderIsSponsor) {
+                isSponsor[who] = state;
             }
-            isSponsor[msg.sender] = state;
 
             // transfer all of the sender's fan tokens to this address
-            uint256 shares = balanceOf(msg.sender);
+            uint256 shares = balanceOf(who);
             if (shares > 0) {
-                _update(msg.sender, address(this), shares);
+                _update(who, address(this), shares);
 
-                // // update sponsor accounting
-                // uint256 assets = previewRedeem(shares);
-                // totalSponsoredAssets += assets;
-                // balanceOfSponsor[who] += assets;
+                // update sponsor accounting
+                uint256 assets = previewRedeem(shares);
+                totalSponsorAssets += assets;
+                balanceOfSponsor[who] += assets;
+                // TODO: emit events
             }
         } else {
             // sponsorship should be off
-            if (!senderIsSponsor) {
-                // sponsorship is already off. nothing to do
-                return;
+            if (senderIsSponsor) {
+                isSponsor[who] = state;
             }
-            isSponsor[msg.sender] = state;
 
             // transfer the fan tokens back to the caller
-            uint256 assets = balanceOfSponsor[msg.sender];
+            uint256 assets = balanceOfSponsor[who];
             if (assets > 0) {
                 uint256 shares = previewWithdraw(assets);
 
-                _update(address(this), msg.sender, shares);
+                _update(address(this), who, shares);
 
                 // // update sponsor accounting
-                // balanceOfSponsor[msg.sender] -= assets;
-                // totalSponsoredAssets -= assets;
+                balanceOfSponsor[who] -= assets;
+                totalSponsorAssets -= assets;
             }
         }
     }
@@ -507,17 +430,17 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     function sponsorBurn(uint256 amount) public {
         balanceOfSponsor[msg.sender] -= amount;
         totalSponsorAssets -= amount;
-        
     }
 
     // TODO: sponsorFrom? need an "operator" mapping i think
 
     /// @dev has some extra logic for handling sponsored tokens
     /// TODO: how does override work with multiple contracts?
-    function balanceOf(address who) public view override(ERC20,IERC20) returns (uint256 amount) {
-        if (isSponsor[who]) {
-            return previewWithdraw(balanceOfSponsor[who]);
-        }
+    function balanceOf(address who) public view override(ERC20, IERC20) returns (uint256 amount) {
+        // if (isSponsor[who]) {
+        //     // TODO: this is totally broken. don't do this.
+        //     return previewWithdraw(balanceOfSponsor[who]);
+        // }
 
         // TODO: i don't think this will work right. this will break transfers
         // if (who == address(this)) {
@@ -540,6 +463,10 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     }
 
     // === minor helpers ===
+
+    function version() public returns (string memory) {
+        return FACTORY.version();
+    }
 
     /// @notice wrap any ETH in this contract
     function wrapETH() public payable returns (uint256 total) {
