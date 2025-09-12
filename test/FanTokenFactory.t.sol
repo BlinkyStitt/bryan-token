@@ -51,13 +51,14 @@ contract FanTokenFactoryTest is Test {
             "ETH from Bryan Again", "BRY-ETH-2", 0, 0, prizeVault, address(0), bytes32(0), initialDeposit
         );
 
-        uint256 initialShares = fanToken.convertToShares(initialDeposit);
-        console.log("initial shares");
+        uint256 initialShares = fanToken.previewWithdraw(initialDeposit);
+        console.log("initial shares:", initialShares);
+
+        assertEq(fanToken.balanceOfSponsor(address(this)), initialDeposit, "initial deposits should be 1:1");
 
         assertEq(fanToken.balanceOf(address(this)), initialShares, "there should be some initial shares");
 
         // TODO: what should the value of this actually be?
-        assertEq(fanToken.balanceOfSponsor(address(this)), initialDeposit, "initial deposits should be 1:1");
     }
 
     function test_vault_asset() public {

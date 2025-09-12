@@ -7,7 +7,6 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IWETH9} from "v4-periphery/src/interfaces/external/IWETH9.sol";
-import {SponsorToken} from "./SponsorToken.sol";
 
 import {console} from "forge-std/console.sol";
 
@@ -42,9 +41,6 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// todo: better name for this
     address public immutable treasury;
 
-    /// @notice users can opt out of receiving rewards
-    SponsorToken public immutable sponsorToken;
-
     /// @notice the backing token for this fan token's prize tickets. fan tokens can be redeemed for this token.
     /// @dev the linter says this should be capitalized
     IERC20 public immutable underlying;
@@ -54,6 +50,8 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
     /// @notice assets held for the DEPOSIT_DELAY
     uint256 public totalPendingAssets = 0;
+
+    uint256 public totalSponsorAssets = 0;
 
     struct PendingDeposit {
         uint256 when;
@@ -115,17 +113,12 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             isSponsor[_treasury] = true;
         }
 
-        isSponsor[address(this)] = true;
+        // TODO: think more about this. fan tokens here are special
+        // isSponsor[address(this)] = true;
 
         // TODO: i'm not sure about this. i think it just adds gas overhead. but it also seems like a good idea
         // TODO: maybe we should have a _transfer override that makes sure we aren't letting users call transfer to the factory
         isSponsor[msg.sender] = true;
-
-        // TODO: is this an okay name
-        string memory sponsorName = string(abi.encodePacked("Sponsored ", _name));
-        string memory sponsorSymbol = string(abi.encodePacked("s", _symbol));
-
-        sponsorToken = new SponsorToken(sponsorName, sponsorSymbol);
     }
 
     /// @dev allow receiving eth
@@ -226,6 +219,94 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         }
     }
 
+    /**
+     * @dev Transfers a `value` amount of tokens from `from` to `to`, or alternatively mints (or burns) if `from`
+     * (or `to`) is the zero address. All customizations to transfers, mints, and burns should be done by overriding
+     * this function.
+     *
+     * If a sender or receiver is a sponsor, this has extra logic.
+     *
+     * Emits a {Transfer} event.
+     */
+    function _update(address from, address to, uint256 shares) internal override {
+        /*
+        // this is the super _update code for reference.
+        if (from == address(0)) {
+            // Overflow check required: The rest of the code assumes that totalSupply never overflows
+            _totalSupply += value;
+        } else {
+            uint256 fromBalance = _balances[from];
+            if (fromBalance < value) {
+                revert ERC20InsufficientBalance(from, fromBalance, value);
+            }
+            unchecked {
+                // Overflow not possible: value <= fromBalance <= totalSupply.
+                _balances[from] = fromBalance - value;
+            }
+        }
+
+        if (to == address(0)) {
+            unchecked {
+                // Overflow not possible: value <= totalSupply or value <= fromBalance <= totalSupply.
+                _totalSupply -= value;
+            }
+        } else {
+            unchecked {
+                // Overflow not possible: balance + value is at most totalSupply, which we know fits into a uint256.
+                _balances[to] += value;
+            }
+        }
+
+        emit Transfer(from, to, value);
+        */
+
+        bool isSponsorFrom = isSponsor[from];
+        bool isSponsorTo = isSponsor[to];
+
+        if (isSponsorTo || isSponsorFrom) {
+            uint256 assets = previewRedeem(shares);
+
+            // these if/else conditions can probably be simplified
+            if (isSponsorFrom && isSponsorTo) {
+                // TODO: pretty errors if the balance isn't large enough
+
+                // a transfer between two sponsors. only move the sponsored balances. no need to touch other tokens
+                // this one is simple
+                balanceOfSponsor[from] -= assets;
+                balanceOfSponsor[to] += assets;
+
+                emit Transfer(from, to, shares);
+            } else if (isSponsorFrom && !isSponsorTo) {
+                // a transfer from a sponsor
+                balanceOfSponsor[from] -= assets;
+                emit Transfer(from, address(this), shares);
+                
+                if (to == address(0)) {
+                    // a burn sends to the 0 address. we want to burn the fan tokens too
+                    totalSponsorAssets -= assets;
+                    super._update(address(this), address(0), shares);
+                } else {
+                    // the fan tokens are on address(this) rather than the from. trasnfer them
+                    super._update(address(this), to, shares);
+                }
+            } else if (isSponsorTo && !isSponsorFrom) {
+                balanceOfSponsor[to] += assets;
+                if (from == address(0)) {
+                    // a mint to a sponsor
+
+
+                    // the fan tokens go to this address
+                    super._update(address(0), address(this), shares);
+                } else {
+                    // a transfer to a sponsor
+                }
+            }
+        } else {
+            // do the normal update flow when no sponsors are involved
+            super._update(from, to, shares);
+        }
+    }
+
     // === Public things ===
 
     /// @notice check an account's balance in the underlying (backing) token
@@ -278,7 +359,8 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     }
 
     /// @notice compound any underlying tokens. Fees may be sent to the owner or the treasury.
-    function harvest() public payable returns (uint256 total) {
+    /// @dev you probably want to kick an auction of POOL and maybe other tokens before calling this
+    function harvest() public payable returns (uint256 underlyingAssets) {
         IERC4626 prizeVault = IERC4626(asset());
         IERC20 underlyingToken = underlying;
 
@@ -287,43 +369,71 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         }
 
         // we want to use the entire balance
-        total = underlyingToken.balanceOf(address(this));
-        if (total == 0) {
-            return total;
+        underlyingAssets = underlyingToken.balanceOf(address(this));
+        if (underlyingAssets == 0) {
+            return underlyingAssets;
         }
 
-        // get more tickets
-        total = prizeVault.deposit(total, address(this));
+        // calculate how many more tickets we can get
+        // TODO: check maxDeposit? this might just be a waste of gas, but i think its a good idea
+        uint256 maxDeposit = prizeVault.maxDeposit(address(this));
+
+        // TODO: does OZ have a Math helper for this?
+        if (underlyingAssets > maxDeposit) {
+            // TODO: what should we do with any excess? hopefully it can be deposited in the future?
+            underlyingAssets = maxDeposit;
+        }
+
+        // assets = prizeVault.deposit(total, address(this));
+        uint256 assets = prizeVault.previewDeposit(underlyingAssets);
+
+        // TODO: calculate treasury fee
+        // we aren't going to actually make this many shares. but we might depending on the treasury/owner sponsorship settings
+        uint256 shareValue = previewDeposit(assets);
+
+        prizeVault.deposit(underlyingAssets, address(this));
 
         // optionally split some to a "treasury" address
         address treasuryAddress = treasury;
         if (treasuryAddress != address(0)) {
-            // TODO: which way should we round?
-            uint256 treasuryFee = total.mulDiv(harvestTreasuryFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);
-            if (treasuryFee > 0) {
-                // TODO: send this to the SponsorToken and credit the treasury
-                // TODO: send them fan tokens instead of prize vault
-                IERC20(address(prizeVault)).safeTransfer(treasuryAddress, treasuryFee);
+            // TODO: which way should we round? floor seems like a safe default
+            uint256 treasuryFeeShares =
+                shareValue.mulDiv(harvestTreasuryFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);
+            if (treasuryFeeShares > 0) {
+                // TODO: MORE TO DO HERE! WE NEED _mint (actually _update) to check if things are sponsors
+                // TODO: theres a few options here. we can give them fan tokens or assets or underlying. fan tokens (with sponsorship) seems best
+                _mint(treasuryAddress, treasuryFeeShares);
             }
         }
 
         // optionally split some to an "owner" address
+        // TODO: DRY. this is the same as the treasury code above
         address ownerAddress = owner();
         if (ownerAddress != address(0)) {
-            // pay the owner part of the harvest
-            // TODO: which way should we round?
-            uint256 ownerFee = total.mulDiv(harvestOwnerFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);
-            if (ownerFee > 0) {
-                // TODO: send this to the SponsorToken and credit the owner
-                // TODO: send them fan tokens instead of prize vault
-                IERC20(address(prizeVault)).safeTransfer(ownerAddress, ownerFee);
+            uint256 ownerFeeShares =
+                shareValue.mulDiv(harvestOwnerFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);
+            if (ownerFeeShares > 0) {
+                _mint(ownerAddress, ownerFeeShares);
             }
         }
 
         // leave the remaining balance here. this will inflate the value of everyone's shares equally
 
         // correct the accounting for the sponsored tokens
-        sponsorToken.burnExcess();
+        harvestSponsorship();
+    }
+
+    /// @notice send any rewards on sponsored tokens to the other token holders
+    /// @dev this gets called as part of the main `harvest` function.
+    function harvestSponsorship() public returns (uint256 amount) {
+        uint256 correctShares = previewWithdraw(totalSponsorAssets);
+
+        uint256 currentShares = balanceOf(address(this));
+
+        if (currentShares > correctShares) {
+            amount = currentShares - correctShares;
+            _burn(address(this), amount);
+        }
     }
 
     /// @notice begin a deposit. This takes `assets()`, not `underlying()`
@@ -334,33 +444,43 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     }
 
     /// @notice the factory is allowed to start deposits for a trusted `caller`
-    function _factoryStartDeposit(address caller, uint256 assets, address receiver) public returns (uint256 claimWhen) {
+    function _factoryStartDeposit(address caller, uint256 assets, address receiver)
+        public
+        returns (uint256 claimWhen)
+    {
         require(msg.sender == FACTORY, FactoryOnly());
         return _startDeposit(caller, assets, receiver);
     }
 
     /// @notice sponsored tokens contribute to prizes, but do not earn any prizes themselves.
     /// todo: what return value?
-    /// TODO: time lock on this
-    function sponsor(bool state) public {
-        // todo: force keep it on for the owner/treasury?
-        bool senderIsSponsor = isSponsor[msg.sender];
+    /// TODO: time lock on this? i think its kind of pointless since people could just make a new address and send
+    /// TODO: override _update to handle transfers on sponsored addresses? maybe first we should make a transferSponsored function just to get it working. then figure out how to merge them so that normal transfers will work?
+    /// TODO: maybe a separate contract is better. then things like `balanceOf` won't be against the spec
+    function setSponsorship(bool state) public {
+        harvestSponsorship();
 
-        uint256 shares = balanceOf(msg.sender);
+        // todo? require msg.sender != owner() && msg.sender != treasury?
+        bool senderIsSponsor = isSponsor[msg.sender];
 
         if (state) {
             // sponsorship should be on
             if (senderIsSponsor) {
                 // sponsorship is already on. nothing to do
-                return;                
+                return;
             }
             isSponsor[msg.sender] = state;
 
-            // transfer the tokens
-            _update(msg.sender, address(sponsorToken), shares);
+            // transfer all of the sender's fan tokens to this address
+            uint256 shares = balanceOf(msg.sender);
+            if (shares > 0) {
+                _update(msg.sender, address(this), shares);
 
-            // update accounting on the sponsor token side
-            sponsorToken._internalMint(msg.sender, shares);
+                // // update sponsor accounting
+                // uint256 assets = previewRedeem(shares);
+                // totalSponsoredAssets += assets;
+                // balanceOfSponsor[who] += assets;
+            }
         } else {
             // sponsorship should be off
             if (!senderIsSponsor) {
@@ -369,11 +489,55 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             }
             isSponsor[msg.sender] = state;
 
-            sponsorToken._internalBurn(msg.sender, shares);
+            // transfer the fan tokens back to the caller
+            uint256 assets = balanceOfSponsor[msg.sender];
+            if (assets > 0) {
+                uint256 shares = previewWithdraw(assets);
+
+                _update(address(this), msg.sender, shares);
+
+                // // update sponsor accounting
+                // balanceOfSponsor[msg.sender] -= assets;
+                // totalSponsoredAssets -= assets;
+            }
         }
     }
 
+    /// @notice burn your sponsored tokens and credit them to all the other fan token holders
+    function sponsorBurn(uint256 amount) public {
+        balanceOfSponsor[msg.sender] -= amount;
+        totalSponsorAssets -= amount;
+        
+    }
+
     // TODO: sponsorFrom? need an "operator" mapping i think
+
+    /// @dev has some extra logic for handling sponsored tokens
+    /// TODO: how does override work with multiple contracts?
+    function balanceOf(address who) public view override(ERC20,IERC20) returns (uint256 amount) {
+        if (isSponsor[who]) {
+            return previewWithdraw(balanceOfSponsor[who]);
+        }
+
+        // TODO: i don't think this will work right. this will break transfers
+        // if (who == address(this)) {
+        //     // tokens on this address are special. they are "sponsor" tokens and they
+        //     return 0;
+        // }
+
+        return super.balanceOf(who);
+    }
+
+    /// TODO: this isn't really necessary
+    function totalSponsoredShares() public returns (uint256 shares) {
+        shares = balanceOf(address(this));
+    }
+
+    /// TODO: this isn't really necessary
+    function totalSponsoredAssets() public returns (uint256 assets) {
+        uint256 shares = totalSponsoredShares();
+        assets = previewRedeem(shares);
+    }
 
     // === minor helpers ===
 
