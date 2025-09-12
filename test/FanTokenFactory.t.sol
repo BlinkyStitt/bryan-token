@@ -56,7 +56,10 @@ contract FanTokenFactoryTest is Test {
 
         assertEq(fanToken.balanceOfSponsor(address(this)), initialDeposit, "initial deposits should be 1:1");
 
-        assertEq(fanToken.balanceOf(address(this)), initialShares, "there should be some initial shares");
+        assertEq(fanToken.balanceOf(address(fanToken)), initialShares, "the contract should own the sponsored shares");
+
+        // TODO: i can't decide if we should override balanceOf to include sponsor tokens. that will make transfers easy, but i think has other problems
+        assertEq(fanToken.balanceOf(address(this)), 0, "there should be some initial shares");
 
         // TODO: what should the value of this actually be?
     }

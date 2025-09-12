@@ -350,6 +350,20 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         }
     }
 
+    /** @dev See {IERC4626-redeem}. */
+    function redeem(uint256 shares, address receiver, address owner) public override returns (uint256) {
+        if (isSponsor[owner]) {
+            uint256 ownerSponsorShares = previewWithdraw(balanceOfSponsor[owner]);
+
+            if (shares > ownerSponsorShares) {
+                revert ERC20InsufficientBalance(owner, ownerSponsorShares, shares);
+            }
+
+            super._update(address(this), owner, shares);
+        }
+        return super.redeem(shares, receiver, owner);
+    }
+
     /// @notice begin a deposit. This takes `assets()`, not `underlying()`
     /// @dev the first deposit does not have any delay
     /// @dev the delay is necessary to protect against large deposits around the time of a large win
@@ -419,7 +433,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
                 _update(address(this), who, shares);
 
-                // // update sponsor accounting
+                // update sponsor accounting
                 balanceOfSponsor[who] -= assets;
                 totalSponsorAssets -= assets;
             }
@@ -427,28 +441,44 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     }
 
     /// @notice burn your sponsored tokens and credit them to all the other fan token holders
-    function sponsorBurn(uint256 amount) public {
-        balanceOfSponsor[msg.sender] -= amount;
-        totalSponsorAssets -= amount;
+    function sponsorBurn(uint256 assets) public {
+        if (assets > balanceOfSponsor[msg.sender]) {
+            revert ERC20InsufficientBalance(msg.sender, ownerSponsorShares, shares);
+        }
+
+        balanceOfSponsor[msg.sender] -= assets;
+        totalSponsorAssets -= assets;
+
+        harvestSponsorship();
     }
+
+    /// @dev i wanted to override `transfer` to work transparently, but that got too complicated quickly
+    function sponsorTransfer(address to, uint256 assets) public {
+        revert("wip");
+    }
+
+    /// @dev i wanted to override `transfer` to work transparently, but that got too complicated quickly
+    function sponsorTransferFrom(address from, address to, uint256 assets) public {
+        revert("wip");
+    }
+
+    // TODO: sponsorTransferFrom
 
     // TODO: sponsorFrom? need an "operator" mapping i think
 
-    /// @dev has some extra logic for handling sponsored tokens
-    /// TODO: how does override work with multiple contracts?
-    function balanceOf(address who) public view override(ERC20, IERC20) returns (uint256 amount) {
-        // if (isSponsor[who]) {
-        //     // TODO: this is totally broken. don't do this.
-        //     return previewWithdraw(balanceOfSponsor[who]);
-        // }
+    /** @dev See {IERC4626-withdraw}. */
+    function withdraw(uint256 assets, address receiver, address owner) public override returns (uint256) {
+        if (isSponsor[owner]) {
+            uint256 ownerSponsorShares = previewWithdraw(balanceOfSponsor[owner]);
+            uint256 shares = previewWithdraw(assets);
 
-        // TODO: i don't think this will work right. this will break transfers
-        // if (who == address(this)) {
-        //     // tokens on this address are special. they are "sponsor" tokens and they
-        //     return 0;
-        // }
+            if (shares > ownerSponsorShares) {
+                revert ERC20InsufficientBalance(owner, ownerSponsorShares, shares);
+            }
 
-        return super.balanceOf(who);
+            super._update(address(this), owner, shares);
+        }
+        return super.withdraw(assets, receiver, owner);
     }
 
     /// TODO: this isn't really necessary
