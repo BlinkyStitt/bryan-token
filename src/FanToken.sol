@@ -399,6 +399,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         _setSponsorship(to, isSponsor[to]);
     }
 
+    /// TODO: this needs more tests and coverage!
     function _setSponsorship(address who, bool state) internal {
         // todo? require msg.sender != owner() && msg.sender != treasury?
         bool senderIsSponsor = isSponsor[who];
@@ -431,11 +432,11 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             if (assets > 0) {
                 uint256 shares = previewWithdraw(assets);
 
-                _update(address(this), who, shares);
-
                 // update sponsor accounting
                 balanceOfSponsor[who] -= assets;
                 totalSponsorAssets -= assets;
+
+                _update(address(this), who, shares);
             }
         }
     }
@@ -453,14 +454,51 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         harvestSponsorship();
     }
 
-    /// @dev i wanted to override `transfer` to work transparently, but that got too complicated quickly
-    function sponsorTransfer(address to, uint256 assets) public {
-        revert("wip");
+    /// @dev i keep trying to include this logic inside _update, but it breaks things
+    function _sponsorTransfer(address from, address to, uint256 assets) internal {
+        bool fromIsSponsor = isSponsor[from];
+        bool toIsSponsor = isSponsor[to];
+
+        uint256 shares = previewWithdraw(assets);
+
+        // this isn't the most gas efficient way, but i think its best to ensure we get all the math right
+        if (fromIsSponsor && toIsSponsor) {
+            // no need to do anything with the shares. they are owned by this contract and stay owned by this contract
+            balanceOfSponsor[from] -= assets;
+            balanceOfSponsor[to] += assets;
+            emit Transfer(from, to, shares);
+        } else if (fromIsSponsor) {
+            // since from is a sponsor, the shares are held by this contract
+            // move them to the from. then do the normal transfer flow
+            // we could maybe _update(address(this, to)), but i think events are confusing that way
+            _update(address(this), from, shares);
+
+            _update(from, to, shares);
+
+            // update sponsorship accounting. this is probably overkill, but i think its safest
+            _setSponsorship(from, true);
+        } else if (toIsSponsor) {
+            // from already holds shares. 
+            _update(from, to, shares);
+
+            // this will move the shares to this contract and update sponsorhip accounting
+            _setSponsorship(to, true);
+        } else {
+            revert Unimplemented("at least one side must be a sponsor");
+        }
     }
 
     /// @dev i wanted to override `transfer` to work transparently, but that got too complicated quickly
-    function sponsorTransferFrom(address from, address to, uint256 assets) public {
-        revert("wip");
+    function sponsorTransfer(address to, uint256 assets) public returns (bool) {
+        _sponsorTransfer(msg.sender, to, assets);
+        return true;
+    }
+
+    /// @dev i wanted to override `transfer` to work transparently, but that got too complicated quickly
+    function sponsorTransferFrom(address from, address to, uint256 assets) public returns (bool) {
+        revert("todo: check approvals");
+        _sponsorTransfer(from, to, assets);
+        return true;
     }
 
     // TODO: sponsorTransferFrom
