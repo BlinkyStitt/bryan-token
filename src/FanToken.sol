@@ -362,7 +362,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         public
         returns (uint256 claimWhen)
     {
-        require(msg.sender == FACTORY, FactoryOnly());
+        require(msg.sender == address(FACTORY), FactoryOnly());
         return _startDeposit(caller, assets, receiver);
     }
 

@@ -112,5 +112,4 @@ contract FanTokenFactory {
     function version() public returns (string memory) {
         return "3.0.0";
     }
-
 }

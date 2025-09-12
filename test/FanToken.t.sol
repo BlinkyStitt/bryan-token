@@ -96,7 +96,7 @@ contract FanTokenTest is Test {
 
     function test_expected_default_sponsors() public {
         assertEq(bryan.isSponsor(address(0)), false);
-        assertEq(bryan.isSponsor(address(bryan)), false);   // TODO: i'm unsure if we want this to be true or not. i think not
+        assertEq(bryan.isSponsor(address(bryan)), false); // TODO: i'm unsure if we want this to be true or not. i think not
         assertEq(bryan.isSponsor(owner), true);
         assertEq(bryan.isSponsor(treasury), true);
         assertEq(bryan.isSponsor(factory), true);
