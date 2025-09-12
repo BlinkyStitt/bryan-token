@@ -442,8 +442,9 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
     /// @notice burn your sponsored tokens and credit them to all the other fan token holders
     function sponsorBurn(uint256 assets) public {
-        if (assets > balanceOfSponsor[msg.sender]) {
-            revert ERC20InsufficientBalance(msg.sender, ownerSponsorShares, shares);
+        uint256 senderSponsorAssets = balanceOfSponsor[msg.sender];
+        if (assets > senderSponsorAssets) {
+            revert ERC20InsufficientBalance(msg.sender, senderSponsorAssets, assets);
         }
 
         balanceOfSponsor[msg.sender] -= assets;
