@@ -178,6 +178,8 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
         _update(address(0), receiver, shares);
 
+        _setSponsorship(receiver, isSponsor[receiver]);
+
         return shares;
     }
 

@@ -133,19 +133,19 @@ contract FanTokenTest is Test {
 
         assertEq(bryan.totalSupply(), shares, "supply wrong 2");
 
-        // switch sponsoring on
+        // switch sponsoring on while a deposit is pending. i think this is broken
         console.log("enabling sponsorship");
         bryan.setSponsorship(true);
 
         // TODO: assert some things about balances
-        assertEq(bryan.balanceOfSponsor(address(this)), assets / 2, "sponsor balance is wrong");
+        assertEq(bryan.balanceOfSponsor(address(this)), assets / 2, "first sponsor balance is wrong");
 
         vm.warp(block.timestamp + depositDelay);
         // TODO: test depositing from another address. anyone should be able to finalize a deposit
         uint256 newShares = bryan.deposit(assets / 2, address(this));
         console.log("shares from second deposit:", newShares);
 
-        assertEq(bryan.balanceOfSponsor(address(this)), assets, "sponsor balance is wrong");
+        assertEq(bryan.balanceOfSponsor(address(this)), assets, "second sponsor balance is wrong");
 
         // switch sponsoring off
         console.log("disabling sponsorship");
