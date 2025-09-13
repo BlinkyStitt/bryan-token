@@ -595,9 +595,11 @@ contract FanTokenTest is Test {
         console.log("  Total supply:", initialSupply);
         console.log("  Owner isSponsor:", feeToken.isSponsor(owner));
 
-        // Send fake rewards (WETH) to the contract
+        // Send fake rewards (WETH) to the contract using transfer instead of deal
         uint256 rewardAmount = 0.5 ether;
-        deal(address(weth), address(feeToken), rewardAmount, true);
+        vm.deal(address(this), rewardAmount);
+        weth.deposit{value: rewardAmount}();
+        weth.transfer(address(feeToken), rewardAmount);
 
         console.log("Sent", rewardAmount, "WETH rewards to contract");
         console.log("Contract WETH balance:", weth.balanceOf(address(feeToken)));
@@ -671,9 +673,11 @@ contract FanTokenTest is Test {
         console.log("Initial treasury balance:", initialTreasuryBalance);
         console.log("Treasury isSponsor:", feeToken.isSponsor(treasury));
 
-        // Send fake rewards
+        // Send fake rewards using transfer instead of deal
         uint256 rewardAmount = 1 ether;
-        deal(address(weth), address(feeToken), rewardAmount, true);
+        vm.deal(address(this), rewardAmount);
+        weth.deposit{value: rewardAmount}();
+        weth.transfer(address(feeToken), rewardAmount);
 
         console.log("Sent", rewardAmount, "WETH rewards");
 
@@ -714,9 +718,11 @@ contract FanTokenTest is Test {
 
         console.log("Initial balance:", feeToken.balanceOf(address(this)));
 
-        // Send rewards
+        // Send rewards using transfer instead of deal
         uint256 rewardAmount = 0.5 ether;
-        deal(address(weth), address(feeToken), rewardAmount, true);
+        vm.deal(address(this), rewardAmount);
+        weth.deposit{value: rewardAmount}();
+        weth.transfer(address(feeToken), rewardAmount);
 
         console.log("Sent", rewardAmount, "WETH rewards");
 
@@ -958,9 +964,11 @@ contract FanTokenTest is Test {
         console.log("  Total sponsor assets:", initialTotalSponsorAssets);
         console.log("  Contract shares:", initialContractShares);
 
-        // Send fake rewards to the contract
+        // Send fake rewards to the contract using transfer
         uint256 rewardAmount = 0.5 ether;
-        deal(address(weth), address(bryan), rewardAmount, true);
+        vm.deal(address(this), rewardAmount);
+        weth.deposit{value: rewardAmount}();
+        weth.transfer(address(bryan), rewardAmount);
 
         console.log("Sent", rewardAmount, "WETH rewards to contract");
 
@@ -1053,9 +1061,11 @@ contract FanTokenTest is Test {
         console.log("  Sponsor2 assets:", initialSponsor2Assets);
         console.log("  Total sponsor assets:", initialTotalSponsorAssets);
 
-        // Send substantial rewards
+        // Send substantial rewards using transfer
         uint256 rewardAmount = 1 ether;
-        deal(address(weth), address(bryan), rewardAmount, true);
+        vm.deal(address(this), rewardAmount);
+        weth.deposit{value: rewardAmount}();
+        weth.transfer(address(bryan), rewardAmount);
 
         console.log("Sent", rewardAmount, "WETH rewards");
 
