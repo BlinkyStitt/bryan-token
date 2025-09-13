@@ -7,6 +7,7 @@ import {FanToken, SafeERC20, IERC20, IERC4626, IWETH9} from "./FanToken.sol";
 
 error InvalidFanToken();
 error IncorrectUnderlying(address underlying);
+error NoUnderlyingAssets();
 
 contract FanTokenFactory {
     using SafeERC20 for IERC20;
@@ -74,7 +75,7 @@ contract FanTokenFactory {
             WETH.deposit{value: underlyingAssets}();
         } else {
             // TODO: custom error instead of string errors
-            require(underlyingAssets > 0, "no underlying assets");
+            require(underlyingAssets > 0, NoUnderlyingAssets());
 
             // get the underlying into this contract so we can do things with it
             underlying.safeTransferFrom(msg.sender, address(this), underlyingAssets);

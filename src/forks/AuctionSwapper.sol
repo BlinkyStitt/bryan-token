@@ -8,6 +8,9 @@ pragma solidity >=0.8.18;
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+error NotAuction();
+error WrongWant();
+
 interface AuctionFactory {
     function createNewAuction(address _want) external returns (address);
     function createNewAuction(address _want, address _hook) external returns (address);
@@ -76,7 +79,7 @@ contract AuctionSwapper {
      * @dev Check the caller is the auction contract for hooks.
      */
     function _isAuction() internal view virtual {
-        require(msg.sender == auction, "!auction");
+        require(msg.sender == auction, NotAuction());
     }
 
     /// @notice The pre-deployed Auction factory for cloning.
@@ -124,7 +127,7 @@ contract AuctionSwapper {
             auction = _auction;
         } else {
             // Can only use one `want` per auction contract.
-            require(Auction(_auction).want() == _want, "wrong want");
+            require(Auction(_auction).want() == _want, WrongWant());
         }
 
         // Enable new auction for `_from` token.

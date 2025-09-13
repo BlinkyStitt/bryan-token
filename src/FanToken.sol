@@ -14,6 +14,9 @@ error InvalidAuctionToken();
 error FeesTooLarge();
 error FactoryOnly();
 error Unimplemented(string err);
+error ZeroOwner();
+error DepositNotReady();
+error IncorrectAssets();
 
 interface IFanTokenFactory {
     function version() external returns (string memory);
@@ -89,7 +92,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         IWETH9 _weth
     ) ERC20(_name, _symbol) ERC4626(_prizeVault) Ownable(_owner) {
         require(_harvestOwnerFeeBasisPoints + _harvestTreasuryFeeBasisPoints <= _BASIS_POINT_SCALE, FeesTooLarge());
-        require(_owner != address(0), "this looks like a mistake");
+        require(_owner != address(0), ZeroOwner());
 
         FACTORY = IFanTokenFactory(msg.sender);
 
@@ -157,13 +160,13 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         PendingDeposit storage pendingDeposit = pendingDepositOf[originalCaller][receiver];
 
         // TODO: custom error
-        require(pendingDeposit.when != 0 && block.timestamp >= pendingDeposit.when, "!now");
+        require(pendingDeposit.when != 0 && block.timestamp >= pendingDeposit.when, DepositNotReady());
 
         if (assets == 0) {
             assets = pendingDeposit.assets;
         } else {
             // TODO: custom error
-            require(pendingDeposit.assets == assets, "!assets");
+            require(pendingDeposit.assets == assets, IncorrectAssets());
         }
 
         if (shares == 0) {

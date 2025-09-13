@@ -1,6 +1,10 @@
 #!/bin/bash
 # run tests on a forked network on a recent block
-set -eux -o pipefail
+set -eu -o pipefail
+
+if [ -e .env ]; then
+    source .env
+fi
 
 REORG_SAFETY=${REORG_SAFETY:-5}
 
@@ -37,9 +41,35 @@ else
     echo "$block_number" > "$block_cache"
 fi
 
-# TODO: easily run `snapshot` or `coverage` instead of only `test`
+# Support different modes: test, coverage, snapshot
+mode="coverage"  # default to coverage
+if [ $# -gt 0 ]; then
+    case "$1" in
+        test|coverage|snapshot)
+            mode="$1"
+            shift  # remove mode from arguments
+            ;;
+    esac
+fi
 
-exec forge test \
-    --fork-block-number "$block_number" \
-    --fork-url "$fork_url" \
-    "$@"
+case "$mode" in
+    test)
+        exec forge test \
+            --fork-block-number "$block_number" \
+            --fork-url "$fork_url" \
+            "$@"
+        ;;
+    coverage)
+        exec forge coverage \
+            --fork-block-number "$block_number" \
+            --fork-url "$fork_url" \
+            --report lcov \
+            "$@"
+        ;;
+    snapshot)
+        exec forge snapshot \
+            --fork-block-number "$block_number" \
+            --fork-url "$fork_url" \
+            "$@"
+        ;;
+esac
