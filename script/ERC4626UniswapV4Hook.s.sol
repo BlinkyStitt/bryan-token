@@ -34,7 +34,7 @@ contract ERC4626UniswapV4HookScript is Script {
         // Deploy the hook using CREATE2
         vm.broadcast();
         ERC4626UniswapV4Hook vaultHook = new ERC4626UniswapV4Hook{salt: salt}(IPoolManager(poolmanager));
-        require(address(vaultHook) == hookAddress, "BryanUniswapV4HookScript: hook address mismatch");
+        require(address(vaultHook) == hookAddress, "ERC4626UniswapV4HookScript: hook address mismatch");
 
         // TODO: deploy a fanToken.asset() <-> fanToken.undelrying() pool with this hook (in another script?)
         // TODO: deploy a fanToken <-> fanToken.asset() pool with this hook (in another script?)
