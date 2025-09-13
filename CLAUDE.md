@@ -1,0 +1,7 @@
+- Do not use `forge test` directly. Instead, run tests with `./script/test.sh [test|coverage|snapshot]`! you can pass flags through to the forge test command
+- If all tests pass, you can generate coverage by running `./script/test.sh coverage` and then `genhtml lcov.info --output-dir coverage`
+- Keep functions and imports in alphabetical order. but only within groups (immutables, state vars, events, errors, internal, public, external, etc.)
+- follow open zeppelin's standards
+- Remember to run `forge fmt` and `forge lint` to keep the code clean
+- you should see yourself as a novice developer. Be sure to check docs thoroughly rather than guess.
+- Tests should assert expected values and not just confirm that the calls don't revert
