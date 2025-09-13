@@ -60,6 +60,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     struct PendingDeposit {
         uint256 when;
         uint256 assets;
+        uint256 sharesAtStart;
     }
 
     /// TODO: include a nonce here so that multiple deposits don't reset the timer?
@@ -166,17 +167,25 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         }
 
         if (shares == 0) {
-            shares = previewDeposit(assets);
+            shares = previewWithdraw(assets);
+        }
+
+        if (shares < pendingDeposit.sharesAtStart) {
+            // we have extra shares. this is interest that was earned while the tokens were in the deposit queue. we need to burn them
+            _update(address(this), address(0), pendingDeposit.sharesAtStart - shares);
+
+            // note: if the share value went down, we don't do mint extra. we want everyone to lose equally if there are any loses
         }
 
         pendingDeposit.when = 0;
         pendingDeposit.assets = 0;
+        pendingDeposit.sharesAtStart = 0;
 
         totalPendingAssets -= assets;
 
         balanceOfPending[receiver] -= assets;
 
-        _update(address(0), receiver, shares);
+        _update(address(this), receiver, shares);
 
         _setSponsorship(receiver, isSponsor[receiver]);
 
@@ -208,13 +217,19 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         } else {
             PendingDeposit storage pendingDeposit = pendingDepositOf[caller][receiver];
 
+            // calculate share value BEFORE doing the transfer
+            uint256 shares = previewDeposit(assets);
+
             // this is from msg.sender, NOT caller. i don't love that.
             SafeERC20.safeTransferFrom(IERC20(asset()), msg.sender, address(this), assets);
+
+            _mint(address(this), shares);
 
             // update counters
             totalPendingAssets += assets;
             balanceOfPending[receiver] += assets;
             pendingDeposit.assets += assets;
+            pendingDeposit.sharesAtStart += shares;
 
             // allow claiming the deposit after a delay
             // if a deposit is already running, we reset the timestamp
