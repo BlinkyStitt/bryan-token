@@ -167,15 +167,15 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         }
 
         if (shares == 0) {
-            shares = previewWithdraw(assets);
+            // Calculate shares at finalization time using current share price
+            shares = previewDeposit(assets);
+            console.log("_finishDeposit: calculated shares at finalization:", shares);
         }
 
-        if (shares < pendingDeposit.sharesAtStart) {
-            // we have extra shares. this is interest that was earned while the tokens were in the deposit queue. we need to burn them
-            _update(address(this), address(0), pendingDeposit.sharesAtStart - shares);
-
-            // note: if the share value went down, we don't do mint extra. we want everyone to lose equally if there are any loses
-        }
+        // Mint the shares now that we're finalizing the deposit
+        console.log("_finishDeposit: minting", shares, "shares");
+        _mint(address(this), shares);
+        console.log("_finishDeposit: mint complete. contract balance:", balanceOf(address(this)));
 
         pendingDeposit.when = 0;
         pendingDeposit.assets = 0;
@@ -217,19 +217,15 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         } else {
             PendingDeposit storage pendingDeposit = pendingDepositOf[caller][receiver];
 
-            // calculate share value BEFORE doing the transfer
-            uint256 shares = previewDeposit(assets);
-
             // this is from msg.sender, NOT caller. i don't love that.
             SafeERC20.safeTransferFrom(IERC20(asset()), msg.sender, address(this), assets);
 
-            _mint(address(this), shares);
+            console.log("_startDeposit: not minting shares yet, just tracking pending deposit");
 
-            // update counters
+            // update counters - don't mint shares yet, calculate them at finalization
             totalPendingAssets += assets;
             balanceOfPending[receiver] += assets;
             pendingDeposit.assets += assets;
-            pendingDeposit.sharesAtStart += shares;
 
             // allow claiming the deposit after a delay
             // if a deposit is already running, we reset the timestamp
@@ -250,6 +246,13 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
         // TODO: convertToAssets or previewRedeem? i'm pretty sure preview is correct
         return prizeVault.previewRedeem(prizeVaultShares);
+    }
+
+    /// @notice override totalAssets to exclude pending deposits from the share price calculation
+    function totalAssets() public view override returns (uint256) {
+        uint256 actualAssets = super.totalAssets();
+        // Subtract pending deposits so they don't affect the share price until finalized
+        return actualAssets > totalPendingAssets ? actualAssets - totalPendingAssets : 0;
     }
 
     /// @notice prepare the auction contract for selling a token
@@ -331,9 +334,13 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             uint256 treasuryFeeShares =
                 shareValue.mulDiv(harvestTreasuryFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);
             if (treasuryFeeShares > 0) {
-                // TODO: MORE TO DO HERE! WE NEED _mint (actually _update) to check if things are sponsors
-                // TODO: theres a few options here. we can give them fan tokens or assets or underlying. fan tokens (with sponsorship) seems best
+                console.log("harvest: minting", treasuryFeeShares, "treasury fee shares to", treasuryAddress);
+                console.log("harvest: treasury isSponsor:", isSponsor[treasuryAddress]);
                 _mint(treasuryAddress, treasuryFeeShares);
+                console.log("harvest: treasury mint complete. treasury balance:", balanceOf(treasuryAddress));
+
+                // set sponsorship status to ensure proper accounting
+                _setSponsorship(treasuryAddress, isSponsor[treasuryAddress]);
             }
         }
 
@@ -344,7 +351,13 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             uint256 ownerFeeShares =
                 shareValue.mulDiv(harvestOwnerFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);
             if (ownerFeeShares > 0) {
+                console.log("harvest: minting", ownerFeeShares, "owner fee shares to", ownerAddress);
+                console.log("harvest: owner isSponsor:", isSponsor[ownerAddress]);
                 _mint(ownerAddress, ownerFeeShares);
+                console.log("harvest: owner mint complete. owner balance:", balanceOf(ownerAddress));
+
+                // set sponsorship status to ensure proper accounting
+                _setSponsorship(ownerAddress, isSponsor[ownerAddress]);
             }
         }
 
@@ -358,17 +371,24 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// @dev this gets called as part of the main `harvest` function.
     function harvestSponsorship() public returns (uint256 amount) {
         uint256 correctShares = previewWithdraw(totalSponsorAssets);
-
         uint256 currentShares = balanceOf(address(this));
+
+        console.log("harvestSponsorship: totalSponsorAssets=", totalSponsorAssets);
+        console.log("harvestSponsorship: correctShares=", correctShares);
+        console.log("harvestSponsorship: currentShares=", currentShares);
 
         if (currentShares > correctShares) {
             amount = currentShares - correctShares;
 
-            // TODO: this seems wrong. i'm not sure why we are seeing this
-            console.log("burn needed!", correctShares, currentShares, amount);
-            // revert("wip");
+            console.log("harvestSponsorship: burn needed!", correctShares, currentShares, amount);
+            console.log("harvestSponsorship: burning", amount, "shares from", address(this));
 
-            // _burn(address(this), amount);
+            // burn the excess shares to redistribute rewards to non-sponsored token holders
+            _update(address(this), address(0), amount);
+
+            console.log("harvestSponsorship: burn complete. new balance:", balanceOf(address(this)));
+        } else {
+            console.log("harvestSponsorship: no burn needed");
         }
     }
 
@@ -421,7 +441,15 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     }
 
     function _update(address from, address to, uint256 amount) internal override {
+        console.log("_update: transferring", amount, "shares from", from);
+        console.log("_update: to", to);
+        console.log("_update: from balance before:", balanceOf(from));
+        console.log("_update: to balance before:", balanceOf(to));
+
         super._update(from, to, amount);
+
+        console.log("_update: from balance after:", balanceOf(from));
+        console.log("_update: to balance after:", balanceOf(to));
 
         // this might be too gas heavy. but i think it ensures we always have the right accounting.
         _setSponsorship(from, isSponsor[from]);
