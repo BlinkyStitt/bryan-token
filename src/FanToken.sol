@@ -196,7 +196,6 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         return shares;
     }
 
-
     /// @notice begin a deposit. This takes `assets()`, not `underlying()`
     /// @dev the first deposit does not have any delay
     /// @dev the delay is necessary to protect against large deposits around the time of a large win
@@ -295,6 +294,10 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             return underlyingAssets;
         }
 
+        // TODO: I'm not sure these are right. i thought so, but my tests were giving weird answers for fees. so lets keep it simpler for now
+        // uint256 expectedAssets = prizeVault.previewDeposit(underlyingAssets);
+        // uint256 equivalentShares = previewDeposit(expectedAssets);
+
         uint256 assets = prizeVault.deposit(underlyingAssets, address(this));
 
         // optionally split some to a "treasury" address
@@ -322,8 +325,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         // TODO: DRY. this is the same as the treasury code above
         address ownerAddress = owner();
         if (ownerAddress != address(0)) {
-            uint256 ownerFeeAssets =
-                assets.mulDiv(harvestOwnerFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);
+            uint256 ownerFeeAssets = assets.mulDiv(harvestOwnerFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);
             if (ownerFeeAssets > 0) {
                 prizeVault.transfer(ownerAddress, ownerFeeAssets);
             }

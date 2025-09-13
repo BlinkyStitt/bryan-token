@@ -12,7 +12,6 @@ import {
 } from "v4-periphery/src/utils/BaseHook.sol";
 import {Unimplemented} from "./FanToken.sol";
 
-
 /**
  * @dev A hook that replaces swaps with ERC4626 vault deposits/redeems
  * TODO: how will uniswap interfaces know that this hook has liquidity? We need to have it query the underlying contact and maxRedeem I think
