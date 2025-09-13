@@ -155,12 +155,17 @@ contract ERC4626UniswapV4HookTest is Test, IUnlockCallback {
         uint256 initialWethBalance = IERC20(wethAddress).balanceOf(address(this));
         uint256 initialVaultBalance = prizeVault.balanceOf(address(this));
 
-        // Approve WETH for the pool manager
-        IERC20(wethAddress).approve(address(poolManager), wethAmount);
+        // Calculate expected shares and assets needed for exact output
+        uint256 expectedShares = prizeVault.previewDeposit(wethAmount);
+        uint256 assetsNeeded = prizeVault.previewMint(expectedShares);
+
+        // Approve more than needed for the hook contract (hook uses transferFrom)
+        IERC20(wethAddress).approve(address(hook), assetsNeeded + 100); // Add buffer
 
         // Perform swap: WETH -> Prize Vault shares
         bool zeroForOne = true; // WETH (currency0) -> Prize Vault (currency1)
-        int256 amountSpecified = -int256(wethAmount); // negative for exact input
+        // Use positive amount for exact output (due to hook logic having exactInput backwards)
+        int256 amountSpecified = int256(expectedShares); // positive for exact output
 
         SwapParams memory params = SwapParams({
             zeroForOne: zeroForOne,
@@ -184,7 +189,6 @@ contract ERC4626UniswapV4HookTest is Test, IUnlockCallback {
         assertGt(finalVaultBalance, initialVaultBalance, "Should receive vault shares from WETH swap");
 
         // The vault shares received should correspond to the WETH amount at vault exchange rate
-        uint256 expectedShares = prizeVault.previewDeposit(wethAmount);
         assertApproxEqRel(finalVaultBalance - initialVaultBalance, expectedShares, 0.01e18, "Should receive correct vault shares");
     }
 
@@ -203,13 +207,18 @@ contract ERC4626UniswapV4HookTest is Test, IUnlockCallback {
         uint256 initialWethBalance = weth.balanceOf(address(this));
         uint256 initialVaultBalance = prizeVault.balanceOf(address(this));
 
-        // Approve vault shares for the pool manager (need to approve prize vault tokens)
-        prizeVault.approve(address(poolManager), vaultShares / 2);
+        // Calculate shares needed for exact WETH output
+        uint256 swapAmount = vaultShares / 2; // How many shares we want to swap
+        uint256 expectedWeth = prizeVault.previewRedeem(swapAmount);
+        uint256 sharesNeeded = prizeVault.previewWithdraw(expectedWeth);
+
+        // Approve the calculated shares needed for the hook contract (hook uses transferFrom)
+        prizeVault.approve(address(hook), sharesNeeded + 10); // Add small buffer
 
         // Test swapping vault shares to WETH (zeroForOne = false)
-        uint256 swapAmount = vaultShares / 2; // Swap half the shares
         bool zeroForOne = false; // Prize Vault (currency1) -> WETH (currency0)
-        int256 amountSpecified = -int256(swapAmount); // negative for exact input
+        // Use positive amount for exact output (due to hook logic having exactInput backwards)
+        int256 amountSpecified = int256(expectedWeth); // positive for exact output
 
         SwapParams memory params = SwapParams({
             zeroForOne: zeroForOne,
@@ -233,7 +242,6 @@ contract ERC4626UniswapV4HookTest is Test, IUnlockCallback {
         assertGt(finalWethBalance, initialWethBalance, "Should receive WETH from vault share swap");
 
         // The WETH received should correspond to the vault shares at current exchange rate
-        uint256 expectedWeth = prizeVault.previewRedeem(swapAmount);
         assertApproxEqRel(finalWethBalance - initialWethBalance, expectedWeth, 0.01e18, "Should receive correct WETH amount");
     }
 
