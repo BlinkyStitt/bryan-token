@@ -1457,32 +1457,35 @@ contract FanTokenTest is Test {
         address depositor = makeAddr("depositor");
         address finisher = makeAddr("finisher");
 
-        (IERC4626 asset, uint256 assets) = _dealAsset(1 ether, address(this)); // Use smaller amount
-        asset.transfer(depositor, assets);
+        // Ensure this is NOT the first deposit to the contract
+        // by making a small deposit first
+        (IERC4626 asset, uint256 initialAssets) = _dealAsset(0.1 ether, address(this));
+        asset.approve(address(bryan), type(uint256).max);
+        bryan.deposit(initialAssets, address(this));
+
+        // Now set up the actual test
+        (IERC4626 asset2, uint256 assets) = _dealAsset(1 ether, address(this));
+        asset2.transfer(depositor, assets);
 
         // Depositor requests sponsorship and starts deposit
         vm.startPrank(depositor);
         bryan.setSponsorship(true);
-        asset.approve(address(bryan), type(uint256).max);
+        asset2.approve(address(bryan), type(uint256).max);
 
         uint256 when = bryan.startDeposit(assets, depositor);
         vm.stopPrank();
 
-        if (when > block.timestamp) {
-            // Warp to when deposit is ready but don't finish it as depositor
-            vm.warp(when);
+        assertGt(when, block.timestamp); // Should have a delay now
 
-            // Different user (finisher) calls finishDeposit for the depositor
-            vm.prank(finisher);
-            bryan.finishDeposit(depositor, depositor);
+        // Warp to when deposit is ready
+        vm.warp(when);
 
-            uint256 depositorBalanceAfter = bryan.balanceOf(depositor);
-            assertGt(depositorBalanceAfter, 0); // Should have shares after deposit
-        } else {
-            // If deposit was instant, just verify the depositor got shares
-            uint256 depositorBalanceAfter = bryan.balanceOf(depositor);
-            assertGt(depositorBalanceAfter, 0);
-        }
+        // Different user (finisher) calls finishDeposit for the depositor
+        vm.prank(finisher);
+        bryan.finishDeposit(depositor, depositor);
+
+        uint256 depositorBalanceAfter = bryan.balanceOf(depositor);
+        assertGt(depositorBalanceAfter, 0); // Should have shares after deposit
 
         // Total sponsored shares are held by the contract
         assertGt(bryan.totalSponsoredShares(), 0);
