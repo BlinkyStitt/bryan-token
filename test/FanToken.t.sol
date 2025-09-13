@@ -559,6 +559,537 @@ contract FanTokenTest is Test {
         assertEq(weth.balanceOf(address(bryan)), value);
     }
 
+    function test_harvest_with_owner_fees() public {
+        // Create a FanToken with 25% owner fees
+        uint256 ownerFeeBasisPoints = 2500; // 25%
+        uint256 treasuryFeeBasisPoints = 0;
+
+        vm.prank(factory);
+        FanToken feeToken = new FanToken(
+            "Fee Test Token",
+            "FEE",
+            ownerFeeBasisPoints,
+            treasuryFeeBasisPoints,
+            owner,
+            IERC4626(bryan.asset()),
+            treasury,
+            weth
+        );
+
+        console.log("Created feeToken with 25% owner fees");
+
+        // Set up initial deposit
+        uint256 initialDeposit = 1 ether;
+        (IERC4626 asset, uint256 assets) = _dealAsset(initialDeposit, address(this));
+
+        asset.approve(address(feeToken), type(uint256).max);
+        feeToken.deposit(assets, address(this));
+
+        uint256 initialBalance = feeToken.balanceOf(address(this));
+        uint256 initialOwnerBalance = feeToken.balanceOf(owner);
+        uint256 initialSupply = feeToken.totalSupply();
+
+        console.log("Initial setup:");
+        console.log("  User balance:", initialBalance);
+        console.log("  Owner balance:", initialOwnerBalance);
+        console.log("  Total supply:", initialSupply);
+        console.log("  Owner isSponsor:", feeToken.isSponsor(owner));
+
+        // Send fake rewards (WETH) to the contract
+        uint256 rewardAmount = 0.5 ether;
+        deal(address(weth), address(feeToken), rewardAmount, true);
+
+        console.log("Sent", rewardAmount, "WETH rewards to contract");
+        console.log("Contract WETH balance:", weth.balanceOf(address(feeToken)));
+
+        // Harvest the rewards
+        uint256 harvested = feeToken.harvest();
+        assertEq(harvested, rewardAmount, "harvest should return reward amount");
+
+        console.log("Harvest complete, harvested:", harvested);
+
+        // Check balances after harvest
+        uint256 finalBalance = feeToken.balanceOf(address(this));
+        uint256 finalOwnerBalance = feeToken.balanceOf(owner);
+        uint256 finalSupply = feeToken.totalSupply();
+
+        console.log("After harvest:");
+        console.log("  User balance:", finalBalance);
+        console.log("  Owner balance:", finalOwnerBalance);
+        console.log("  Total supply:", finalSupply);
+        console.log("  Contract WETH balance:", weth.balanceOf(address(feeToken)));
+
+        // Calculate expected fee (25% of the reward converted to shares)
+        uint256 expectedFeeAssets = (rewardAmount * ownerFeeBasisPoints) / 10000;
+        console.log("Expected fee assets:", expectedFeeAssets);
+
+        // Since owner is a sponsor, the fee shares should be held by the contract
+        // and tracked in balanceOfSponsor
+        uint256 ownerSponsorBalance = feeToken.balanceOfSponsor(owner);
+        console.log("Owner sponsor balance:", ownerSponsorBalance);
+
+        // Verify owner got the correct fee amount in sponsor assets
+        assertApproxEqAbs(ownerSponsorBalance, expectedFeeAssets, 1, "owner should get correct fee as sponsor assets");
+
+        // Verify no WETH left in contract
+        assertEq(weth.balanceOf(address(feeToken)), 0, "all WETH should be deposited");
+
+        // Verify user balance increased due to remaining rewards
+        assertGt(finalBalance, initialBalance, "user balance should increase from remaining rewards");
+
+        // Verify total supply increased
+        assertGt(finalSupply, initialSupply, "total supply should increase from minted fee shares");
+    }
+
+    function test_harvest_with_treasury_fees() public {
+        // Create a FanToken with 15% treasury fees
+        uint256 ownerFeeBasisPoints = 0;
+        uint256 treasuryFeeBasisPoints = 1500; // 15%
+
+        vm.prank(factory);
+        FanToken feeToken = new FanToken(
+            "Treasury Fee Test",
+            "TFEE",
+            ownerFeeBasisPoints,
+            treasuryFeeBasisPoints,
+            owner,
+            IERC4626(bryan.asset()),
+            treasury,
+            weth
+        );
+
+        console.log("Created feeToken with 15% treasury fees");
+
+        // Set up initial deposit
+        uint256 initialDeposit = 2 ether;
+        (IERC4626 asset, uint256 assets) = _dealAsset(initialDeposit, address(this));
+
+        asset.approve(address(feeToken), type(uint256).max);
+        feeToken.deposit(assets, address(this));
+
+        uint256 initialTreasuryBalance = feeToken.balanceOf(treasury);
+        console.log("Initial treasury balance:", initialTreasuryBalance);
+        console.log("Treasury isSponsor:", feeToken.isSponsor(treasury));
+
+        // Send fake rewards
+        uint256 rewardAmount = 1 ether;
+        deal(address(weth), address(feeToken), rewardAmount, true);
+
+        console.log("Sent", rewardAmount, "WETH rewards");
+
+        // Harvest
+        uint256 harvested = feeToken.harvest();
+        assertEq(harvested, rewardAmount, "should harvest full reward amount");
+
+        // Check treasury got fees as sponsor assets
+        uint256 treasurySponsorBalance = feeToken.balanceOfSponsor(treasury);
+        console.log("Treasury sponsor balance after harvest:", treasurySponsorBalance);
+
+        uint256 expectedTreasuryFee = (rewardAmount * treasuryFeeBasisPoints) / 10000;
+        console.log("Expected treasury fee:", expectedTreasuryFee);
+
+        assertApproxEqAbs(treasurySponsorBalance, expectedTreasuryFee, 1, "treasury should get correct fee");
+    }
+
+    function test_harvest_with_both_fees() public {
+        // Simplified test to avoid stack too deep
+        vm.prank(factory);
+        FanToken feeToken = new FanToken(
+            "Both Fees Test",
+            "BOTH",
+            1000, // 10% owner fee
+            500,  // 5% treasury fee
+            owner,
+            IERC4626(bryan.asset()),
+            treasury,
+            weth
+        );
+
+        console.log("Created feeToken with 10% owner + 5% treasury fees");
+
+        // Simple deposit
+        (IERC4626 asset, uint256 assets) = _dealAsset(1 ether, address(this));
+        asset.approve(address(feeToken), type(uint256).max);
+        feeToken.deposit(assets, address(this));
+
+        console.log("Initial balance:", feeToken.balanceOf(address(this)));
+
+        // Send rewards
+        uint256 rewardAmount = 0.5 ether;
+        deal(address(weth), address(feeToken), rewardAmount, true);
+
+        console.log("Sent", rewardAmount, "WETH rewards");
+
+        // Harvest
+        uint256 harvested = feeToken.harvest();
+        assertEq(harvested, rewardAmount, "should harvest all rewards");
+
+        console.log("Final balance:", feeToken.balanceOf(address(this)));
+
+        // Check fees were distributed
+        console.log("Owner sponsor balance:", feeToken.balanceOfSponsor(owner));
+        console.log("Treasury sponsor balance:", feeToken.balanceOfSponsor(treasury));
+
+        assertGt(feeToken.balanceOfSponsor(owner), 0, "owner should get fee");
+        assertGt(feeToken.balanceOfSponsor(treasury), 0, "treasury should get fee");
+    }
+
+    function test_sponsor_burn() public {
+        // Set up a sponsor with some assets
+        address sponsor = makeAddr("sponsor");
+
+        uint256 depositAmount = 1 ether;
+        (IERC4626 asset, uint256 assets) = _dealAsset(depositAmount * 2, address(this));
+
+        // Give assets to sponsor
+        asset.transfer(sponsor, assets);
+
+        // Sponsor deposits and becomes a sponsor
+        vm.startPrank(sponsor);
+        bryan.setSponsorship(true);
+        asset.approve(address(bryan), type(uint256).max);
+
+        uint256 when = bryan.startDeposit(assets);
+        assertEq(when, 0, "first deposit should be instant for sponsor");
+
+        uint256 initialSponsorBalance = bryan.balanceOfSponsor(sponsor);
+        uint256 initialTotalSponsorAssets = bryan.totalSponsorAssets();
+        uint256 initialContractShares = bryan.balanceOf(address(bryan));
+
+        console.log("Initial sponsor state:");
+        console.log("  Sponsor balance:", initialSponsorBalance);
+        console.log("  Total sponsor assets:", initialTotalSponsorAssets);
+        console.log("  Contract shares:", initialContractShares);
+        console.log("  Sponsor isSponsor:", bryan.isSponsor(sponsor));
+
+        assertGt(initialSponsorBalance, 0, "sponsor should have balance");
+        assertGt(initialTotalSponsorAssets, 0, "should have total sponsor assets");
+
+        // Sponsor burns half their assets
+        uint256 burnAmount = initialSponsorBalance / 2;
+        console.log("Burning", burnAmount, "sponsor assets");
+
+        bryan.sponsorBurn(burnAmount);
+
+        uint256 finalSponsorBalance = bryan.balanceOfSponsor(sponsor);
+        uint256 finalTotalSponsorAssets = bryan.totalSponsorAssets();
+        uint256 finalContractShares = bryan.balanceOf(address(bryan));
+
+        console.log("After sponsor burn:");
+        console.log("  Sponsor balance:", finalSponsorBalance);
+        console.log("  Total sponsor assets:", finalTotalSponsorAssets);
+        console.log("  Contract shares:", finalContractShares);
+
+        // Verify sponsor balance decreased
+        assertEq(finalSponsorBalance, initialSponsorBalance - burnAmount, "sponsor balance should decrease by burn amount");
+
+        // Verify total sponsor assets decreased
+        assertEq(finalTotalSponsorAssets, initialTotalSponsorAssets - burnAmount, "total sponsor assets should decrease");
+
+        // Contract shares should decrease (burned shares redistribute value)
+        assertLt(finalContractShares, initialContractShares, "contract shares should decrease from burn");
+
+        vm.stopPrank();
+    }
+
+    function test_sponsor_burn_with_beneficiaries() public {
+        // Set up multiple users: one sponsor and two regular users
+        address sponsor = makeAddr("sponsor");
+        address alice = makeAddr("alice");
+        address bob = makeAddr("bob");
+
+        uint256 depositAmount = 1 ether;
+        (IERC4626 asset, uint256 totalAssets) = _dealAsset(depositAmount * 4, address(this));
+
+        // Distribute assets
+        asset.transfer(sponsor, totalAssets);
+        asset.transfer(alice, depositAmount);
+        asset.transfer(bob, depositAmount);
+
+        // Regular users deposit first
+        vm.startPrank(alice);
+        asset.approve(address(bryan), type(uint256).max);
+        bryan.deposit(depositAmount, alice);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        asset.approve(address(bryan), type(uint256).max);
+        bryan.deposit(depositAmount, bob);
+        vm.stopPrank();
+
+        // Sponsor deposits
+        vm.startPrank(sponsor);
+        bryan.setSponsorship(true);
+        asset.approve(address(bryan), type(uint256).max);
+        bryan.deposit(depositAmount * 2, sponsor);
+
+        // Record initial balances
+        uint256 initialAliceBalance = bryan.balanceOf(alice);
+        uint256 initialBobBalance = bryan.balanceOf(bob);
+        uint256 initialSponsorAssets = bryan.balanceOfSponsor(sponsor);
+        uint256 initialAliceUnderlying = bryan.balanceOfUnderlying(alice);
+        uint256 initialBobUnderlying = bryan.balanceOfUnderlying(bob);
+
+        console.log("Initial state:");
+        console.log("  Alice balance:", initialAliceBalance);
+        console.log("  Alice underlying:", initialAliceUnderlying);
+        console.log("  Bob balance:", initialBobBalance);
+        console.log("  Bob underlying:", initialBobUnderlying);
+        console.log("  Sponsor assets:", initialSponsorAssets);
+
+        // Sponsor burns all their assets to benefit others
+        uint256 burnAmount = initialSponsorAssets;
+        console.log("Sponsor burning all", burnAmount, "assets");
+
+        bryan.sponsorBurn(burnAmount);
+
+        // Check final balances
+        uint256 finalAliceBalance = bryan.balanceOf(alice);
+        uint256 finalBobBalance = bryan.balanceOf(bob);
+        uint256 finalSponsorAssets = bryan.balanceOfSponsor(sponsor);
+        uint256 finalAliceUnderlying = bryan.balanceOfUnderlying(alice);
+        uint256 finalBobUnderlying = bryan.balanceOfUnderlying(bob);
+
+        console.log("Final state:");
+        console.log("  Alice balance:", finalAliceBalance, "underlying:", finalAliceUnderlying);
+        console.log("  Bob balance:", finalBobBalance, "underlying:", finalBobUnderlying);
+        console.log("  Sponsor assets:", finalSponsorAssets);
+
+        // Sponsor should have zero assets
+        assertEq(finalSponsorAssets, 0, "sponsor should have no assets after burning all");
+
+        // Alice and Bob should have same share balances but more underlying value
+        assertEq(finalAliceBalance, initialAliceBalance, "alice shares shouldn't change");
+        assertEq(finalBobBalance, initialBobBalance, "bob shares shouldn't change");
+
+        // But their underlying value should increase due to burned shares reducing total supply
+        assertGt(finalAliceUnderlying, initialAliceUnderlying, "alice underlying should increase");
+        assertGt(finalBobUnderlying, initialBobUnderlying, "bob underlying should increase");
+
+        // Both should gain the same amount (equal shares)
+        uint256 aliceGain = finalAliceUnderlying - initialAliceUnderlying;
+        uint256 bobGain = finalBobUnderlying - initialBobUnderlying;
+
+        console.log("Gains from sponsor burn - Alice:", aliceGain);
+        console.log("Gains from sponsor burn - Bob:", bobGain);
+
+        assertApproxEqAbs(aliceGain, bobGain, 1, "alice and bob should gain similar amounts");
+        assertGt(aliceGain, 0, "alice should gain from sponsor burn");
+        assertGt(bobGain, 0, "bob should gain from sponsor burn");
+
+        vm.stopPrank();
+    }
+
+    function test_sponsor_burn_insufficient_balance() public {
+        address sponsor = makeAddr("sponsor");
+
+        uint256 depositAmount = 1 ether;
+        (IERC4626 asset, uint256 assets) = _dealAsset(depositAmount, address(this));
+
+        asset.transfer(sponsor, assets);
+
+        vm.startPrank(sponsor);
+        bryan.setSponsorship(true);
+        asset.approve(address(bryan), type(uint256).max);
+        bryan.deposit(assets, sponsor);
+
+        uint256 sponsorBalance = bryan.balanceOfSponsor(sponsor);
+        console.log("Sponsor balance:", sponsorBalance);
+
+        // Try to burn more than balance
+        uint256 excessiveBurnAmount = sponsorBalance + 1 ether;
+        console.log("Attempting to burn", excessiveBurnAmount, "(more than balance)");
+
+        vm.expectRevert();
+        bryan.sponsorBurn(excessiveBurnAmount);
+
+        console.log("Correctly reverted on excessive burn attempt");
+        vm.stopPrank();
+    }
+
+    function test_harvestSponsorship_with_rewards() public {
+        // Set up scenario: sponsor and non-sponsor users, then send rewards to trigger harvestSponsorship
+        address sponsor = makeAddr("sponsor");
+        address alice = makeAddr("alice");
+        address bob = makeAddr("bob");
+
+        uint256 depositAmount = 1 ether;
+        (IERC4626 asset, uint256 totalAssets) = _dealAsset(depositAmount * 4, address(this));
+
+        // Give assets to all users
+        asset.transfer(sponsor, depositAmount);
+        asset.transfer(alice, depositAmount);
+        asset.transfer(bob, depositAmount);
+
+        // Non-sponsors deposit first
+        vm.startPrank(alice);
+        asset.approve(address(bryan), type(uint256).max);
+        bryan.deposit(depositAmount, alice);
+        vm.stopPrank();
+
+        vm.startPrank(bob);
+        asset.approve(address(bryan), type(uint256).max);
+        bryan.deposit(depositAmount, bob);
+        vm.stopPrank();
+
+        // Sponsor deposits
+        vm.startPrank(sponsor);
+        bryan.setSponsorship(true);
+        asset.approve(address(bryan), type(uint256).max);
+        bryan.deposit(depositAmount, sponsor);
+        vm.stopPrank();
+
+        // Record initial state
+        uint256 initialAliceBalance = bryan.balanceOf(alice);
+        uint256 initialBobBalance = bryan.balanceOf(bob);
+        uint256 initialSponsorAssets = bryan.balanceOfSponsor(sponsor);
+        uint256 initialTotalSponsorAssets = bryan.totalSponsorAssets();
+        uint256 initialContractShares = bryan.balanceOf(address(bryan));
+
+        uint256 initialAliceUnderlying = bryan.balanceOfUnderlying(alice);
+        uint256 initialBobUnderlying = bryan.balanceOfUnderlying(bob);
+
+        console.log("Before harvest - Initial state:");
+        console.log("  Alice balance:", initialAliceBalance);
+        console.log("  Alice underlying:", initialAliceUnderlying);
+        console.log("  Bob balance:", initialBobBalance);
+        console.log("  Bob underlying:", initialBobUnderlying);
+        console.log("  Sponsor assets:", initialSponsorAssets);
+        console.log("  Total sponsor assets:", initialTotalSponsorAssets);
+        console.log("  Contract shares:", initialContractShares);
+
+        // Send fake rewards to the contract
+        uint256 rewardAmount = 0.5 ether;
+        deal(address(weth), address(bryan), rewardAmount, true);
+
+        console.log("Sent", rewardAmount, "WETH rewards to contract");
+
+        // Harvest - this should trigger harvestSponsorship automatically
+        uint256 harvested = bryan.harvest();
+        assertEq(harvested, rewardAmount, "should harvest all rewards");
+
+        console.log("Harvested:", harvested);
+
+        // Check state after harvest
+        uint256 finalAliceBalance = bryan.balanceOf(alice);
+        uint256 finalBobBalance = bryan.balanceOf(bob);
+        uint256 finalSponsorAssets = bryan.balanceOfSponsor(sponsor);
+        uint256 finalTotalSponsorAssets = bryan.totalSponsorAssets();
+        uint256 finalContractShares = bryan.balanceOf(address(bryan));
+
+        uint256 finalAliceUnderlying = bryan.balanceOfUnderlying(alice);
+        uint256 finalBobUnderlying = bryan.balanceOfUnderlying(bob);
+
+        console.log("After harvest - Final state:");
+        console.log("  Alice balance:", finalAliceBalance, "underlying:", finalAliceUnderlying);
+        console.log("  Bob balance:", finalBobBalance, "underlying:", finalBobUnderlying);
+        console.log("  Sponsor assets:", finalSponsorAssets);
+        console.log("  Total sponsor assets:", finalTotalSponsorAssets);
+        console.log("  Contract shares:", finalContractShares);
+
+        // Key verification: sponsor balance should remain the same in underlying value
+        assertEq(finalSponsorAssets, initialSponsorAssets, "sponsor assets should remain the same");
+
+        // Non-sponsors should benefit from the harvest
+        uint256 aliceGain = finalAliceUnderlying - initialAliceUnderlying;
+        uint256 bobGain = finalBobUnderlying - initialBobUnderlying;
+
+        console.log("Non-sponsor gains - Alice:", aliceGain);
+        console.log("Non-sponsor gains - Bob:", bobGain);
+
+        // Both non-sponsors should gain equal amounts
+        assertApproxEqAbs(aliceGain, bobGain, 1, "alice and bob should gain equal amounts from harvest");
+        assertGt(aliceGain, 0, "alice should benefit from harvest");
+        assertGt(bobGain, 0, "bob should benefit from harvest");
+
+        // harvestSponsorship should have burned excess shares automatically
+        // so the contract should have fewer shares than before (after accounting for any growth from rewards)
+        console.log("Contract shares comparison - before:", initialContractShares, "after:", finalContractShares);
+    }
+
+    function test_harvestSponsorship_multiple_sponsors() public {
+        // Test with multiple sponsors to ensure proper accounting
+        address sponsor1 = makeAddr("sponsor1");
+        address sponsor2 = makeAddr("sponsor2");
+        address alice = makeAddr("alice");
+
+        uint256 depositAmount = 1 ether;
+        (IERC4626 asset, uint256 totalAssets) = _dealAsset(depositAmount * 4, address(this));
+
+        // Distribute assets
+        asset.transfer(sponsor1, depositAmount);
+        asset.transfer(sponsor2, depositAmount);
+        asset.transfer(alice, depositAmount);
+
+        // Alice (non-sponsor) deposits first
+        vm.startPrank(alice);
+        asset.approve(address(bryan), type(uint256).max);
+        bryan.deposit(depositAmount, alice);
+        vm.stopPrank();
+
+        // First sponsor deposits
+        vm.startPrank(sponsor1);
+        bryan.setSponsorship(true);
+        asset.approve(address(bryan), type(uint256).max);
+        bryan.deposit(depositAmount, sponsor1);
+        vm.stopPrank();
+
+        // Second sponsor deposits
+        vm.startPrank(sponsor2);
+        bryan.setSponsorship(true);
+        asset.approve(address(bryan), type(uint256).max);
+        bryan.deposit(depositAmount, sponsor2);
+        vm.stopPrank();
+
+        // Record state before harvest
+        uint256 initialAliceUnderlying = bryan.balanceOfUnderlying(alice);
+        uint256 initialSponsor1Assets = bryan.balanceOfSponsor(sponsor1);
+        uint256 initialSponsor2Assets = bryan.balanceOfSponsor(sponsor2);
+        uint256 initialTotalSponsorAssets = bryan.totalSponsorAssets();
+
+        console.log("Before harvest - multiple sponsors:");
+        console.log("  Alice underlying:", initialAliceUnderlying);
+        console.log("  Sponsor1 assets:", initialSponsor1Assets);
+        console.log("  Sponsor2 assets:", initialSponsor2Assets);
+        console.log("  Total sponsor assets:", initialTotalSponsorAssets);
+
+        // Send substantial rewards
+        uint256 rewardAmount = 1 ether;
+        deal(address(weth), address(bryan), rewardAmount, true);
+
+        console.log("Sent", rewardAmount, "WETH rewards");
+
+        // Harvest
+        uint256 harvested = bryan.harvest();
+        assertEq(harvested, rewardAmount, "should harvest all rewards");
+
+        // Check final state
+        uint256 finalAliceUnderlying = bryan.balanceOfUnderlying(alice);
+        uint256 finalSponsor1Assets = bryan.balanceOfSponsor(sponsor1);
+        uint256 finalSponsor2Assets = bryan.balanceOfSponsor(sponsor2);
+        uint256 finalTotalSponsorAssets = bryan.totalSponsorAssets();
+
+        console.log("After harvest - multiple sponsors:");
+        console.log("  Alice underlying:", finalAliceUnderlying);
+        console.log("  Sponsor1 assets:", finalSponsor1Assets);
+        console.log("  Sponsor2 assets:", finalSponsor2Assets);
+        console.log("  Total sponsor assets:", finalTotalSponsorAssets);
+
+        // Sponsors should maintain their asset values
+        assertEq(finalSponsor1Assets, initialSponsor1Assets, "sponsor1 assets should remain constant");
+        assertEq(finalSponsor2Assets, initialSponsor2Assets, "sponsor2 assets should remain constant");
+
+        // Alice should benefit from all the rewards
+        uint256 aliceGain = finalAliceUnderlying - initialAliceUnderlying;
+        console.log("Alice's gain from harvest:", aliceGain);
+
+        assertGt(aliceGain, 0, "alice should benefit from harvest with multiple sponsors");
+
+        // Alice should get most of the rewards (since she's the only non-sponsor)
+        // The exact amount will depend on fees and share calculations, but it should be substantial
+        assertGt(aliceGain, rewardAmount / 2, "alice should get substantial portion of rewards");
+    }
+
     /*
     function test_harvesting_pool() public {
         // bryan.setHarvestFeeBasisPoints(5000);
