@@ -1,6 +1,6 @@
 #!/bin/bash
 # run tests on a forked network on a recent block
-set -eux -o pipefail
+set -eu -o pipefail
 
 if [ -e .env ]; then
     source .env
