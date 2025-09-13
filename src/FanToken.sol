@@ -17,6 +17,7 @@ error Unimplemented(string err);
 error ZeroOwner();
 error DepositNotReady();
 error IncorrectAssets();
+error BothSidesMustBeSponsor();
 
 interface IFanTokenFactory {
     function version() external returns (string memory);
@@ -76,7 +77,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// @dev sponsor tokens do not earn any rewards
     mapping(address who => bool) public isSponsor;
 
-    /// @dev this is the number of assets, not the number of shares
+    /// @dev this is the number of assets, not the number of shares - stores asset amounts for sponsor accounting
     mapping(address who => uint256) public balanceOfSponsor;
 
     /// @dev these underscores are gross. too many different libraries and styles are being mixed together
@@ -195,27 +196,13 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         return shares;
     }
 
-    /**
-     * @dev To override if a post take action is desired.
-     *
-     * This could be used to re-deploy the bought token back into the yield source,
-     * or in conjunction with {_preTake} to check that the price sold at was within
-     * some allowed range.
-     *
-     * @param _token Address of the token that the strategy was sent.
-     * @param _amountTaken Amount of the from token taken.
-     * @param _amountPayed Amount of `_token` that was sent to the strategy.
-     */
-    function _postTake(address _token, uint256 _amountTaken, uint256 _amountPayed) internal override {
-        harvest();
-    }
 
     /// @notice begin a deposit. This takes `assets()`, not `underlying()`
     /// @dev the first deposit does not have any delay
     /// @dev the delay is necessary to protect against large deposits around the time of a large win
     function _startDeposit(address caller, uint256 assets, address receiver) internal returns (uint256 when) {
         if (totalSupply() == 0) {
-            uint256 shares = super.deposit(assets, receiver);
+            super.deposit(assets, receiver);
             when = 0;
         } else {
             PendingDeposit storage pendingDeposit = pendingDepositOf[caller][receiver];
@@ -270,20 +257,6 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
         auctionId = _enableAuction(address(from), address(underlying));
 
-        {
-            // a simple balance check is enough
-            bool _kickableSetting = false;
-            // this transfers the tokens
-            bool _kickSetting = true;
-            // we don't use this
-            bool _preTakeSetting = false;
-            // this calls harvest for us when the auction is complete
-            bool _postTakeSetting = true;
-
-            // TODO: there is a new auction contract. i think they got rid of hooks
-            Auction(auction).setHookFlags(_kickableSetting, _kickSetting, _preTakeSetting, _postTakeSetting);
-        }
-
         // TODO: allow calling disable auction if none are pending? i think that just wastes gas
 
         // TODO: allow resetting this approval with a helper function
@@ -319,6 +292,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         if (underlyingAssets > maxDeposit) {
             // TODO: what should we do with any excess? hopefully it can be deposited in the future?
             underlyingAssets = maxDeposit;
+            // TODO: emit an event about having some excess tokens stuck
         }
 
         // assets = prizeVault.deposit(total, address(this));
@@ -544,7 +518,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             // this will move the shares to this contract and update sponsorhip accounting
             _setSponsorship(to, true);
         } else {
-            revert Unimplemented("at least one side must be a sponsor");
+            revert BothSidesMustBeSponsor();
         }
     }
 
@@ -556,7 +530,8 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
     /// @dev i wanted to override `transfer` to work transparently, but that got too complicated quickly
     function sponsorTransferFrom(address from, address to, uint256 assets) public returns (bool) {
-        revert("todo: check approvals");
+        address spender = msg.sender;
+        _spendAllowance(from, spender, convertToShares(assets));
         _sponsorTransfer(from, to, assets);
         return true;
     }

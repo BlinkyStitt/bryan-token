@@ -10,6 +10,8 @@ import {
     PoolKey,
     SwapParams
 } from "v4-periphery/src/utils/BaseHook.sol";
+import {Unimplemented} from "./FanToken.sol";
+
 
 /**
  * @dev A hook that replaces swaps with ERC4626 vault deposits/redeems
@@ -29,7 +31,7 @@ contract ERC4626UniswapV4Hook is BaseHook {
         returns (bytes4)
     {
         // todo: i think this should revert. there's no need to have actual liquidity in this contract.
-        revert("todo: write this");
+        revert Unimplemented("ERC4626 hook not implemented");
     }
 
     function _beforeSwap(address, PoolKey calldata, SwapParams calldata, bytes calldata)
@@ -43,7 +45,7 @@ contract ERC4626UniswapV4Hook is BaseHook {
 
         // TODO: there are some events to emit so that off-chain processing can correctly process this swap
 
-        revert("todo: write this");
+        revert Unimplemented("ERC4626 hook not implemented");
     }
 
     // TODO: write _beforeDonate?
