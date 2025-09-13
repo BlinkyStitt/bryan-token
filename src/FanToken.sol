@@ -76,6 +76,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// @dev this is the number of assets, not the number of shares
     mapping(address who => uint256) public balanceOfSponsor;
 
+    /// @dev this should be deployed by the FanTokenFactory!
     /// @dev these underscores are gross. too many different libraries and styles are being mixed together
     /// todo: change this into an initializer that can only run once during deploy?
     constructor(
@@ -192,54 +193,10 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         return shares;
     }
 
-    /**
-     * @dev To override if a post take action is desired.
-     *
-     * This could be used to re-deploy the bought token back into the yield source,
-     * or in conjunction with {_preTake} to check that the price sold at was within
-     * some allowed range.
-     *
-     * @param _token Address of the token that the strategy was sent.
-     * @param _amountTaken Amount of the from token taken.
-     * @param _amountPayed Amount of `_token` that was sent to the strategy.
-     */
-    function _postTake(address _token, uint256 _amountTaken, uint256 _amountPayed) internal override {
-        harvest();
-    }
-
-    /// @notice begin a deposit. This takes `assets()`, not `underlying()`
-    /// @dev the first deposit does not have any delay
-    /// @dev the delay is necessary to protect against large deposits around the time of a large win
-    function _startDeposit(address caller, uint256 assets, address receiver) internal returns (uint256 when) {
-        if (totalSupply() == 0) {
-            uint256 shares = super.deposit(assets, receiver);
-            when = 0;
-        } else {
-            PendingDeposit storage pendingDeposit = pendingDepositOf[caller][receiver];
-
-            // calculate share value BEFORE doing the transfer
-            uint256 shares = previewDeposit(assets);
-
-            // this is from msg.sender, NOT caller. i don't love that.
-            SafeERC20.safeTransferFrom(IERC20(asset()), msg.sender, address(this), assets);
-
-            _mint(address(this), shares);
-
-            // update counters
-            totalPendingAssets += assets;
-            balanceOfPending[receiver] += assets;
-            pendingDeposit.assets += assets;
-            pendingDeposit.sharesAtStart += shares;
-
-            // allow claiming the deposit after a delay
-            // if a deposit is already running, we reset the timestamp
-            pendingDeposit.when = when = block.timestamp + DEPOSIT_DELAY;
-        }
-    }
-
     // === Public things ===
 
     /// @notice check an account's balance in the underlying (backing) token
+    /// TODO: should this include sponsor/pending assets?
     function balanceOfUnderlying(address who) public view returns (uint256) {
         uint256 fanTokenShares = balanceOf(who);
 
@@ -264,6 +221,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
         auctionId = _enableAuction(address(from), address(underlying));
 
+        // TODO: the newest auction code does not have hooks!
         {
             // a simple balance check is enough
             bool _kickableSetting = false;
@@ -282,11 +240,6 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
         // TODO: allow resetting this approval with a helper function
         from.forceApprove(auction, type(uint256).max);
-    }
-
-    /// @notice finish a deposit that was started by another caller
-    function finishDeposit(address originalCaller, address receiver) public returns (uint256 shares) {
-        shares = _finishDeposit(originalCaller, receiver, 0, 0);
     }
 
     /// @notice compound any underlying tokens. Fees may be sent to the owner or the treasury.

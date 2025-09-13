@@ -4,6 +4,10 @@ pragma solidity ^0.8.20;
 import {IWETH9, IERC20} from "v4-periphery/src/interfaces/external/IWETH9.sol";
 import {IERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 
+interface IDepositQueue is IERC20 {
+
+}
+
 interface IFanTokenFactory {
     function version() external returns (string memory);
 }
@@ -29,4 +33,8 @@ interface IFanToken is IERC4626 {
     // TODO: do we still need this?
     function totalSponsorAssets() external returns (uint256);
     function version() external returns (string memory);
+}
+
+interface ISponsorToken is IERC20 {
+
 }
