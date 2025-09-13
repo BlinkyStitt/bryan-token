@@ -278,46 +278,43 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             wrapETH();
         }
 
-        // we want to use the entire balance
+        // we want to use as much of the balance as possible
         underlyingAssets = underlyingToken.balanceOf(address(this));
+
+        // calculate how many more tickets we can get
+        uint256 maxDepositAssets = prizeVault.maxDeposit(address(this));
+
+        // TODO: does OZ have a Math helper for this?
+        if (underlyingAssets > maxDepositAssets) {
+            // TODO: what should we do with any excess? hopefully it can be deposited in the future?
+            underlyingAssets = maxDepositAssets;
+            // TODO: emit an event about having some excess tokens stuck
+        }
+
         if (underlyingAssets == 0) {
             return underlyingAssets;
         }
 
-        // calculate how many more tickets we can get
-        // TODO: check maxDeposit? this might just be a waste of gas, but i think its a good idea
-        uint256 maxDeposit = prizeVault.maxDeposit(address(this));
-
-        // TODO: does OZ have a Math helper for this?
-        if (underlyingAssets > maxDeposit) {
-            // TODO: what should we do with any excess? hopefully it can be deposited in the future?
-            underlyingAssets = maxDeposit;
-            // TODO: emit an event about having some excess tokens stuck
-        }
-
-        // assets = prizeVault.deposit(total, address(this));
-        uint256 assets = prizeVault.previewDeposit(underlyingAssets);
-
-        // TODO: calculate treasury fee
-        // we aren't going to actually make this many shares. but we might depending on the treasury/owner sponsorship settings
-        uint256 shareValue = previewDeposit(assets);
-
-        prizeVault.deposit(underlyingAssets, address(this));
+        uint256 assets = prizeVault.deposit(underlyingAssets, address(this));
 
         // optionally split some to a "treasury" address
         address treasuryAddress = treasury;
         if (treasuryAddress != address(0)) {
             // TODO: which way should we round? floor seems like a safe default
-            uint256 treasuryFeeShares =
-                shareValue.mulDiv(harvestTreasuryFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);
-            if (treasuryFeeShares > 0) {
-                console.log("harvest: minting", treasuryFeeShares, "treasury fee shares to", treasuryAddress);
-                console.log("harvest: treasury isSponsor:", isSponsor[treasuryAddress]);
-                _mint(treasuryAddress, treasuryFeeShares);
-                console.log("harvest: treasury mint complete. treasury balance:", balanceOf(treasuryAddress));
-
+            uint256 treasuryFeeAssets =
+                assets.mulDiv(harvestTreasuryFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);
+            if (treasuryFeeAssets > 0) {
+                // console.log("harvest: minting", treasuryFeeAssets, "treasury fee shares to", treasuryAddress);
+                // console.log("harvest: treasury isSponsor:", isSponsor[treasuryAddress]);
+                // _mint(treasuryAddress, treasuryFeeShares);
+                // console.log("harvest: treasury mint complete. treasury balance:", balanceOf(treasuryAddress));
                 // set sponsorship status to ensure proper accounting
-                _setSponsorship(treasuryAddress, isSponsor[treasuryAddress]);
+                // _setSponsorship(treasuryAddress, isSponsor[treasuryAddress]);
+
+                // TODO: i'd prefer to mint fan tokens for these and keep them in this contract, but i can't get the math right
+                prizeVault.transfer(treasuryAddress, treasuryFeeAssets);
+
+                // TODO: maybe if theres an allowance, we call _deposit? seems silly to be transferring around extra
             }
         }
 
@@ -325,16 +322,10 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         // TODO: DRY. this is the same as the treasury code above
         address ownerAddress = owner();
         if (ownerAddress != address(0)) {
-            uint256 ownerFeeShares =
-                shareValue.mulDiv(harvestOwnerFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);
-            if (ownerFeeShares > 0) {
-                console.log("harvest: minting", ownerFeeShares, "owner fee shares to", ownerAddress);
-                console.log("harvest: owner isSponsor:", isSponsor[ownerAddress]);
-                _mint(ownerAddress, ownerFeeShares);
-                console.log("harvest: owner mint complete. owner balance:", balanceOf(ownerAddress));
-
-                // set sponsorship status to ensure proper accounting
-                _setSponsorship(ownerAddress, isSponsor[ownerAddress]);
+            uint256 ownerFeeAssets =
+                assets.mulDiv(harvestOwnerFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);
+            if (ownerFeeAssets > 0) {
+                prizeVault.transfer(ownerAddress, ownerFeeAssets);
             }
         }
 
