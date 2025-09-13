@@ -1,0 +1,653 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - src/FanToken.sol</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../index.html" title="Click to go to top-level">top level</a> - <a href="index.html" title="Click to go to directory src">src</a> - FanToken.sol<span style="font-size: 80%;"> (source / <a href="FanToken.sol.func-c.html" title="Click to go to function table">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">90.6&nbsp;%</td>
+            <td class="headerCovTableEntry">203</td>
+            <td class="headerCovTableEntry">184</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2025-09-13 02:52:58</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryHi">92.6&nbsp;%</td>
+            <td class="headerCovTableEntry">27</td>
+            <td class="headerCovTableEntry">25</td>
+          </tr>
+                  <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : // SPDX-License-Identifier: AGPL-3.0-only</span>
+<span id="L2"><span class="lineNum">       2</span>              : pragma solidity ^0.8.20;</span>
+<span id="L3"><span class="lineNum">       3</span>              : </span>
+<span id="L4"><span class="lineNum">       4</span>              : import {Auction, AuctionSwapper} from &quot;./forks/AuctionSwapper.sol&quot;;</span>
+<span id="L5"><span class="lineNum">       5</span>              : import {ERC20, ERC4626, IERC20, IERC4626} from &quot;@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol&quot;;</span>
+<span id="L6"><span class="lineNum">       6</span>              : import {Math} from &quot;@openzeppelin/contracts/utils/math/Math.sol&quot;;</span>
+<span id="L7"><span class="lineNum">       7</span>              : import {Ownable2Step, Ownable} from &quot;@openzeppelin/contracts/access/Ownable2Step.sol&quot;;</span>
+<span id="L8"><span class="lineNum">       8</span>              : import {SafeERC20} from &quot;@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol&quot;;</span>
+<span id="L9"><span class="lineNum">       9</span>              : import {IWETH9} from &quot;v4-periphery/src/interfaces/external/IWETH9.sol&quot;;</span>
+<span id="L10"><span class="lineNum">      10</span>              : </span>
+<span id="L11"><span class="lineNum">      11</span>              : import {console} from &quot;forge-std/console.sol&quot;;</span>
+<span id="L12"><span class="lineNum">      12</span>              : </span>
+<span id="L13"><span class="lineNum">      13</span>              : error InvalidAuctionToken();</span>
+<span id="L14"><span class="lineNum">      14</span>              : error FeesTooLarge();</span>
+<span id="L15"><span class="lineNum">      15</span>              : error FactoryOnly();</span>
+<span id="L16"><span class="lineNum">      16</span>              : error Unimplemented(string err);</span>
+<span id="L17"><span class="lineNum">      17</span>              : error ZeroOwner();</span>
+<span id="L18"><span class="lineNum">      18</span>              : error DepositNotReady();</span>
+<span id="L19"><span class="lineNum">      19</span>              : error IncorrectAssets();</span>
+<span id="L20"><span class="lineNum">      20</span>              : error BothSidesMustBeSponsor();</span>
+<span id="L21"><span class="lineNum">      21</span>              : </span>
+<span id="L22"><span class="lineNum">      22</span>              : interface IFanTokenFactory {</span>
+<span id="L23"><span class="lineNum">      23</span>              :     function version() external returns (string memory);</span>
+<span id="L24"><span class="lineNum">      24</span>              : }</span>
+<span id="L25"><span class="lineNum">      25</span>              : </span>
+<span id="L26"><span class="lineNum">      26</span>              : /// @title FanToken.</span>
+<span id="L27"><span class="lineNum">      27</span>              : /// @notice Play pool together as a group of fans.</span>
+<span id="L28"><span class="lineNum">      28</span>              : contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {</span>
+<span id="L29"><span class="lineNum">      29</span>              :     using Math for uint256;</span>
+<span id="L30"><span class="lineNum">      30</span>              :     using SafeERC20 for IERC20;</span>
+<span id="L31"><span class="lineNum">      31</span>              : </span>
+<span id="L32"><span class="lineNum">      32</span>              :     IFanTokenFactory public immutable FACTORY;</span>
+<span id="L33"><span class="lineNum">      33</span>              : </span>
+<span id="L34"><span class="lineNum">      34</span>              :     /// @notice deposits are delayed to stop prizes from being taken unfairly</span>
+<span id="L35"><span class="lineNum">      35</span>              :     /// @dev what should this be? i think it needs to be longer than two auctions with some buffer for bots to kick the auction</span>
+<span id="L36"><span class="lineNum">      36</span>              :     uint256 public immutable DEPOSIT_DELAY = 3 days;</span>
+<span id="L37"><span class="lineNum">      37</span>              : </span>
+<span id="L38"><span class="lineNum">      38</span>              :     uint256 private constant _BASIS_POINT_SCALE = 1e4;</span>
+<span id="L39"><span class="lineNum">      39</span>              : </span>
+<span id="L40"><span class="lineNum">      40</span>              :     /// @notice this amount of any harvested rewards that will be paid to the owner address. The rest inflate the values</span>
+<span id="L41"><span class="lineNum">      41</span>              :     /// @dev 100 is 1%</span>
+<span id="L42"><span class="lineNum">      42</span>              :     uint256 public harvestOwnerFeeBasisPoints;</span>
+<span id="L43"><span class="lineNum">      43</span>              : </span>
+<span id="L44"><span class="lineNum">      44</span>              :     /// @notice this amount of any harvested rewards that will be paid to the treasury address</span>
+<span id="L45"><span class="lineNum">      45</span>              :     /// @dev 100 is 1%</span>
+<span id="L46"><span class="lineNum">      46</span>              :     uint256 public harvestTreasuryFeeBasisPoints;</span>
+<span id="L47"><span class="lineNum">      47</span>              : </span>
+<span id="L48"><span class="lineNum">      48</span>              :     /// @notice the treasury gets a configurable portion of all harvests</span>
+<span id="L49"><span class="lineNum">      49</span>              :     /// todo: better name for this</span>
+<span id="L50"><span class="lineNum">      50</span>              :     address public immutable treasury;</span>
+<span id="L51"><span class="lineNum">      51</span>              : </span>
+<span id="L52"><span class="lineNum">      52</span>              :     /// @notice the backing token for this fan token's prize tickets. fan tokens can be redeemed for this token.</span>
+<span id="L53"><span class="lineNum">      53</span>              :     /// @dev the linter says this should be capitalized</span>
+<span id="L54"><span class="lineNum">      54</span>              :     IERC20 public immutable underlying;</span>
+<span id="L55"><span class="lineNum">      55</span>              : </span>
+<span id="L56"><span class="lineNum">      56</span>              :     /// @notice if the underlying is WETH, make it easy to deposit by just sending ETH</span>
+<span id="L57"><span class="lineNum">      57</span>              :     IWETH9 public immutable WETH;</span>
+<span id="L58"><span class="lineNum">      58</span>              : </span>
+<span id="L59"><span class="lineNum">      59</span>              :     /// @notice assets held for the DEPOSIT_DELAY</span>
+<span id="L60"><span class="lineNum">      60</span>              :     uint256 public totalPendingAssets = 0;</span>
+<span id="L61"><span class="lineNum">      61</span>              : </span>
+<span id="L62"><span class="lineNum">      62</span>              :     uint256 public totalSponsorAssets = 0;</span>
+<span id="L63"><span class="lineNum">      63</span>              : </span>
+<span id="L64"><span class="lineNum">      64</span>              :     struct PendingDeposit {</span>
+<span id="L65"><span class="lineNum">      65</span>              :         uint256 when;</span>
+<span id="L66"><span class="lineNum">      66</span>              :         uint256 assets;</span>
+<span id="L67"><span class="lineNum">      67</span>              :         uint256 sharesAtStart;</span>
+<span id="L68"><span class="lineNum">      68</span>              :     }</span>
+<span id="L69"><span class="lineNum">      69</span>              : </span>
+<span id="L70"><span class="lineNum">      70</span>              :     /// TODO: include a nonce here so that multiple deposits don't reset the timer?</span>
+<span id="L71"><span class="lineNum">      71</span>              :     mapping(address caller =&gt; mapping(address receiver =&gt; PendingDeposit)) public pendingDepositOf;</span>
+<span id="L72"><span class="lineNum">      72</span>              : </span>
+<span id="L73"><span class="lineNum">      73</span>              :     /// @dev this is the number of assets, not the number of shares</span>
+<span id="L74"><span class="lineNum">      74</span>              :     /// TODO: i'm not sure if tracking this is worth the gas</span>
+<span id="L75"><span class="lineNum">      75</span>              :     mapping(address who =&gt; uint256) public balanceOfPending;</span>
+<span id="L76"><span class="lineNum">      76</span>              : </span>
+<span id="L77"><span class="lineNum">      77</span>              :     /// @dev sponsor tokens do not earn any rewards</span>
+<span id="L78"><span class="lineNum">      78</span>              :     mapping(address who =&gt; bool) public isSponsor;</span>
+<span id="L79"><span class="lineNum">      79</span>              : </span>
+<span id="L80"><span class="lineNum">      80</span>              :     /// @dev this is the number of assets, not the number of shares - stores asset amounts for sponsor accounting</span>
+<span id="L81"><span class="lineNum">      81</span>              :     mapping(address who =&gt; uint256) public balanceOfSponsor;</span>
+<span id="L82"><span class="lineNum">      82</span>              : </span>
+<span id="L83"><span class="lineNum">      83</span>              :     /// @dev these underscores are gross. too many different libraries and styles are being mixed together</span>
+<span id="L84"><span class="lineNum">      84</span>              :     /// todo: change this into an initializer that can only run once during deploy?</span>
+<span id="L85"><span class="lineNum">      85</span> <span class="tlaGNC">          48 :     constructor(</span></span>
+<span id="L86"><span class="lineNum">      86</span>              :         string memory _name,</span>
+<span id="L87"><span class="lineNum">      87</span>              :         string memory _symbol,</span>
+<span id="L88"><span class="lineNum">      88</span>              :         uint256 _harvestOwnerFeeBasisPoints,</span>
+<span id="L89"><span class="lineNum">      89</span>              :         uint256 _harvestTreasuryFeeBasisPoints,</span>
+<span id="L90"><span class="lineNum">      90</span>              :         address _owner,</span>
+<span id="L91"><span class="lineNum">      91</span>              :         IERC4626 _prizeVault,</span>
+<span id="L92"><span class="lineNum">      92</span>              :         address _treasury,</span>
+<span id="L93"><span class="lineNum">      93</span>              :         IWETH9 _weth</span>
+<span id="L94"><span class="lineNum">      94</span>              :     ) ERC20(_name, _symbol) ERC4626(_prizeVault) Ownable(_owner) {</span>
+<span id="L95"><span class="lineNum">      95</span> <span class="tlaGNC">          48 :         require(_harvestOwnerFeeBasisPoints + _harvestTreasuryFeeBasisPoints &lt;= _BASIS_POINT_SCALE, FeesTooLarge());</span></span>
+<span id="L96"><span class="lineNum">      96</span> <span class="tlaGNC">          48 :         require(_owner != address(0), ZeroOwner());</span></span>
+<span id="L97"><span class="lineNum">      97</span>              : </span>
+<span id="L98"><span class="lineNum">      98</span> <span class="tlaGNC">          48 :         FACTORY = IFanTokenFactory(msg.sender);</span></span>
+<span id="L99"><span class="lineNum">      99</span>              : </span>
+<span id="L100"><span class="lineNum">     100</span> <span class="tlaGNC">          48 :         underlying = IERC20(_prizeVault.asset());</span></span>
+<span id="L101"><span class="lineNum">     101</span>              : </span>
+<span id="L102"><span class="lineNum">     102</span>              :         // TODO: i can't decide if this should have one</span>
+<span id="L103"><span class="lineNum">     103</span> <span class="tlaGNC">          48 :         harvestOwnerFeeBasisPoints = _harvestOwnerFeeBasisPoints;</span></span>
+<span id="L104"><span class="lineNum">     104</span> <span class="tlaGNC">          48 :         harvestTreasuryFeeBasisPoints = _harvestTreasuryFeeBasisPoints;</span></span>
+<span id="L105"><span class="lineNum">     105</span>              : </span>
+<span id="L106"><span class="lineNum">     106</span>              :         // default the treasury to the owner address. the owner can change this</span>
+<span id="L107"><span class="lineNum">     107</span> <span class="tlaGNC">          48 :         if (_treasury == address(0)) {</span></span>
+<span id="L108"><span class="lineNum">     108</span> <span class="tlaGNC">           1 :             require(harvestTreasuryFeeBasisPoints == 0, FeesTooLarge());</span></span>
+<span id="L109"><span class="lineNum">     109</span>              :         } else {</span>
+<span id="L110"><span class="lineNum">     110</span> <span class="tlaGNC">          47 :             treasury = _treasury;</span></span>
+<span id="L111"><span class="lineNum">     111</span>              :         }</span>
+<span id="L112"><span class="lineNum">     112</span>              : </span>
+<span id="L113"><span class="lineNum">     113</span>              :         // this isn't always needed, but might be useful</span>
+<span id="L114"><span class="lineNum">     114</span> <span class="tlaGNC">          48 :         WETH = _weth;</span></span>
+<span id="L115"><span class="lineNum">     115</span>              : </span>
+<span id="L116"><span class="lineNum">     116</span> <span class="tlaGNC">          48 :         setupApprovals();</span></span>
+<span id="L117"><span class="lineNum">     117</span>              : </span>
+<span id="L118"><span class="lineNum">     118</span> <span class="tlaGNC">          48 :         isSponsor[_owner] = true;</span></span>
+<span id="L119"><span class="lineNum">     119</span>              : </span>
+<span id="L120"><span class="lineNum">     120</span> <span class="tlaGNC">          48 :         if (_treasury != address(0)) {</span></span>
+<span id="L121"><span class="lineNum">     121</span>              :             // TODO: this should maybe be optional</span>
+<span id="L122"><span class="lineNum">     122</span> <span class="tlaGNC">          47 :             isSponsor[_treasury] = true;</span></span>
+<span id="L123"><span class="lineNum">     123</span>              :         }</span>
+<span id="L124"><span class="lineNum">     124</span>              : </span>
+<span id="L125"><span class="lineNum">     125</span>              :         // TODO: think more about this. fan tokens here are special</span>
+<span id="L126"><span class="lineNum">     126</span>              :         // isSponsor[address(this)] = true;</span>
+<span id="L127"><span class="lineNum">     127</span>              : </span>
+<span id="L128"><span class="lineNum">     128</span>              :         // TODO: i'm not sure about this. i think it just adds gas overhead. but it also seems like a good idea</span>
+<span id="L129"><span class="lineNum">     129</span>              :         // TODO: maybe we should have a _transfer override that makes sure we aren't letting users call transfer to the factory</span>
+<span id="L130"><span class="lineNum">     130</span> <span class="tlaGNC">          48 :         isSponsor[msg.sender] = true;</span></span>
+<span id="L131"><span class="lineNum">     131</span>              :     }</span>
+<span id="L132"><span class="lineNum">     132</span>              : </span>
+<span id="L133"><span class="lineNum">     133</span>              :     /// @dev allow receiving eth</span>
+<span id="L134"><span class="lineNum">     134</span>              :     receive() external payable {}</span>
+<span id="L135"><span class="lineNum">     135</span>              : </span>
+<span id="L136"><span class="lineNum">     136</span>              :     // === Initialization ===</span>
+<span id="L137"><span class="lineNum">     137</span>              : </span>
+<span id="L138"><span class="lineNum">     138</span>              :     /// @notice reset this contract's approvals. You probably won't ever need to call this.</span>
+<span id="L139"><span class="lineNum">     139</span> <span class="tlaGNC">          48 :     function setupApprovals() public {</span></span>
+<span id="L140"><span class="lineNum">     140</span> <span class="tlaGNC">          48 :         underlying.forceApprove(asset(), type(uint256).max);</span></span>
+<span id="L141"><span class="lineNum">     141</span>              :     }</span>
+<span id="L142"><span class="lineNum">     142</span>              : </span>
+<span id="L143"><span class="lineNum">     143</span>              :     // === Internal ===</span>
+<span id="L144"><span class="lineNum">     144</span>              : </span>
+<span id="L145"><span class="lineNum">     145</span>              :     /// @dev after the initial deposit, this does NOT transfer the tokens. instead, make sure `startDeposit` is called first</span>
+<span id="L146"><span class="lineNum">     146</span> <span class="tlaGNC">          34 :     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {</span></span>
+<span id="L147"><span class="lineNum">     147</span> <span class="tlaGNC">          34 :         if (totalSupply() == 0) {</span></span>
+<span id="L148"><span class="lineNum">     148</span>              :             // TODO: should this check `totalPendingAssets == 0`?</span>
+<span id="L149"><span class="lineNum">     149</span>              :             // the first deposit shouldn't have any delay</span>
+<span id="L150"><span class="lineNum">     150</span> <span class="tlaGNC">          23 :             super._deposit(caller, receiver, assets, shares);</span></span>
+<span id="L151"><span class="lineNum">     151</span>              :         } else {</span>
+<span id="L152"><span class="lineNum">     152</span> <span class="tlaGNC">          11 :             _finishDeposit(caller, receiver, assets, shares);</span></span>
+<span id="L153"><span class="lineNum">     153</span>              :         }</span>
+<span id="L154"><span class="lineNum">     154</span>              :     }</span>
+<span id="L155"><span class="lineNum">     155</span>              : </span>
+<span id="L156"><span class="lineNum">     156</span>              :     /// @notice finish the deposit from any caller. The current caller does not need to be the same as the</span>
+<span id="L157"><span class="lineNum">     157</span> <span class="tlaGNC">          12 :     function _finishDeposit(address originalCaller, address receiver, uint256 assets, uint256 shares)</span></span>
+<span id="L158"><span class="lineNum">     158</span>              :         internal</span>
+<span id="L159"><span class="lineNum">     159</span>              :         returns (uint256)</span>
+<span id="L160"><span class="lineNum">     160</span>              :     {</span>
+<span id="L161"><span class="lineNum">     161</span> <span class="tlaGNC">          12 :         PendingDeposit storage pendingDeposit = pendingDepositOf[originalCaller][receiver];</span></span>
+<span id="L162"><span class="lineNum">     162</span>              : </span>
+<span id="L163"><span class="lineNum">     163</span>              :         // TODO: custom error</span>
+<span id="L164"><span class="lineNum">     164</span> <span class="tlaGNC">          12 :         require(pendingDeposit.when != 0 &amp;&amp; block.timestamp &gt;= pendingDeposit.when, DepositNotReady());</span></span>
+<span id="L165"><span class="lineNum">     165</span>              : </span>
+<span id="L166"><span class="lineNum">     166</span> <span class="tlaGNC">          12 :         if (assets == 0) {</span></span>
+<span id="L167"><span class="lineNum">     167</span> <span class="tlaGNC">           1 :             assets = pendingDeposit.assets;</span></span>
+<span id="L168"><span class="lineNum">     168</span>              :         } else {</span>
+<span id="L169"><span class="lineNum">     169</span>              :             // TODO: custom error</span>
+<span id="L170"><span class="lineNum">     170</span> <span class="tlaGNC">          11 :             require(pendingDeposit.assets == assets, IncorrectAssets());</span></span>
+<span id="L171"><span class="lineNum">     171</span>              :         }</span>
+<span id="L172"><span class="lineNum">     172</span>              : </span>
+<span id="L173"><span class="lineNum">     173</span> <span class="tlaGNC">          12 :         if (shares == 0) {</span></span>
+<span id="L174"><span class="lineNum">     174</span>              :             // Calculate shares at finalization time using current share price</span>
+<span id="L175"><span class="lineNum">     175</span> <span class="tlaGNC">           1 :             shares = previewDeposit(assets);</span></span>
+<span id="L176"><span class="lineNum">     176</span> <span class="tlaGNC">           1 :             console.log(&quot;_finishDeposit: calculated shares at finalization:&quot;, shares);</span></span>
+<span id="L177"><span class="lineNum">     177</span>              :         }</span>
+<span id="L178"><span class="lineNum">     178</span>              : </span>
+<span id="L179"><span class="lineNum">     179</span>              :         // Mint the shares now that we're finalizing the deposit</span>
+<span id="L180"><span class="lineNum">     180</span> <span class="tlaGNC">          12 :         console.log(&quot;_finishDeposit: minting&quot;, shares, &quot;shares&quot;);</span></span>
+<span id="L181"><span class="lineNum">     181</span> <span class="tlaGNC">          12 :         _mint(address(this), shares);</span></span>
+<span id="L182"><span class="lineNum">     182</span> <span class="tlaGNC">          12 :         console.log(&quot;_finishDeposit: mint complete. contract balance:&quot;, balanceOf(address(this)));</span></span>
+<span id="L183"><span class="lineNum">     183</span>              : </span>
+<span id="L184"><span class="lineNum">     184</span> <span class="tlaGNC">          12 :         pendingDeposit.when = 0;</span></span>
+<span id="L185"><span class="lineNum">     185</span> <span class="tlaGNC">          12 :         pendingDeposit.assets = 0;</span></span>
+<span id="L186"><span class="lineNum">     186</span> <span class="tlaGNC">          12 :         pendingDeposit.sharesAtStart = 0;</span></span>
+<span id="L187"><span class="lineNum">     187</span>              : </span>
+<span id="L188"><span class="lineNum">     188</span> <span class="tlaGNC">          12 :         totalPendingAssets -= assets;</span></span>
+<span id="L189"><span class="lineNum">     189</span>              : </span>
+<span id="L190"><span class="lineNum">     190</span> <span class="tlaGNC">          12 :         balanceOfPending[receiver] -= assets;</span></span>
+<span id="L191"><span class="lineNum">     191</span>              : </span>
+<span id="L192"><span class="lineNum">     192</span> <span class="tlaGNC">          12 :         _update(address(this), receiver, shares);</span></span>
+<span id="L193"><span class="lineNum">     193</span>              : </span>
+<span id="L194"><span class="lineNum">     194</span> <span class="tlaGNC">          12 :         _setSponsorship(receiver, isSponsor[receiver]);</span></span>
+<span id="L195"><span class="lineNum">     195</span>              : </span>
+<span id="L196"><span class="lineNum">     196</span> <span class="tlaGNC">          12 :         return shares;</span></span>
+<span id="L197"><span class="lineNum">     197</span>              :     }</span>
+<span id="L198"><span class="lineNum">     198</span>              : </span>
+<span id="L199"><span class="lineNum">     199</span>              :     /// @notice begin a deposit. This takes `assets()`, not `underlying()`</span>
+<span id="L200"><span class="lineNum">     200</span>              :     /// @dev the first deposit does not have any delay</span>
+<span id="L201"><span class="lineNum">     201</span>              :     /// @dev the delay is necessary to protect against large deposits around the time of a large win</span>
+<span id="L202"><span class="lineNum">     202</span> <span class="tlaGNC">          29 :     function _startDeposit(address caller, uint256 assets, address receiver) internal returns (uint256 when) {</span></span>
+<span id="L203"><span class="lineNum">     203</span> <span class="tlaGNC">          29 :         if (totalSupply() == 0) {</span></span>
+<span id="L204"><span class="lineNum">     204</span> <span class="tlaGNC">          17 :             super.deposit(assets, receiver);</span></span>
+<span id="L205"><span class="lineNum">     205</span> <span class="tlaGNC">          17 :             when = 0;</span></span>
+<span id="L206"><span class="lineNum">     206</span>              :         } else {</span>
+<span id="L207"><span class="lineNum">     207</span> <span class="tlaGNC">          12 :             PendingDeposit storage pendingDeposit = pendingDepositOf[caller][receiver];</span></span>
+<span id="L208"><span class="lineNum">     208</span>              : </span>
+<span id="L209"><span class="lineNum">     209</span>              :             // this is from msg.sender, NOT caller. i don't love that.</span>
+<span id="L210"><span class="lineNum">     210</span> <span class="tlaGNC">          12 :             SafeERC20.safeTransferFrom(IERC20(asset()), msg.sender, address(this), assets);</span></span>
+<span id="L211"><span class="lineNum">     211</span>              : </span>
+<span id="L212"><span class="lineNum">     212</span> <span class="tlaGNC">          12 :             console.log(&quot;_startDeposit: not minting shares yet, just tracking pending deposit&quot;);</span></span>
+<span id="L213"><span class="lineNum">     213</span>              : </span>
+<span id="L214"><span class="lineNum">     214</span>              :             // update counters - don't mint shares yet, calculate them at finalization</span>
+<span id="L215"><span class="lineNum">     215</span> <span class="tlaGNC">          12 :             totalPendingAssets += assets;</span></span>
+<span id="L216"><span class="lineNum">     216</span> <span class="tlaGNC">          12 :             balanceOfPending[receiver] += assets;</span></span>
+<span id="L217"><span class="lineNum">     217</span> <span class="tlaGNC">          12 :             pendingDeposit.assets += assets;</span></span>
+<span id="L218"><span class="lineNum">     218</span>              : </span>
+<span id="L219"><span class="lineNum">     219</span>              :             // allow claiming the deposit after a delay</span>
+<span id="L220"><span class="lineNum">     220</span>              :             // if a deposit is already running, we reset the timestamp</span>
+<span id="L221"><span class="lineNum">     221</span> <span class="tlaGNC">          12 :             pendingDeposit.when = when = block.timestamp + DEPOSIT_DELAY;</span></span>
+<span id="L222"><span class="lineNum">     222</span>              :         }</span>
+<span id="L223"><span class="lineNum">     223</span>              :     }</span>
+<span id="L224"><span class="lineNum">     224</span>              : </span>
+<span id="L225"><span class="lineNum">     225</span>              :     // === Public things ===</span>
+<span id="L226"><span class="lineNum">     226</span>              : </span>
+<span id="L227"><span class="lineNum">     227</span>              :     /// @notice check an account's balance in the underlying (backing) token</span>
+<span id="L228"><span class="lineNum">     228</span> <span class="tlaGNC">          39 :     function balanceOfUnderlying(address who) public view returns (uint256) {</span></span>
+<span id="L229"><span class="lineNum">     229</span> <span class="tlaGNC">          39 :         uint256 fanTokenShares = balanceOf(who);</span></span>
+<span id="L230"><span class="lineNum">     230</span>              : </span>
+<span id="L231"><span class="lineNum">     231</span>              :         // TODO: convertToAssets or previewRedeem?</span>
+<span id="L232"><span class="lineNum">     232</span> <span class="tlaGNC">          39 :         uint256 prizeVaultShares = previewRedeem(fanTokenShares);</span></span>
+<span id="L233"><span class="lineNum">     233</span>              : </span>
+<span id="L234"><span class="lineNum">     234</span> <span class="tlaGNC">          39 :         IERC4626 prizeVault = IERC4626(asset());</span></span>
+<span id="L235"><span class="lineNum">     235</span>              : </span>
+<span id="L236"><span class="lineNum">     236</span>              :         // TODO: convertToAssets or previewRedeem? i'm pretty sure preview is correct</span>
+<span id="L237"><span class="lineNum">     237</span> <span class="tlaGNC">          39 :         return prizeVault.previewRedeem(prizeVaultShares);</span></span>
+<span id="L238"><span class="lineNum">     238</span>              :     }</span>
+<span id="L239"><span class="lineNum">     239</span>              : </span>
+<span id="L240"><span class="lineNum">     240</span>              :     /// @notice override totalAssets to exclude pending deposits from the share price calculation</span>
+<span id="L241"><span class="lineNum">     241</span> <span class="tlaGNC">           7 :     function totalAssets() public view override returns (uint256) {</span></span>
+<span id="L242"><span class="lineNum">     242</span> <span class="tlaGNC">         156 :         uint256 actualAssets = super.totalAssets();</span></span>
+<span id="L243"><span class="lineNum">     243</span>              :         // Subtract pending deposits so they don't affect the share price until finalized</span>
+<span id="L244"><span class="lineNum">     244</span> <span class="tlaGNC">         156 :         return actualAssets &gt; totalPendingAssets ? actualAssets - totalPendingAssets : 0;</span></span>
+<span id="L245"><span class="lineNum">     245</span>              :     }</span>
+<span id="L246"><span class="lineNum">     246</span>              : </span>
+<span id="L247"><span class="lineNum">     247</span>              :     /// @notice prepare the auction contract for selling a token</span>
+<span id="L248"><span class="lineNum">     248</span>              :     /// TODO: i feel like we should store a minimum trade amount here. but i don't know how to make that open. maybe this should be an only-owner function?</span>
+<span id="L249"><span class="lineNum">     249</span> <span class="tlaGNC">           6 :     function enableAuction(IERC20 from) public returns (bytes32 auctionId) {</span></span>
+<span id="L250"><span class="lineNum">     250</span> <span class="tlaGNC">           6 :         IERC20 _asset = IERC20(asset());</span></span>
+<span id="L251"><span class="lineNum">     251</span>              : </span>
+<span id="L252"><span class="lineNum">     252</span>              :         // don't allow auctioning the backing tokens! that would be bad!</span>
+<span id="L253"><span class="lineNum">     253</span> <span class="tlaGNC">           6 :         require(address(from) != address(this), InvalidAuctionToken());</span></span>
+<span id="L254"><span class="lineNum">     254</span> <span class="tlaGNC">           5 :         require(from != _asset, InvalidAuctionToken());</span></span>
+<span id="L255"><span class="lineNum">     255</span> <span class="tlaGNC">           4 :         require(from != underlying, InvalidAuctionToken());</span></span>
+<span id="L256"><span class="lineNum">     256</span>              : </span>
+<span id="L257"><span class="lineNum">     257</span> <span class="tlaGNC">           2 :         auctionId = _enableAuction(address(from), address(underlying));</span></span>
+<span id="L258"><span class="lineNum">     258</span>              : </span>
+<span id="L259"><span class="lineNum">     259</span>              :         // TODO: allow calling disable auction if none are pending? i think that just wastes gas</span>
+<span id="L260"><span class="lineNum">     260</span>              : </span>
+<span id="L261"><span class="lineNum">     261</span>              :         // TODO: allow resetting this approval with a helper function</span>
+<span id="L262"><span class="lineNum">     262</span> <span class="tlaGNC">           2 :         from.forceApprove(auction, type(uint256).max);</span></span>
+<span id="L263"><span class="lineNum">     263</span>              :     }</span>
+<span id="L264"><span class="lineNum">     264</span>              : </span>
+<span id="L265"><span class="lineNum">     265</span>              :     /// @notice finish a deposit that was started by another caller</span>
+<span id="L266"><span class="lineNum">     266</span> <span class="tlaGNC">           1 :     function finishDeposit(address originalCaller, address receiver) public returns (uint256 shares) {</span></span>
+<span id="L267"><span class="lineNum">     267</span> <span class="tlaGNC">           1 :         shares = _finishDeposit(originalCaller, receiver, 0, 0);</span></span>
+<span id="L268"><span class="lineNum">     268</span>              :     }</span>
+<span id="L269"><span class="lineNum">     269</span>              : </span>
+<span id="L270"><span class="lineNum">     270</span>              :     /// @notice compound any underlying tokens. Fees may be sent to the owner or the treasury.</span>
+<span id="L271"><span class="lineNum">     271</span>              :     /// @dev you probably want to kick an auction of POOL and maybe other tokens before calling this</span>
+<span id="L272"><span class="lineNum">     272</span> <span class="tlaGNC">          11 :     function harvest() public payable returns (uint256 underlyingAssets) {</span></span>
+<span id="L273"><span class="lineNum">     273</span> <span class="tlaGNC">          11 :         IERC4626 prizeVault = IERC4626(asset());</span></span>
+<span id="L274"><span class="lineNum">     274</span> <span class="tlaGNC">          11 :         IERC20 underlyingToken = underlying;</span></span>
+<span id="L275"><span class="lineNum">     275</span>              : </span>
+<span id="L276"><span class="lineNum">     276</span> <span class="tlaGNC">          11 :         if (address(underlying) == address(WETH)) {</span></span>
+<span id="L277"><span class="lineNum">     277</span> <span class="tlaGNC">          11 :             wrapETH();</span></span>
+<span id="L278"><span class="lineNum">     278</span>              :         }</span>
+<span id="L279"><span class="lineNum">     279</span>              : </span>
+<span id="L280"><span class="lineNum">     280</span>              :         // we want to use as much of the balance as possible</span>
+<span id="L281"><span class="lineNum">     281</span> <span class="tlaGNC">          11 :         underlyingAssets = underlyingToken.balanceOf(address(this));</span></span>
+<span id="L282"><span class="lineNum">     282</span>              : </span>
+<span id="L283"><span class="lineNum">     283</span>              :         // calculate how many more tickets we can get</span>
+<span id="L284"><span class="lineNum">     284</span> <span class="tlaGNC">          11 :         uint256 maxDepositAssets = prizeVault.maxDeposit(address(this));</span></span>
+<span id="L285"><span class="lineNum">     285</span>              : </span>
+<span id="L286"><span class="lineNum">     286</span>              :         // TODO: does OZ have a Math helper for this?</span>
+<span id="L287"><span class="lineNum">     287</span> <span class="tlaGNC">          11 :         if (underlyingAssets &gt; maxDepositAssets) {</span></span>
+<span id="L288"><span class="lineNum">     288</span>              :             // TODO: what should we do with any excess? hopefully it can be deposited in the future?</span>
+<span id="L289"><span class="lineNum">     289</span> <span class="tlaUNC">           0 :             underlyingAssets = maxDepositAssets;</span></span>
+<span id="L290"><span class="lineNum">     290</span>              :             // TODO: emit an event about having some excess tokens stuck</span>
+<span id="L291"><span class="lineNum">     291</span>              :         }</span>
+<span id="L292"><span class="lineNum">     292</span>              : </span>
+<span id="L293"><span class="lineNum">     293</span> <span class="tlaGNC">          11 :         if (underlyingAssets == 0) {</span></span>
+<span id="L294"><span class="lineNum">     294</span> <span class="tlaGNC">           2 :             return underlyingAssets;</span></span>
+<span id="L295"><span class="lineNum">     295</span>              :         }</span>
+<span id="L296"><span class="lineNum">     296</span>              : </span>
+<span id="L297"><span class="lineNum">     297</span>              :         // TODO: I'm not sure these are right. i thought so, but my tests were giving weird answers for fees. so lets keep it simpler for now</span>
+<span id="L298"><span class="lineNum">     298</span>              :         // uint256 expectedAssets = prizeVault.previewDeposit(underlyingAssets);</span>
+<span id="L299"><span class="lineNum">     299</span>              :         // uint256 equivalentShares = previewDeposit(expectedAssets);</span>
+<span id="L300"><span class="lineNum">     300</span>              : </span>
+<span id="L301"><span class="lineNum">     301</span> <span class="tlaGNC">           9 :         uint256 assets = prizeVault.deposit(underlyingAssets, address(this));</span></span>
+<span id="L302"><span class="lineNum">     302</span>              : </span>
+<span id="L303"><span class="lineNum">     303</span>              :         // optionally split some to a &quot;treasury&quot; address</span>
+<span id="L304"><span class="lineNum">     304</span> <span class="tlaGNC">           9 :         address treasuryAddress = treasury;</span></span>
+<span id="L305"><span class="lineNum">     305</span> <span class="tlaGNC">           9 :         if (treasuryAddress != address(0)) {</span></span>
+<span id="L306"><span class="lineNum">     306</span>              :             // TODO: which way should we round? floor seems like a safe default</span>
+<span id="L307"><span class="lineNum">     307</span> <span class="tlaGNC">           9 :             uint256 treasuryFeeAssets =</span></span>
+<span id="L308"><span class="lineNum">     308</span> <span class="tlaGNC">           9 :                 assets.mulDiv(harvestTreasuryFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);</span></span>
+<span id="L309"><span class="lineNum">     309</span> <span class="tlaGNC">           9 :             if (treasuryFeeAssets &gt; 0) {</span></span>
+<span id="L310"><span class="lineNum">     310</span>              :                 // console.log(&quot;harvest: minting&quot;, treasuryFeeAssets, &quot;treasury fee shares to&quot;, treasuryAddress);</span>
+<span id="L311"><span class="lineNum">     311</span>              :                 // console.log(&quot;harvest: treasury isSponsor:&quot;, isSponsor[treasuryAddress]);</span>
+<span id="L312"><span class="lineNum">     312</span>              :                 // _mint(treasuryAddress, treasuryFeeShares);</span>
+<span id="L313"><span class="lineNum">     313</span>              :                 // console.log(&quot;harvest: treasury mint complete. treasury balance:&quot;, balanceOf(treasuryAddress));</span>
+<span id="L314"><span class="lineNum">     314</span>              :                 // set sponsorship status to ensure proper accounting</span>
+<span id="L315"><span class="lineNum">     315</span>              :                 // _setSponsorship(treasuryAddress, isSponsor[treasuryAddress]);</span>
+<span id="L316"><span class="lineNum">     316</span>              : </span>
+<span id="L317"><span class="lineNum">     317</span>              :                 // TODO: i'd prefer to mint fan tokens for these and keep them in this contract, but i can't get the math right</span>
+<span id="L318"><span class="lineNum">     318</span> <span class="tlaGNC">           2 :                 prizeVault.transfer(treasuryAddress, treasuryFeeAssets);</span></span>
+<span id="L319"><span class="lineNum">     319</span>              : </span>
+<span id="L320"><span class="lineNum">     320</span>              :                 // TODO: maybe if theres an allowance, we call _deposit? seems silly to be transferring around extra</span>
+<span id="L321"><span class="lineNum">     321</span>              :             }</span>
+<span id="L322"><span class="lineNum">     322</span>              :         }</span>
+<span id="L323"><span class="lineNum">     323</span>              : </span>
+<span id="L324"><span class="lineNum">     324</span>              :         // optionally split some to an &quot;owner&quot; address</span>
+<span id="L325"><span class="lineNum">     325</span>              :         // TODO: DRY. this is the same as the treasury code above</span>
+<span id="L326"><span class="lineNum">     326</span> <span class="tlaGNC">           9 :         address ownerAddress = owner();</span></span>
+<span id="L327"><span class="lineNum">     327</span> <span class="tlaGNC">           9 :         if (ownerAddress != address(0)) {</span></span>
+<span id="L328"><span class="lineNum">     328</span> <span class="tlaGNC">           9 :             uint256 ownerFeeAssets = assets.mulDiv(harvestOwnerFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);</span></span>
+<span id="L329"><span class="lineNum">     329</span> <span class="tlaGNC">           9 :             if (ownerFeeAssets &gt; 0) {</span></span>
+<span id="L330"><span class="lineNum">     330</span> <span class="tlaGNC">           2 :                 prizeVault.transfer(ownerAddress, ownerFeeAssets);</span></span>
+<span id="L331"><span class="lineNum">     331</span>              :             }</span>
+<span id="L332"><span class="lineNum">     332</span>              :         }</span>
+<span id="L333"><span class="lineNum">     333</span>              : </span>
+<span id="L334"><span class="lineNum">     334</span>              :         // leave the remaining balance here. this will inflate the value of everyone's shares equally</span>
+<span id="L335"><span class="lineNum">     335</span>              : </span>
+<span id="L336"><span class="lineNum">     336</span>              :         // correct the accounting for the sponsored tokens</span>
+<span id="L337"><span class="lineNum">     337</span> <span class="tlaGNC">           9 :         harvestSponsorship();</span></span>
+<span id="L338"><span class="lineNum">     338</span>              :     }</span>
+<span id="L339"><span class="lineNum">     339</span>              : </span>
+<span id="L340"><span class="lineNum">     340</span>              :     /// @notice send any rewards on sponsored tokens to the other token holders</span>
+<span id="L341"><span class="lineNum">     341</span>              :     /// @dev this gets called as part of the main `harvest` function.</span>
+<span id="L342"><span class="lineNum">     342</span> <span class="tlaUNC">           0 :     function harvestSponsorship() public returns (uint256 amount) {</span></span>
+<span id="L343"><span class="lineNum">     343</span> <span class="tlaGNC">          33 :         uint256 correctShares = previewWithdraw(totalSponsorAssets);</span></span>
+<span id="L344"><span class="lineNum">     344</span> <span class="tlaGNC">          33 :         uint256 currentShares = balanceOf(address(this));</span></span>
+<span id="L345"><span class="lineNum">     345</span>              : </span>
+<span id="L346"><span class="lineNum">     346</span> <span class="tlaGNC">          33 :         console.log(&quot;harvestSponsorship: totalSponsorAssets=&quot;, totalSponsorAssets);</span></span>
+<span id="L347"><span class="lineNum">     347</span> <span class="tlaGNC">          33 :         console.log(&quot;harvestSponsorship: correctShares=&quot;, correctShares);</span></span>
+<span id="L348"><span class="lineNum">     348</span> <span class="tlaGNC">          33 :         console.log(&quot;harvestSponsorship: currentShares=&quot;, currentShares);</span></span>
+<span id="L349"><span class="lineNum">     349</span>              : </span>
+<span id="L350"><span class="lineNum">     350</span> <span class="tlaGNC">          33 :         if (currentShares &gt; correctShares) {</span></span>
+<span id="L351"><span class="lineNum">     351</span> <span class="tlaGNC">           7 :             amount = currentShares - correctShares;</span></span>
+<span id="L352"><span class="lineNum">     352</span>              : </span>
+<span id="L353"><span class="lineNum">     353</span> <span class="tlaGNC">           7 :             console.log(&quot;harvestSponsorship: burn needed!&quot;, correctShares, currentShares, amount);</span></span>
+<span id="L354"><span class="lineNum">     354</span> <span class="tlaGNC">           7 :             console.log(&quot;harvestSponsorship: burning&quot;, amount, &quot;shares from&quot;, address(this));</span></span>
+<span id="L355"><span class="lineNum">     355</span>              : </span>
+<span id="L356"><span class="lineNum">     356</span>              :             // burn the excess shares to redistribute rewards to non-sponsored token holders</span>
+<span id="L357"><span class="lineNum">     357</span> <span class="tlaGNC">           7 :             _update(address(this), address(0), amount);</span></span>
+<span id="L358"><span class="lineNum">     358</span>              : </span>
+<span id="L359"><span class="lineNum">     359</span> <span class="tlaGNC">           7 :             console.log(&quot;harvestSponsorship: burn complete. new balance:&quot;, balanceOf(address(this)));</span></span>
+<span id="L360"><span class="lineNum">     360</span>              :         } else {</span>
+<span id="L361"><span class="lineNum">     361</span> <span class="tlaGNC">          26 :             console.log(&quot;harvestSponsorship: no burn needed&quot;);</span></span>
+<span id="L362"><span class="lineNum">     362</span>              :         }</span>
+<span id="L363"><span class="lineNum">     363</span>              :     }</span>
+<span id="L364"><span class="lineNum">     364</span>              : </span>
+<span id="L365"><span class="lineNum">     365</span>              :     /**</span>
+<span id="L366"><span class="lineNum">     366</span>              :      * @dev See {IERC4626-redeem}.</span>
+<span id="L367"><span class="lineNum">     367</span>              :      */</span>
+<span id="L368"><span class="lineNum">     368</span> <span class="tlaGNC">           3 :     function redeem(uint256 shares, address receiver, address owner) public override returns (uint256) {</span></span>
+<span id="L369"><span class="lineNum">     369</span> <span class="tlaGNC">           1 :         if (isSponsor[owner]) {</span></span>
+<span id="L370"><span class="lineNum">     370</span> <span class="tlaGNC">           1 :             uint256 ownerSponsorShares = previewWithdraw(balanceOfSponsor[owner]);</span></span>
+<span id="L371"><span class="lineNum">     371</span>              : </span>
+<span id="L372"><span class="lineNum">     372</span> <span class="tlaGNC">           1 :             if (shares &gt; ownerSponsorShares) {</span></span>
+<span id="L373"><span class="lineNum">     373</span> <span class="tlaUNC">           0 :                 revert ERC20InsufficientBalance(owner, ownerSponsorShares, shares);</span></span>
+<span id="L374"><span class="lineNum">     374</span>              :             }</span>
+<span id="L375"><span class="lineNum">     375</span>              : </span>
+<span id="L376"><span class="lineNum">     376</span> <span class="tlaGNC">           1 :             super._update(address(this), owner, shares);</span></span>
+<span id="L377"><span class="lineNum">     377</span>              :         }</span>
+<span id="L378"><span class="lineNum">     378</span> <span class="tlaGNC">           3 :         return super.redeem(shares, receiver, owner);</span></span>
+<span id="L379"><span class="lineNum">     379</span>              :     }</span>
+<span id="L380"><span class="lineNum">     380</span>              : </span>
+<span id="L381"><span class="lineNum">     381</span>              :     /// @notice begin a deposit. This takes `assets()`, not `underlying()`.</span>
+<span id="L382"><span class="lineNum">     382</span> <span class="tlaGNC">           8 :     function startDeposit(uint256 assets) public returns (uint256 claimWhen) {</span></span>
+<span id="L383"><span class="lineNum">     383</span> <span class="tlaGNC">           8 :         return _startDeposit(msg.sender, assets, msg.sender);</span></span>
+<span id="L384"><span class="lineNum">     384</span>              :     }</span>
+<span id="L385"><span class="lineNum">     385</span>              : </span>
+<span id="L386"><span class="lineNum">     386</span>              :     /// @notice begin a deposit for a different account. This takes `assets()`, not `underlying()`</span>
+<span id="L387"><span class="lineNum">     387</span>              :     /// @dev the first deposit does not have any delay</span>
+<span id="L388"><span class="lineNum">     388</span>              :     /// @dev the delay is necessary to protect against large deposits around the time of a large win</span>
+<span id="L389"><span class="lineNum">     389</span> <span class="tlaGNC">          18 :     function startDeposit(uint256 assets, address receiver) public returns (uint256 claimWhen) {</span></span>
+<span id="L390"><span class="lineNum">     390</span> <span class="tlaGNC">          18 :         return _startDeposit(msg.sender, assets, receiver);</span></span>
+<span id="L391"><span class="lineNum">     391</span>              :     }</span>
+<span id="L392"><span class="lineNum">     392</span>              : </span>
+<span id="L393"><span class="lineNum">     393</span>              :     /// @notice the factory is allowed to start deposits for a trusted `caller`</span>
+<span id="L394"><span class="lineNum">     394</span> <span class="tlaGNC">           3 :     function _factoryStartDeposit(address caller, uint256 assets, address receiver)</span></span>
+<span id="L395"><span class="lineNum">     395</span>              :         public</span>
+<span id="L396"><span class="lineNum">     396</span>              :         returns (uint256 claimWhen)</span>
+<span id="L397"><span class="lineNum">     397</span>              :     {</span>
+<span id="L398"><span class="lineNum">     398</span> <span class="tlaGNC">           3 :         require(msg.sender == address(FACTORY), FactoryOnly());</span></span>
+<span id="L399"><span class="lineNum">     399</span> <span class="tlaGNC">           3 :         return _startDeposit(caller, assets, receiver);</span></span>
+<span id="L400"><span class="lineNum">     400</span>              :     }</span>
+<span id="L401"><span class="lineNum">     401</span>              : </span>
+<span id="L402"><span class="lineNum">     402</span>              :     /// @notice sponsored tokens contribute to prizes, but do not earn any prizes themselves.</span>
+<span id="L403"><span class="lineNum">     403</span>              :     /// todo: what return value?</span>
+<span id="L404"><span class="lineNum">     404</span>              :     /// TODO: time lock on this? i think its kind of pointless since people could just make a new address and send</span>
+<span id="L405"><span class="lineNum">     405</span>              :     /// TODO: override _update to handle transfers on sponsored addresses? maybe first we should make a transferSponsored function just to get it working. then figure out how to merge them so that normal transfers will work?</span>
+<span id="L406"><span class="lineNum">     406</span>              :     /// TODO: maybe a separate contract is better. then things like `balanceOf` won't be against the spec</span>
+<span id="L407"><span class="lineNum">     407</span> <span class="tlaGNC">          21 :     function setSponsorship(bool state) public {</span></span>
+<span id="L408"><span class="lineNum">     408</span> <span class="tlaGNC">          21 :         harvestSponsorship();</span></span>
+<span id="L409"><span class="lineNum">     409</span>              : </span>
+<span id="L410"><span class="lineNum">     410</span> <span class="tlaGNC">          21 :         _setSponsorship(msg.sender, state);</span></span>
+<span id="L411"><span class="lineNum">     411</span>              :     }</span>
+<span id="L412"><span class="lineNum">     412</span>              : </span>
+<span id="L413"><span class="lineNum">     413</span> <span class="tlaGNC">          80 :     function _update(address from, address to, uint256 amount) internal override {</span></span>
+<span id="L414"><span class="lineNum">     414</span> <span class="tlaGNC">          80 :         console.log(&quot;_update: transferring&quot;, amount, &quot;shares from&quot;, from);</span></span>
+<span id="L415"><span class="lineNum">     415</span> <span class="tlaGNC">          80 :         console.log(&quot;_update: to&quot;, to);</span></span>
+<span id="L416"><span class="lineNum">     416</span> <span class="tlaGNC">          80 :         console.log(&quot;_update: from balance before:&quot;, balanceOf(from));</span></span>
+<span id="L417"><span class="lineNum">     417</span> <span class="tlaGNC">          80 :         console.log(&quot;_update: to balance before:&quot;, balanceOf(to));</span></span>
+<span id="L418"><span class="lineNum">     418</span>              : </span>
+<span id="L419"><span class="lineNum">     419</span> <span class="tlaGNC">          80 :         super._update(from, to, amount);</span></span>
+<span id="L420"><span class="lineNum">     420</span>              : </span>
+<span id="L421"><span class="lineNum">     421</span> <span class="tlaGNC">          80 :         console.log(&quot;_update: from balance after:&quot;, balanceOf(from));</span></span>
+<span id="L422"><span class="lineNum">     422</span> <span class="tlaGNC">          80 :         console.log(&quot;_update: to balance after:&quot;, balanceOf(to));</span></span>
+<span id="L423"><span class="lineNum">     423</span>              : </span>
+<span id="L424"><span class="lineNum">     424</span>              :         // this might be too gas heavy. but i think it ensures we always have the right accounting.</span>
+<span id="L425"><span class="lineNum">     425</span> <span class="tlaGNC">          80 :         _setSponsorship(from, isSponsor[from]);</span></span>
+<span id="L426"><span class="lineNum">     426</span> <span class="tlaGNC">          80 :         _setSponsorship(to, isSponsor[to]);</span></span>
+<span id="L427"><span class="lineNum">     427</span>              :     }</span>
+<span id="L428"><span class="lineNum">     428</span>              : </span>
+<span id="L429"><span class="lineNum">     429</span>              :     /// TODO: this needs more tests and coverage!</span>
+<span id="L430"><span class="lineNum">     430</span> <span class="tlaGNC">         193 :     function _setSponsorship(address who, bool state) internal {</span></span>
+<span id="L431"><span class="lineNum">     431</span>              :         // todo? require msg.sender != owner() &amp;&amp; msg.sender != treasury?</span>
+<span id="L432"><span class="lineNum">     432</span> <span class="tlaGNC">         193 :         bool senderIsSponsor = isSponsor[who];</span></span>
+<span id="L433"><span class="lineNum">     433</span>              : </span>
+<span id="L434"><span class="lineNum">     434</span> <span class="tlaGNC">          70 :         if (state) {</span></span>
+<span id="L435"><span class="lineNum">     435</span>              :             // sponsorship should be on</span>
+<span id="L436"><span class="lineNum">     436</span> <span class="tlaGNC">          70 :             if (!senderIsSponsor) {</span></span>
+<span id="L437"><span class="lineNum">     437</span> <span class="tlaGNC">          20 :                 isSponsor[who] = state;</span></span>
+<span id="L438"><span class="lineNum">     438</span>              :             }</span>
+<span id="L439"><span class="lineNum">     439</span>              : </span>
+<span id="L440"><span class="lineNum">     440</span>              :             // transfer all of the sender's fan tokens to this address</span>
+<span id="L441"><span class="lineNum">     441</span> <span class="tlaGNC">          70 :             uint256 shares = balanceOf(who);</span></span>
+<span id="L442"><span class="lineNum">     442</span> <span class="tlaGNC">          70 :             if (shares &gt; 0) {</span></span>
+<span id="L443"><span class="lineNum">     443</span> <span class="tlaGNC">          21 :                 _update(who, address(this), shares);</span></span>
+<span id="L444"><span class="lineNum">     444</span>              : </span>
+<span id="L445"><span class="lineNum">     445</span>              :                 // update sponsor accounting</span>
+<span id="L446"><span class="lineNum">     446</span> <span class="tlaGNC">          21 :                 uint256 assets = previewRedeem(shares);</span></span>
+<span id="L447"><span class="lineNum">     447</span> <span class="tlaGNC">          21 :                 totalSponsorAssets += assets;</span></span>
+<span id="L448"><span class="lineNum">     448</span> <span class="tlaGNC">          21 :                 balanceOfSponsor[who] += assets;</span></span>
+<span id="L449"><span class="lineNum">     449</span>              :                 // TODO: emit events</span>
+<span id="L450"><span class="lineNum">     450</span>              :             }</span>
+<span id="L451"><span class="lineNum">     451</span>              :         } else {</span>
+<span id="L452"><span class="lineNum">     452</span>              :             // sponsorship should be off</span>
+<span id="L453"><span class="lineNum">     453</span> <span class="tlaGNC">           1 :             if (senderIsSponsor) {</span></span>
+<span id="L454"><span class="lineNum">     454</span> <span class="tlaGNC">           1 :                 isSponsor[who] = state;</span></span>
+<span id="L455"><span class="lineNum">     455</span>              :             }</span>
+<span id="L456"><span class="lineNum">     456</span>              : </span>
+<span id="L457"><span class="lineNum">     457</span>              :             // transfer the fan tokens back to the caller</span>
+<span id="L458"><span class="lineNum">     458</span> <span class="tlaGNC">         123 :             uint256 assets = balanceOfSponsor[who];</span></span>
+<span id="L459"><span class="lineNum">     459</span> <span class="tlaGNC">         123 :             if (assets &gt; 0) {</span></span>
+<span id="L460"><span class="lineNum">     460</span> <span class="tlaGNC">           1 :                 uint256 shares = previewWithdraw(assets);</span></span>
+<span id="L461"><span class="lineNum">     461</span>              : </span>
+<span id="L462"><span class="lineNum">     462</span>              :                 // update sponsor accounting</span>
+<span id="L463"><span class="lineNum">     463</span> <span class="tlaGNC">           1 :                 balanceOfSponsor[who] -= assets;</span></span>
+<span id="L464"><span class="lineNum">     464</span> <span class="tlaGNC">           1 :                 totalSponsorAssets -= assets;</span></span>
+<span id="L465"><span class="lineNum">     465</span>              : </span>
+<span id="L466"><span class="lineNum">     466</span> <span class="tlaGNC">           1 :                 _update(address(this), who, shares);</span></span>
+<span id="L467"><span class="lineNum">     467</span>              :             }</span>
+<span id="L468"><span class="lineNum">     468</span>              :         }</span>
+<span id="L469"><span class="lineNum">     469</span>              :     }</span>
+<span id="L470"><span class="lineNum">     470</span>              : </span>
+<span id="L471"><span class="lineNum">     471</span>              :     /// @notice burn your sponsored tokens and credit them to all the other fan token holders</span>
+<span id="L472"><span class="lineNum">     472</span> <span class="tlaGNC">           4 :     function sponsorBurn(uint256 assets) public {</span></span>
+<span id="L473"><span class="lineNum">     473</span> <span class="tlaGNC">           4 :         uint256 senderSponsorAssets = balanceOfSponsor[msg.sender];</span></span>
+<span id="L474"><span class="lineNum">     474</span> <span class="tlaGNC">           4 :         if (assets &gt; senderSponsorAssets) {</span></span>
+<span id="L475"><span class="lineNum">     475</span> <span class="tlaGNC">           1 :             revert ERC20InsufficientBalance(msg.sender, senderSponsorAssets, assets);</span></span>
+<span id="L476"><span class="lineNum">     476</span>              :         }</span>
+<span id="L477"><span class="lineNum">     477</span>              : </span>
+<span id="L478"><span class="lineNum">     478</span> <span class="tlaGNC">           3 :         balanceOfSponsor[msg.sender] -= assets;</span></span>
+<span id="L479"><span class="lineNum">     479</span> <span class="tlaGNC">           3 :         totalSponsorAssets -= assets;</span></span>
+<span id="L480"><span class="lineNum">     480</span>              : </span>
+<span id="L481"><span class="lineNum">     481</span> <span class="tlaGNC">           3 :         harvestSponsorship();</span></span>
+<span id="L482"><span class="lineNum">     482</span>              :     }</span>
+<span id="L483"><span class="lineNum">     483</span>              : </span>
+<span id="L484"><span class="lineNum">     484</span>              :     /// @dev i keep trying to include this logic inside _update, but it breaks things</span>
+<span id="L485"><span class="lineNum">     485</span> <span class="tlaGNC">           2 :     function _sponsorTransfer(address from, address to, uint256 assets) internal {</span></span>
+<span id="L486"><span class="lineNum">     486</span> <span class="tlaGNC">           2 :         bool fromIsSponsor = isSponsor[from];</span></span>
+<span id="L487"><span class="lineNum">     487</span> <span class="tlaGNC">           2 :         bool toIsSponsor = isSponsor[to];</span></span>
+<span id="L488"><span class="lineNum">     488</span>              : </span>
+<span id="L489"><span class="lineNum">     489</span> <span class="tlaGNC">           2 :         uint256 shares = previewWithdraw(assets);</span></span>
+<span id="L490"><span class="lineNum">     490</span>              : </span>
+<span id="L491"><span class="lineNum">     491</span>              :         // this isn't the most gas efficient way, but i think its best to ensure we get all the math right</span>
+<span id="L492"><span class="lineNum">     492</span> <span class="tlaGNC">           2 :         if (fromIsSponsor &amp;&amp; toIsSponsor) {</span></span>
+<span id="L493"><span class="lineNum">     493</span>              :             // no need to do anything with the shares. they are owned by this contract and stay owned by this contract</span>
+<span id="L494"><span class="lineNum">     494</span> <span class="tlaGNC">           2 :             balanceOfSponsor[from] -= assets;</span></span>
+<span id="L495"><span class="lineNum">     495</span> <span class="tlaGNC">           2 :             balanceOfSponsor[to] += assets;</span></span>
+<span id="L496"><span class="lineNum">     496</span> <span class="tlaGNC">           2 :             emit Transfer(from, to, shares);</span></span>
+<span id="L497"><span class="lineNum">     497</span> <span class="tlaUNC">           0 :         } else if (fromIsSponsor) {</span></span>
+<span id="L498"><span class="lineNum">     498</span>              :             // since from is a sponsor, the shares are held by this contract</span>
+<span id="L499"><span class="lineNum">     499</span>              :             // move them to the from. then do the normal transfer flow</span>
+<span id="L500"><span class="lineNum">     500</span>              :             // we could maybe _update(address(this, to)), but i think events are confusing that way</span>
+<span id="L501"><span class="lineNum">     501</span> <span class="tlaUNC">           0 :             _update(address(this), from, shares);</span></span>
+<span id="L502"><span class="lineNum">     502</span>              : </span>
+<span id="L503"><span class="lineNum">     503</span> <span class="tlaUNC">           0 :             _update(from, to, shares);</span></span>
+<span id="L504"><span class="lineNum">     504</span>              : </span>
+<span id="L505"><span class="lineNum">     505</span>              :             // update sponsorship accounting. this is probably overkill, but i think its safest</span>
+<span id="L506"><span class="lineNum">     506</span> <span class="tlaUNC">           0 :             _setSponsorship(from, true);</span></span>
+<span id="L507"><span class="lineNum">     507</span> <span class="tlaUNC">           0 :         } else if (toIsSponsor) {</span></span>
+<span id="L508"><span class="lineNum">     508</span>              :             // from already holds shares.</span>
+<span id="L509"><span class="lineNum">     509</span> <span class="tlaUNC">           0 :             _update(from, to, shares);</span></span>
+<span id="L510"><span class="lineNum">     510</span>              : </span>
+<span id="L511"><span class="lineNum">     511</span>              :             // this will move the shares to this contract and update sponsorhip accounting</span>
+<span id="L512"><span class="lineNum">     512</span> <span class="tlaUNC">           0 :             _setSponsorship(to, true);</span></span>
+<span id="L513"><span class="lineNum">     513</span>              :         } else {</span>
+<span id="L514"><span class="lineNum">     514</span> <span class="tlaUNC">           0 :             revert BothSidesMustBeSponsor();</span></span>
+<span id="L515"><span class="lineNum">     515</span>              :         }</span>
+<span id="L516"><span class="lineNum">     516</span>              :     }</span>
+<span id="L517"><span class="lineNum">     517</span>              : </span>
+<span id="L518"><span class="lineNum">     518</span>              :     /// @dev i wanted to override `transfer` to work transparently, but that got too complicated quickly</span>
+<span id="L519"><span class="lineNum">     519</span> <span class="tlaGNC">           1 :     function sponsorTransfer(address to, uint256 assets) public returns (bool) {</span></span>
+<span id="L520"><span class="lineNum">     520</span> <span class="tlaGNC">           1 :         _sponsorTransfer(msg.sender, to, assets);</span></span>
+<span id="L521"><span class="lineNum">     521</span> <span class="tlaGNC">           1 :         return true;</span></span>
+<span id="L522"><span class="lineNum">     522</span>              :     }</span>
+<span id="L523"><span class="lineNum">     523</span>              : </span>
+<span id="L524"><span class="lineNum">     524</span>              :     /// @dev i wanted to override `transfer` to work transparently, but that got too complicated quickly</span>
+<span id="L525"><span class="lineNum">     525</span> <span class="tlaGNC">           2 :     function sponsorTransferFrom(address from, address to, uint256 assets) public returns (bool) {</span></span>
+<span id="L526"><span class="lineNum">     526</span> <span class="tlaGNC">           2 :         address spender = msg.sender;</span></span>
+<span id="L527"><span class="lineNum">     527</span> <span class="tlaGNC">           2 :         _spendAllowance(from, spender, convertToShares(assets));</span></span>
+<span id="L528"><span class="lineNum">     528</span> <span class="tlaGNC">           1 :         _sponsorTransfer(from, to, assets);</span></span>
+<span id="L529"><span class="lineNum">     529</span> <span class="tlaGNC">           1 :         return true;</span></span>
+<span id="L530"><span class="lineNum">     530</span>              :     }</span>
+<span id="L531"><span class="lineNum">     531</span>              : </span>
+<span id="L532"><span class="lineNum">     532</span>              :     // TODO: sponsorTransferFrom</span>
+<span id="L533"><span class="lineNum">     533</span>              : </span>
+<span id="L534"><span class="lineNum">     534</span>              :     // TODO: sponsorFrom? need an &quot;operator&quot; mapping i think</span>
+<span id="L535"><span class="lineNum">     535</span>              : </span>
+<span id="L536"><span class="lineNum">     536</span>              :     /**</span>
+<span id="L537"><span class="lineNum">     537</span>              :      * @dev See {IERC4626-withdraw}.</span>
+<span id="L538"><span class="lineNum">     538</span>              :      */</span>
+<span id="L539"><span class="lineNum">     539</span> <span class="tlaUNC">           0 :     function withdraw(uint256 assets, address receiver, address owner) public override returns (uint256) {</span></span>
+<span id="L540"><span class="lineNum">     540</span> <span class="tlaUNC">           0 :         if (isSponsor[owner]) {</span></span>
+<span id="L541"><span class="lineNum">     541</span> <span class="tlaUNC">           0 :             uint256 ownerSponsorShares = previewWithdraw(balanceOfSponsor[owner]);</span></span>
+<span id="L542"><span class="lineNum">     542</span> <span class="tlaUNC">           0 :             uint256 shares = previewWithdraw(assets);</span></span>
+<span id="L543"><span class="lineNum">     543</span>              : </span>
+<span id="L544"><span class="lineNum">     544</span> <span class="tlaUNC">           0 :             if (shares &gt; ownerSponsorShares) {</span></span>
+<span id="L545"><span class="lineNum">     545</span> <span class="tlaUNC">           0 :                 revert ERC20InsufficientBalance(owner, ownerSponsorShares, shares);</span></span>
+<span id="L546"><span class="lineNum">     546</span>              :             }</span>
+<span id="L547"><span class="lineNum">     547</span>              : </span>
+<span id="L548"><span class="lineNum">     548</span> <span class="tlaUNC">           0 :             super._update(address(this), owner, shares);</span></span>
+<span id="L549"><span class="lineNum">     549</span>              :         }</span>
+<span id="L550"><span class="lineNum">     550</span> <span class="tlaUNC">           0 :         return super.withdraw(assets, receiver, owner);</span></span>
+<span id="L551"><span class="lineNum">     551</span>              :     }</span>
+<span id="L552"><span class="lineNum">     552</span>              : </span>
+<span id="L553"><span class="lineNum">     553</span>              :     /// TODO: this isn't really necessary</span>
+<span id="L554"><span class="lineNum">     554</span> <span class="tlaGNC">           6 :     function totalSponsoredShares() public returns (uint256 shares) {</span></span>
+<span id="L555"><span class="lineNum">     555</span> <span class="tlaGNC">          12 :         shares = balanceOf(address(this));</span></span>
+<span id="L556"><span class="lineNum">     556</span>              :     }</span>
+<span id="L557"><span class="lineNum">     557</span>              : </span>
+<span id="L558"><span class="lineNum">     558</span>              :     /// TODO: this isn't really necessary</span>
+<span id="L559"><span class="lineNum">     559</span> <span class="tlaGNC">           6 :     function totalSponsoredAssets() public returns (uint256 assets) {</span></span>
+<span id="L560"><span class="lineNum">     560</span> <span class="tlaGNC">           6 :         uint256 shares = totalSponsoredShares();</span></span>
+<span id="L561"><span class="lineNum">     561</span> <span class="tlaGNC">           6 :         assets = previewRedeem(shares);</span></span>
+<span id="L562"><span class="lineNum">     562</span>              :     }</span>
+<span id="L563"><span class="lineNum">     563</span>              : </span>
+<span id="L564"><span class="lineNum">     564</span>              :     // === minor helpers ===</span>
+<span id="L565"><span class="lineNum">     565</span>              : </span>
+<span id="L566"><span class="lineNum">     566</span> <span class="tlaGNC">           1 :     function version() public returns (string memory) {</span></span>
+<span id="L567"><span class="lineNum">     567</span> <span class="tlaGNC">           1 :         return FACTORY.version();</span></span>
+<span id="L568"><span class="lineNum">     568</span>              :     }</span>
+<span id="L569"><span class="lineNum">     569</span>              : </span>
+<span id="L570"><span class="lineNum">     570</span>              :     /// @notice wrap any ETH in this contract</span>
+<span id="L571"><span class="lineNum">     571</span> <span class="tlaGNC">         771 :     function wrapETH() public payable returns (uint256 total) {</span></span>
+<span id="L572"><span class="lineNum">     572</span> <span class="tlaGNC">         782 :         total = address(this).balance;</span></span>
+<span id="L573"><span class="lineNum">     573</span> <span class="tlaGNC">         782 :         if (total &gt; 0) {</span></span>
+<span id="L574"><span class="lineNum">     574</span> <span class="tlaGNC">         258 :             WETH.deposit{value: total}();</span></span>
+<span id="L575"><span class="lineNum">     575</span>              :         }</span>
+<span id="L576"><span class="lineNum">     576</span>              :     }</span>
+<span id="L577"><span class="lineNum">     577</span>              : }</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.3.2-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

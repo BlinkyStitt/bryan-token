@@ -1,0 +1,254 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - lcov.info - src/ERC4626UniswapV4Hook.sol</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../index.html" title="Click to go to top-level">top level</a> - <a href="index.html" title="Click to go to directory src">src</a> - ERC4626UniswapV4Hook.sol<span style="font-size: 80%;"> (source / <a href="ERC4626UniswapV4Hook.sol.func-c.html" title="Click to go to function table">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">lcov.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryLo">0.0&nbsp;%</td>
+            <td class="headerCovTableEntry">57</td>
+            <td class="headerCovTableEntry">0</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2025-09-13 02:52:58</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryLo">0.0&nbsp;%</td>
+            <td class="headerCovTableEntry">6</td>
+            <td class="headerCovTableEntry">0</td>
+          </tr>
+                  <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : // SPDX-License-Identifier: AGPL-3.0-only</span>
+<span id="L2"><span class="lineNum">       2</span>              : pragma solidity ^0.8.26;</span>
+<span id="L3"><span class="lineNum">       3</span>              : </span>
+<span id="L4"><span class="lineNum">       4</span>              : import {</span>
+<span id="L5"><span class="lineNum">       5</span>              :     BaseHook,</span>
+<span id="L6"><span class="lineNum">       6</span>              :     BeforeSwapDelta,</span>
+<span id="L7"><span class="lineNum">       7</span>              :     Hooks,</span>
+<span id="L8"><span class="lineNum">       8</span>              :     IPoolManager,</span>
+<span id="L9"><span class="lineNum">       9</span>              :     ModifyLiquidityParams,</span>
+<span id="L10"><span class="lineNum">      10</span>              :     PoolKey,</span>
+<span id="L11"><span class="lineNum">      11</span>              :     SwapParams</span>
+<span id="L12"><span class="lineNum">      12</span>              : } from &quot;v4-periphery/src/utils/BaseHook.sol&quot;;</span>
+<span id="L13"><span class="lineNum">      13</span>              : import {IERC4626} from &quot;@openzeppelin/contracts/interfaces/IERC4626.sol&quot;;</span>
+<span id="L14"><span class="lineNum">      14</span>              : import {IERC20} from &quot;@openzeppelin/contracts/token/ERC20/IERC20.sol&quot;;</span>
+<span id="L15"><span class="lineNum">      15</span>              : import {SafeERC20} from &quot;@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol&quot;;</span>
+<span id="L16"><span class="lineNum">      16</span>              : import {Currency, CurrencyLibrary} from &quot;v4-core/src/types/Currency.sol&quot;;</span>
+<span id="L17"><span class="lineNum">      17</span>              : import {BalanceDelta, BalanceDeltaLibrary} from &quot;v4-core/src/types/BalanceDelta.sol&quot;;</span>
+<span id="L18"><span class="lineNum">      18</span>              : import {Unimplemented} from &quot;./FanToken.sol&quot;;</span>
+<span id="L19"><span class="lineNum">      19</span>              : </span>
+<span id="L20"><span class="lineNum">      20</span>              : /**</span>
+<span id="L21"><span class="lineNum">      21</span>              :  * @dev A hook that replaces swaps with ERC4626 vault deposits/redeems</span>
+<span id="L22"><span class="lineNum">      22</span>              :  * Supports pools between an ERC4626 vault and its underlying asset</span>
+<span id="L23"><span class="lineNum">      23</span>              :  * Can be chained: WETH -&gt; WETH Prize Vault -&gt; Fan Token</span>
+<span id="L24"><span class="lineNum">      24</span>              :  */</span>
+<span id="L25"><span class="lineNum">      25</span>              : contract ERC4626UniswapV4Hook is BaseHook {</span>
+<span id="L26"><span class="lineNum">      26</span>              :     using SafeERC20 for IERC20;</span>
+<span id="L27"><span class="lineNum">      27</span>              :     using CurrencyLibrary for Currency;</span>
+<span id="L28"><span class="lineNum">      28</span>              :     using BalanceDeltaLibrary for BalanceDelta;</span>
+<span id="L29"><span class="lineNum">      29</span>              : </span>
+<span id="L30"><span class="lineNum">      30</span>              :     error InvalidTokenPair();</span>
+<span id="L31"><span class="lineNum">      31</span>              :     error UnsupportedSwap();</span>
+<span id="L32"><span class="lineNum">      32</span>              : </span>
+<span id="L33"><span class="lineNum">      33</span>              :     constructor(IPoolManager _poolManager) BaseHook(_poolManager) {}</span>
+<span id="L34"><span class="lineNum">      34</span>              : </span>
+<span id="L35"><span class="lineNum">      35</span> <span class="tlaUNC">           0 :     function getHookPermissions() public pure override returns (Hooks.Permissions memory p) {</span></span>
+<span id="L36"><span class="lineNum">      36</span> <span class="tlaUNC">           0 :         p.beforeAddLiquidity = true;</span></span>
+<span id="L37"><span class="lineNum">      37</span> <span class="tlaUNC">           0 :         p.beforeSwap = true;</span></span>
+<span id="L38"><span class="lineNum">      38</span>              :     }</span>
+<span id="L39"><span class="lineNum">      39</span>              : </span>
+<span id="L40"><span class="lineNum">      40</span> <span class="tlaUNC">           0 :     function _beforeAddLiquidity(address, PoolKey calldata, ModifyLiquidityParams calldata, bytes calldata)</span></span>
+<span id="L41"><span class="lineNum">      41</span>              :         internal</span>
+<span id="L42"><span class="lineNum">      42</span>              :         override</span>
+<span id="L43"><span class="lineNum">      43</span>              :         returns (bytes4)</span>
+<span id="L44"><span class="lineNum">      44</span>              :     {</span>
+<span id="L45"><span class="lineNum">      45</span>              :         // No liquidity providers - this hook handles all swaps via vault deposits/redeems</span>
+<span id="L46"><span class="lineNum">      46</span> <span class="tlaUNC">           0 :         revert UnsupportedSwap();</span></span>
+<span id="L47"><span class="lineNum">      47</span>              :     }</span>
+<span id="L48"><span class="lineNum">      48</span>              : </span>
+<span id="L49"><span class="lineNum">      49</span> <span class="tlaUNC">           0 :     function _beforeSwap(address, PoolKey calldata key, SwapParams calldata params, bytes calldata)</span></span>
+<span id="L50"><span class="lineNum">      50</span>              :         internal</span>
+<span id="L51"><span class="lineNum">      51</span>              :         override</span>
+<span id="L52"><span class="lineNum">      52</span>              :         returns (bytes4, BeforeSwapDelta, uint24)</span>
+<span id="L53"><span class="lineNum">      53</span>              :     {</span>
+<span id="L54"><span class="lineNum">      54</span>              :         // Determine which tokens are involved</span>
+<span id="L55"><span class="lineNum">      55</span> <span class="tlaUNC">           0 :         Currency currency0 = key.currency0;</span></span>
+<span id="L56"><span class="lineNum">      56</span> <span class="tlaUNC">           0 :         Currency currency1 = key.currency1;</span></span>
+<span id="L57"><span class="lineNum">      57</span>              : </span>
+<span id="L58"><span class="lineNum">      58</span> <span class="tlaUNC">           0 :         address token0 = Currency.unwrap(currency0);</span></span>
+<span id="L59"><span class="lineNum">      59</span> <span class="tlaUNC">           0 :         address token1 = Currency.unwrap(currency1);</span></span>
+<span id="L60"><span class="lineNum">      60</span>              : </span>
+<span id="L61"><span class="lineNum">      61</span>              :         // Check if one is an ERC4626 vault and the other is its asset</span>
+<span id="L62"><span class="lineNum">      62</span> <span class="tlaUNC">           0 :         (bool isVault0, bool isVault1) = _checkVaultPair(token0, token1);</span></span>
+<span id="L63"><span class="lineNum">      63</span>              : </span>
+<span id="L64"><span class="lineNum">      64</span> <span class="tlaUNC">           0 :         if (!isVault0 &amp;&amp; !isVault1) {</span></span>
+<span id="L65"><span class="lineNum">      65</span> <span class="tlaUNC">           0 :             revert InvalidTokenPair();</span></span>
+<span id="L66"><span class="lineNum">      66</span>              :         }</span>
+<span id="L67"><span class="lineNum">      67</span>              : </span>
+<span id="L68"><span class="lineNum">      68</span>              :         // Determine swap direction and amounts</span>
+<span id="L69"><span class="lineNum">      69</span> <span class="tlaUNC">           0 :         bool zeroForOne = params.zeroForOne;</span></span>
+<span id="L70"><span class="lineNum">      70</span> <span class="tlaUNC">           0 :         int256 amountSpecified = params.amountSpecified;</span></span>
+<span id="L71"><span class="lineNum">      71</span> <span class="tlaUNC">           0 :         bool exactInput = amountSpecified &gt; 0;</span></span>
+<span id="L72"><span class="lineNum">      72</span>              : </span>
+<span id="L73"><span class="lineNum">      73</span> <span class="tlaUNC">           0 :         BalanceDelta delta;</span></span>
+<span id="L74"><span class="lineNum">      74</span>              : </span>
+<span id="L75"><span class="lineNum">      75</span> <span class="tlaUNC">           0 :         if (isVault0 &amp;&amp; !isVault1) {</span></span>
+<span id="L76"><span class="lineNum">      76</span>              :             // token0 is vault, token1 is asset</span>
+<span id="L77"><span class="lineNum">      77</span> <span class="tlaUNC">           0 :             if (zeroForOne) {</span></span>
+<span id="L78"><span class="lineNum">      78</span>              :                 // Swapping vault shares -&gt; asset (redeem)</span>
+<span id="L79"><span class="lineNum">      79</span> <span class="tlaUNC">           0 :                 delta = _handleRedeem(token0, token1, amountSpecified, exactInput);</span></span>
+<span id="L80"><span class="lineNum">      80</span>              :             } else {</span>
+<span id="L81"><span class="lineNum">      81</span>              :                 // Swapping asset -&gt; vault shares (deposit)</span>
+<span id="L82"><span class="lineNum">      82</span> <span class="tlaUNC">           0 :                 delta = _handleDeposit(token0, token1, amountSpecified, exactInput);</span></span>
+<span id="L83"><span class="lineNum">      83</span>              :             }</span>
+<span id="L84"><span class="lineNum">      84</span> <span class="tlaUNC">           0 :         } else if (!isVault0 &amp;&amp; isVault1) {</span></span>
+<span id="L85"><span class="lineNum">      85</span>              :             // token0 is asset, token1 is vault</span>
+<span id="L86"><span class="lineNum">      86</span> <span class="tlaUNC">           0 :             if (zeroForOne) {</span></span>
+<span id="L87"><span class="lineNum">      87</span>              :                 // Swapping asset -&gt; vault shares (deposit)</span>
+<span id="L88"><span class="lineNum">      88</span> <span class="tlaUNC">           0 :                 delta = _handleDeposit(token1, token0, amountSpecified, exactInput);</span></span>
+<span id="L89"><span class="lineNum">      89</span>              :             } else {</span>
+<span id="L90"><span class="lineNum">      90</span>              :                 // Swapping vault shares -&gt; asset (redeem)</span>
+<span id="L91"><span class="lineNum">      91</span> <span class="tlaUNC">           0 :                 delta = _handleRedeem(token1, token0, amountSpecified, exactInput);</span></span>
+<span id="L92"><span class="lineNum">      92</span>              :             }</span>
+<span id="L93"><span class="lineNum">      93</span>              :         } else {</span>
+<span id="L94"><span class="lineNum">      94</span> <span class="tlaUNC">           0 :             revert UnsupportedSwap();</span></span>
+<span id="L95"><span class="lineNum">      95</span>              :         }</span>
+<span id="L96"><span class="lineNum">      96</span>              : </span>
+<span id="L97"><span class="lineNum">      97</span> <span class="tlaUNC">           0 :         BeforeSwapDelta hookDelta = BeforeSwapDelta.wrap(BalanceDelta.unwrap(delta));</span></span>
+<span id="L98"><span class="lineNum">      98</span>              : </span>
+<span id="L99"><span class="lineNum">      99</span>              :         // Return hook signature and delta</span>
+<span id="L100"><span class="lineNum">     100</span> <span class="tlaUNC">           0 :         return (bytes4(keccak256(&quot;_beforeSwap(address,(address,address,uint24,int24,address),int256,bool,bytes)&quot;)), hookDelta, 0);</span></span>
+<span id="L101"><span class="lineNum">     101</span>              :     }</span>
+<span id="L102"><span class="lineNum">     102</span>              : </span>
+<span id="L103"><span class="lineNum">     103</span>              :     /**</span>
+<span id="L104"><span class="lineNum">     104</span>              :      * @dev Check if the token pair consists of an ERC4626 vault and its asset</span>
+<span id="L105"><span class="lineNum">     105</span>              :      */</span>
+<span id="L106"><span class="lineNum">     106</span> <span class="tlaUNC">           0 :     function _checkVaultPair(address token0, address token1) internal view returns (bool isVault0, bool isVault1) {</span></span>
+<span id="L107"><span class="lineNum">     107</span>              :         // Check if token0 is a vault with token1 as its asset</span>
+<span id="L108"><span class="lineNum">     108</span> <span class="tlaUNC">           0 :         try IERC4626(token0).asset() returns (address asset0) {</span></span>
+<span id="L109"><span class="lineNum">     109</span> <span class="tlaUNC">           0 :             if (asset0 == token1) {</span></span>
+<span id="L110"><span class="lineNum">     110</span> <span class="tlaUNC">           0 :                 isVault0 = true;</span></span>
+<span id="L111"><span class="lineNum">     111</span>              :             }</span>
+<span id="L112"><span class="lineNum">     112</span>              :         } catch {}</span>
+<span id="L113"><span class="lineNum">     113</span>              : </span>
+<span id="L114"><span class="lineNum">     114</span>              :         // Check if token1 is a vault with token0 as its asset</span>
+<span id="L115"><span class="lineNum">     115</span> <span class="tlaUNC">           0 :         try IERC4626(token1).asset() returns (address asset1) {</span></span>
+<span id="L116"><span class="lineNum">     116</span> <span class="tlaUNC">           0 :             if (asset1 == token0) {</span></span>
+<span id="L117"><span class="lineNum">     117</span> <span class="tlaUNC">           0 :                 isVault1 = true;</span></span>
+<span id="L118"><span class="lineNum">     118</span>              :             }</span>
+<span id="L119"><span class="lineNum">     119</span>              :         } catch {}</span>
+<span id="L120"><span class="lineNum">     120</span>              :     }</span>
+<span id="L121"><span class="lineNum">     121</span>              : </span>
+<span id="L122"><span class="lineNum">     122</span>              :     /**</span>
+<span id="L123"><span class="lineNum">     123</span>              :      * @dev Handle deposit: asset -&gt; vault shares</span>
+<span id="L124"><span class="lineNum">     124</span>              :      */</span>
+<span id="L125"><span class="lineNum">     125</span> <span class="tlaUNC">           0 :     function _handleDeposit(address vault, address asset, int256 amountSpecified, bool exactInput)</span></span>
+<span id="L126"><span class="lineNum">     126</span>              :         internal</span>
+<span id="L127"><span class="lineNum">     127</span>              :         returns (BalanceDelta)</span>
+<span id="L128"><span class="lineNum">     128</span>              :     {</span>
+<span id="L129"><span class="lineNum">     129</span> <span class="tlaUNC">           0 :         uint256 amount = uint256(amountSpecified &lt; 0 ? -amountSpecified : amountSpecified);</span></span>
+<span id="L130"><span class="lineNum">     130</span>              : </span>
+<span id="L131"><span class="lineNum">     131</span> <span class="tlaUNC">           0 :         if (exactInput) {</span></span>
+<span id="L132"><span class="lineNum">     132</span>              :             // Exact asset amount in, get vault shares out</span>
+<span id="L133"><span class="lineNum">     133</span> <span class="tlaUNC">           0 :             IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);</span></span>
+<span id="L134"><span class="lineNum">     134</span> <span class="tlaUNC">           0 :             IERC20(asset).forceApprove(vault, amount);</span></span>
+<span id="L135"><span class="lineNum">     135</span>              : </span>
+<span id="L136"><span class="lineNum">     136</span> <span class="tlaUNC">           0 :             uint256 sharesReceived = IERC4626(vault).deposit(amount, msg.sender);</span></span>
+<span id="L137"><span class="lineNum">     137</span>              : </span>
+<span id="L138"><span class="lineNum">     138</span>              :             // Return negative delta for asset (taken from user) and positive for vault shares (given to user)</span>
+<span id="L139"><span class="lineNum">     139</span> <span class="tlaUNC">           0 :             return BalanceDelta.wrap(int256(sharesReceived));</span></span>
+<span id="L140"><span class="lineNum">     140</span>              :         } else {</span>
+<span id="L141"><span class="lineNum">     141</span>              :             // Exact vault shares out, calculate asset amount needed</span>
+<span id="L142"><span class="lineNum">     142</span> <span class="tlaUNC">           0 :             uint256 assetsNeeded = IERC4626(vault).previewMint(amount);</span></span>
+<span id="L143"><span class="lineNum">     143</span>              : </span>
+<span id="L144"><span class="lineNum">     144</span> <span class="tlaUNC">           0 :             IERC20(asset).safeTransferFrom(msg.sender, address(this), assetsNeeded);</span></span>
+<span id="L145"><span class="lineNum">     145</span> <span class="tlaUNC">           0 :             IERC20(asset).forceApprove(vault, assetsNeeded);</span></span>
+<span id="L146"><span class="lineNum">     146</span>              : </span>
+<span id="L147"><span class="lineNum">     147</span> <span class="tlaUNC">           0 :             IERC4626(vault).mint(amount, msg.sender);</span></span>
+<span id="L148"><span class="lineNum">     148</span>              : </span>
+<span id="L149"><span class="lineNum">     149</span> <span class="tlaUNC">           0 :             return BalanceDelta.wrap(int256(amount));</span></span>
+<span id="L150"><span class="lineNum">     150</span>              :         }</span>
+<span id="L151"><span class="lineNum">     151</span>              :     }</span>
+<span id="L152"><span class="lineNum">     152</span>              : </span>
+<span id="L153"><span class="lineNum">     153</span>              :     /**</span>
+<span id="L154"><span class="lineNum">     154</span>              :      * @dev Handle redeem: vault shares -&gt; asset</span>
+<span id="L155"><span class="lineNum">     155</span>              :      */</span>
+<span id="L156"><span class="lineNum">     156</span> <span class="tlaUNC">           0 :     function _handleRedeem(address vault, address asset, int256 amountSpecified, bool exactInput)</span></span>
+<span id="L157"><span class="lineNum">     157</span>              :         internal</span>
+<span id="L158"><span class="lineNum">     158</span>              :         returns (BalanceDelta)</span>
+<span id="L159"><span class="lineNum">     159</span>              :     {</span>
+<span id="L160"><span class="lineNum">     160</span> <span class="tlaUNC">           0 :         uint256 amount = uint256(amountSpecified &lt; 0 ? -amountSpecified : amountSpecified);</span></span>
+<span id="L161"><span class="lineNum">     161</span>              : </span>
+<span id="L162"><span class="lineNum">     162</span> <span class="tlaUNC">           0 :         if (exactInput) {</span></span>
+<span id="L163"><span class="lineNum">     163</span>              :             // Exact vault shares in, get asset out</span>
+<span id="L164"><span class="lineNum">     164</span> <span class="tlaUNC">           0 :             IERC20(vault).safeTransferFrom(msg.sender, address(this), amount);</span></span>
+<span id="L165"><span class="lineNum">     165</span> <span class="tlaUNC">           0 :             uint256 assetsReceived = IERC4626(vault).redeem(amount, msg.sender, address(this));</span></span>
+<span id="L166"><span class="lineNum">     166</span>              : </span>
+<span id="L167"><span class="lineNum">     167</span> <span class="tlaUNC">           0 :             return BalanceDelta.wrap(-int256(assetsReceived));</span></span>
+<span id="L168"><span class="lineNum">     168</span>              :         } else {</span>
+<span id="L169"><span class="lineNum">     169</span>              :             // Exact asset out, calculate vault shares needed</span>
+<span id="L170"><span class="lineNum">     170</span> <span class="tlaUNC">           0 :             uint256 sharesNeeded = IERC4626(vault).previewWithdraw(amount);</span></span>
+<span id="L171"><span class="lineNum">     171</span>              : </span>
+<span id="L172"><span class="lineNum">     172</span> <span class="tlaUNC">           0 :             IERC20(vault).safeTransferFrom(msg.sender, address(this), sharesNeeded);</span></span>
+<span id="L173"><span class="lineNum">     173</span> <span class="tlaUNC">           0 :             IERC4626(vault).withdraw(amount, msg.sender, address(this));</span></span>
+<span id="L174"><span class="lineNum">     174</span>              : </span>
+<span id="L175"><span class="lineNum">     175</span> <span class="tlaUNC">           0 :             return BalanceDelta.wrap(-int256(amount));</span></span>
+<span id="L176"><span class="lineNum">     176</span>              :         }</span>
+<span id="L177"><span class="lineNum">     177</span>              :     }</span>
+<span id="L178"><span class="lineNum">     178</span>              : }</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.3.2-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

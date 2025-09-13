@@ -15,6 +15,9 @@
 - you should see yourself as a novice developer. Be sure to check docs thoroughly rather than guess.
 - Tests should assert expected values and not just confirm that the calls don't revert
 - An "Unused local variable" is always bad. It means you probably forgot to check something. 
+- You don't need so many `vm.stopPranks`. they dont do anything useful at the end of a test. and they dont do anything useful if you prank/startPrank right after 
+  them
+- `git commit` and `git push` your code often
 
 ### Feature Implementation Guidelines
 - **CRITICAL**: Make MINIMAL CHANGES to existing patterns and structures
