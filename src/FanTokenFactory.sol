@@ -100,7 +100,7 @@ contract FanTokenFactory {
         // get the fan tokens
         IERC20(address(fanToken)).safeTransferFrom(msg.sender, address(this), shares);
 
-        // TODO: i think this transfer is broken. i think when it happens, 
+        // TODO: i think this transfer is broken. i think when it happens,
 
         // redeem the fan tokens
         uint256 vaultShares = fanToken.redeem(shares, address(this), address(this));

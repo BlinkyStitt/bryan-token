@@ -12,7 +12,6 @@ contract FanTokenTest is Test {
     IWETH9 weth;
     address owner;
     address factory;
-    address alice;
 
     function setUp() public {
         // TODO: use flags on the test command instead of forcing a fork here?
@@ -102,6 +101,117 @@ contract FanTokenTest is Test {
         assertEq(bryan.isSponsor(factory), true);
     }
 
+    function test_multiple_users_depositing() public {
+        address alice = makeAddr("alice");
+        address bob = makeAddr("bob");
+        address charlie = makeAddr("charlie");
+
+        // TODO: pick multiple amounts. and have users take different amounts. this should find any problems with rounding
+        uint256 underlyingAssets = 1 ether;
+
+        (IERC4626 asset, uint256 assets) = _dealAsset(underlyingAssets * 4, address(this));
+
+        uint256 quarterAssets = assets / 4;
+        console.log("quarter assets:", quarterAssets);
+
+        require(asset.transfer(alice, quarterAssets));
+        require(asset.transfer(bob, quarterAssets));
+        require(asset.transfer(charlie, quarterAssets));
+
+        // todo: there might be 1 wei. i think thats fine
+        assertEq(asset.balanceOf(address(this)), quarterAssets, "assets should have been sent to alice/bob/charlie");
+
+        // get some tokens for alice
+        vm.startPrank(alice);
+        asset.approve(address(bryan), type(uint256).max);
+        bryan.startDeposit(quarterAssets);
+
+        // check balances
+        assertEq(bryan.balanceOfUnderlying(alice), quarterAssets, "alice initial deposit should work");
+        assertEq(bryan.balanceOfUnderlying(bob), 0, "bob should have zero");
+        assertEq(bryan.balanceOfUnderlying(charlie), 0, "charlie should have zero");
+        // TODO: what is the balance expected to be?
+
+        // mark bob as a sponsor
+        vm.startPrank(bob);
+        bryan.setSponsorship(true);
+
+        // check sponsorship levels
+        assertEq(bryan.isSponsor(alice), false, "alice must not be a sponsor");
+        assertEq(bryan.isSponsor(bob), true, "bob must be a sponsor");
+        assertEq(bryan.isSponsor(charlie), false, "charlie must not be a sponsor");
+
+        // get some sponsor tokens for bob
+        asset.approve(address(bryan), type(uint256).max);
+        bryan.startDeposit(quarterAssets);
+
+        uint256 aliceShares = bryan.balanceOf(alice);
+        console.log("shares for alice:", aliceShares);
+
+        // check balances
+        assertEq(bryan.balanceOfUnderlying(alice), quarterAssets, "alice initial deposit should work");
+        assertEq(bryan.balanceOfUnderlying(bob), 0, "bob should have zero");
+        assertEq(bryan.balanceOfUnderlying(charlie), 0, "charlie should have zero");
+
+        assertEq(bryan.balanceOfSponsor(alice), 0, "alice should not have a sponsor balance");
+        assertEq(bryan.balanceOfSponsor(bob), 0, "bob should not have a sponsor balance");
+        assertEq(bryan.balanceOfSponsor(charlie), 0, "charlie should not have a sponsor balance");
+
+        // TODO: this name should include "assets". and then balanceOfPending should be in shares.
+        assertEq(bryan.balanceOfPending(alice), 0, "alice should not have a pending balance");
+        assertEq(bryan.balanceOfPending(bob), quarterAssets, "bob should have a pending balance");
+        assertEq(bryan.balanceOfPending(charlie), 0, "charlie should not have a pending balance");
+
+        // fast forward and finalize deposit
+        vm.warp(block.timestamp + bryan.DEPOSIT_DELAY());
+        uint256 bobShares = bryan.deposit(quarterAssets, address(bob));
+        console.log("shares for bob:", bobShares);
+
+        assertEq(bryan.balanceOfUnderlying(alice), quarterAssets, "alice initial deposit should work");
+        assertEq(bryan.balanceOfUnderlying(bob), 0, "bob should still have zero");
+        assertEq(bryan.balanceOfUnderlying(charlie), 0, "charlie should still have zero");
+
+        assertEq(bryan.balanceOfSponsor(alice), 0, "alice should still not have a sponsor balance");
+        assertEq(bryan.balanceOfSponsor(bob), quarterAssets, "bob should have a sponsor balance now");
+        assertEq(bryan.balanceOfSponsor(charlie), 0, "charlie should still not have a sponsor balance");
+
+        // get some tokens for charlie and then convert them to sponsor tokens
+        vm.startPrank(charlie);
+        asset.approve(address(bryan), type(uint256).max);
+        bryan.startDeposit(quarterAssets);
+
+        // we change set sponsorship during the delay queue
+        bryan.setSponsorship(true);
+
+        // TODO: add some rewards to the contract and make sure that doesn't break any balances
+
+        // fast forward and finalize deposit
+        vm.warp(block.timestamp + bryan.DEPOSIT_DELAY());
+        uint256 charlieShares = bryan.deposit(quarterAssets, address(charlie));
+        console.log("shares for charlie:", charlieShares);
+
+        assertEq(bryan.balanceOfUnderlying(alice), quarterAssets, "alice should still have their original deposit");
+        assertEq(bryan.balanceOfUnderlying(bob), 0, "bob is a sponsor and should have zero still");
+        assertEq(bryan.balanceOfUnderlying(charlie), 0, "charlie is a sponsor and should should still have zero still");
+
+        assertEq(bryan.balanceOfSponsor(alice), 0, "after charlie, alice should still not have a sponsor balance");
+        assertEq(bryan.balanceOfSponsor(bob), quarterAssets, "after charlie, bob should have a sponsor balance now");
+        assertEq(bryan.balanceOfSponsor(charlie), quarterAssets, "after charlie, charlie should have a sponsor balance now");
+
+        // TODO: transfer tokens from alice to bob
+        // TODO: transfer tokens from alice to charlie
+        // TODO: transfer tokens from bob to alice
+        // TODO: transfer tokens from bob to charlie
+        // TODO: transfer tokens from charlie to alice
+        // TODO: transfer tokens from charlie to bob
+
+        // TODO: turn off bob's sponsorship? we need a test that just does a single sponsor user back and forth
+    }
+
+    function test_toggle_sponsorship() public {
+        revert("wip");
+    }
+
     function test_deposit_and_withdraw() public {
         // TODO: for some reason we can't deal the ERC4626. We can deal the ERC20 though.
         uint256 underlyingAssets = 1 ether;
@@ -163,14 +273,18 @@ contract FanTokenTest is Test {
         // TODO: make sure that the balance of the prize vault grew by the underlying assets
         assertEq(asset.balanceOf(address(bryan)), assets, "asset balance does not match assets");
         assertEq(bryan.balanceOf(address(this)), shares + newShares, "bryan balance does not match shares");
-        assertApproxEqAbs(bryan.balanceOfUnderlying(address(this)), underlyingAssets, 1, "underlying balance does not match");
+        assertApproxEqAbs(
+            bryan.balanceOfUnderlying(address(this)), underlyingAssets, 1, "underlying balance does not match"
+        );
 
         // test the main redeem function
         uint256 redeemed = bryan.redeem(shares + newShares, address(this), address(this));
         console.log("redeemed", shares + newShares, "shares into", redeemed);
 
         assertGt(redeemed, 0, "none redeemed"); // TODO: what should this amount be?
-        assertApproxEqAbs(IERC20(bryan.asset()).balanceOf(address(bryan)), 0, 1, "token's asset balance should be empty");
+        assertApproxEqAbs(
+            IERC20(bryan.asset()).balanceOf(address(bryan)), 0, 1, "token's asset balance should be empty"
+        );
         assertEq(bryan.balanceOf(address(this)), 0, "our balance of bryan should be empty");
         assertApproxEqAbs(asset.balanceOf(address(this)), assets, 1, "we should have our asset back less the fee");
         assertEq(bryan.balanceOfUnderlying(address(this)), 0, "underlying balance is not zeroed");

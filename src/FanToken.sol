@@ -367,7 +367,9 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         }
     }
 
-    /** @dev See {IERC4626-redeem}. */
+    /**
+     * @dev See {IERC4626-redeem}.
+     */
     function redeem(uint256 shares, address receiver, address owner) public override returns (uint256) {
         if (isSponsor[owner]) {
             uint256 ownerSponsorShares = previewWithdraw(balanceOfSponsor[owner]);
@@ -381,7 +383,12 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         return super.redeem(shares, receiver, owner);
     }
 
-    /// @notice begin a deposit. This takes `assets()`, not `underlying()`
+    /// @notice begin a deposit. This takes `assets()`, not `underlying()`.
+    function startDeposit(uint256 assets) public returns (uint256 claimWhen) {
+        return _startDeposit(msg.sender, assets, msg.sender);
+    }
+
+    /// @notice begin a deposit for a different account. This takes `assets()`, not `underlying()`
     /// @dev the first deposit does not have any delay
     /// @dev the delay is necessary to protect against large deposits around the time of a large win
     function startDeposit(uint256 assets, address receiver) public returns (uint256 claimWhen) {
@@ -495,7 +502,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             // update sponsorship accounting. this is probably overkill, but i think its safest
             _setSponsorship(from, true);
         } else if (toIsSponsor) {
-            // from already holds shares. 
+            // from already holds shares.
             _update(from, to, shares);
 
             // this will move the shares to this contract and update sponsorhip accounting
@@ -522,7 +529,9 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
     // TODO: sponsorFrom? need an "operator" mapping i think
 
-    /** @dev See {IERC4626-withdraw}. */
+    /**
+     * @dev See {IERC4626-withdraw}.
+     */
     function withdraw(uint256 assets, address receiver, address owner) public override returns (uint256) {
         if (isSponsor[owner]) {
             uint256 ownerSponsorShares = previewWithdraw(balanceOfSponsor[owner]);
