@@ -363,7 +363,12 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
         if (currentShares > correctShares) {
             amount = currentShares - correctShares;
-            _burn(address(this), amount);
+
+            // TODO: this seems wrong. i'm not sure why we are seeing this
+            console.log("burn needed!", correctShares, currentShares, amount);
+            // revert("wip");
+
+            // _burn(address(this), amount);
         }
     }
 

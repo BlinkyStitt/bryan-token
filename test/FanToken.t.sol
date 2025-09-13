@@ -124,7 +124,11 @@ contract FanTokenTest is Test {
         // get some tokens for alice
         vm.startPrank(alice);
         asset.approve(address(bryan), type(uint256).max);
-        bryan.startDeposit(quarterAssets);
+        uint256 aliceWhen = bryan.startDeposit(quarterAssets);
+        assertEq(aliceWhen, 0, "first deposit should be instant");
+
+        uint256 aliceFanTokens = bryan.balanceOf(alice);
+        console.log("alice's fan tokens:", aliceFanTokens);
 
         // check balances
         assertEq(bryan.balanceOfUnderlying(alice), quarterAssets, "alice initial deposit should work");
@@ -143,10 +147,8 @@ contract FanTokenTest is Test {
 
         // get some sponsor tokens for bob
         asset.approve(address(bryan), type(uint256).max);
-        bryan.startDeposit(quarterAssets);
-
-        uint256 aliceShares = bryan.balanceOf(alice);
-        console.log("shares for alice:", aliceShares);
+        uint256 bobWhen = bryan.startDeposit(quarterAssets);
+        assertEq(bobWhen, block.timestamp + bryan.DEPOSIT_DELAY(), "unexpected deposit delay");
 
         // check balances
         assertEq(bryan.balanceOfUnderlying(alice), quarterAssets, "alice initial deposit should work");
@@ -164,8 +166,8 @@ contract FanTokenTest is Test {
 
         // fast forward and finalize deposit
         vm.warp(block.timestamp + bryan.DEPOSIT_DELAY());
-        uint256 bobShares = bryan.deposit(quarterAssets, address(bob));
-        console.log("shares for bob:", bobShares);
+        uint256 bobFanTokens = bryan.deposit(quarterAssets, address(bob));
+        console.log("bob's fan tokens:", bobFanTokens);
 
         assertEq(bryan.balanceOfUnderlying(alice), quarterAssets, "alice initial deposit should work");
         assertEq(bryan.balanceOfUnderlying(bob), 0, "bob should still have zero");
@@ -178,17 +180,20 @@ contract FanTokenTest is Test {
         // get some tokens for charlie and then convert them to sponsor tokens
         vm.startPrank(charlie);
         asset.approve(address(bryan), type(uint256).max);
-        bryan.startDeposit(quarterAssets);
+        uint256 charlieWhen = bryan.startDeposit(quarterAssets);
+
+        assertEq(charlieWhen, block.timestamp + bryan.DEPOSIT_DELAY(), "charlie deposit delay wrong");
 
         // we change set sponsorship during the delay queue
+        // TODO: we should also have a test that changes sponsorship after the deposit is finalized
         bryan.setSponsorship(true);
 
         // TODO: add some rewards to the contract and make sure that doesn't break any balances
 
         // fast forward and finalize deposit
         vm.warp(block.timestamp + bryan.DEPOSIT_DELAY());
-        uint256 charlieShares = bryan.deposit(quarterAssets, address(charlie));
-        console.log("shares for charlie:", charlieShares);
+        uint256 charlieFanTokens = bryan.deposit(quarterAssets, address(charlie));
+        console.log("charlie's fan tokens:", charlieFanTokens);
 
         assertEq(bryan.balanceOfUnderlying(alice), quarterAssets, "alice should still have their original deposit");
         assertEq(bryan.balanceOfUnderlying(bob), 0, "bob is a sponsor and should have zero still");
@@ -209,7 +214,38 @@ contract FanTokenTest is Test {
     }
 
     function test_toggle_sponsorship() public {
-        revert("wip");
+        uint256 underlyingAssets = 1 ether;
+        console.log("underlyingAssets:", underlyingAssets, "ether");
+
+        (IERC4626 asset, uint256 assets) = _dealAsset(underlyingAssets, address(this));
+        console.log("assets:", assets, address(asset));
+
+        asset.approve(address(bryan), type(uint256).max);
+        uint256 when = bryan.startDeposit(assets);
+
+        assertEq(when, 0, "this deposit should be instant");
+
+        uint256 originalTotalSupply = bryan.totalSupply();
+        console.log("total supply:", originalTotalSupply);
+
+        assertEq(bryan.balanceOfUnderlying(address(this)), underlyingAssets, "initial deposit amount");
+        assertEq(bryan.balanceOfSponsor(address(this)), 0, "initial deposit amount shouldn't have any sponsorship");
+        assertEq(bryan.totalAssets(), assets, "initial deposit assets");
+        assertGt(originalTotalSupply, 0, "there should be some total supply");
+
+        bryan.setSponsorship(true);
+
+        assertEq(bryan.balanceOfUnderlying(address(this)), 0, "initial deposit amount");
+        assertEq(bryan.balanceOfSponsor(address(this)), underlyingAssets, "now it should have sponsorship");
+        assertEq(bryan.totalAssets(), assets, "total assets should be unchanged");
+        assertEq(bryan.totalSupply(), originalTotalSupply, "total supply should be unchanged");
+
+        bryan.setSponsorship(false);
+
+        assertEq(bryan.balanceOfUnderlying(address(this)), underlyingAssets, "initial deposit amount");
+        assertEq(bryan.balanceOfSponsor(address(this)), 0, "now it should have sponsorship");
+        assertEq(bryan.totalAssets(), assets, "total assets should still be unchanged");
+        assertEq(bryan.totalSupply(), originalTotalSupply, "total supply should be still unchanged");
     }
 
     function test_deposit_and_withdraw() public {
