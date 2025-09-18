@@ -64,7 +64,7 @@ contract FanTokenFactoryTest is Test {
         // TODO: what should the value of this actually be?
     }
 
-    function test_vault_asset() public {
+    function test_vault_asset() public view {
         require(address(bryan.underlying()) == address(weth));
     }
 

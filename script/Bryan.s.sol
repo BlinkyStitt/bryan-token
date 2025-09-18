@@ -26,7 +26,6 @@ contract BryanScript is Script {
         IWETH9 weth = IWETH9(address(0x4200000000000000000000000000000000000006));
         address treasury = address(0);
 
-        uint256 entryFeeBasisPoints = 100;
         uint256 harvestOwnerFeeBasisPoints = 5000;
         uint256 harvestTreasuryFeeBasisPoints = 0;
 

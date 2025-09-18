@@ -52,12 +52,12 @@ contract FanTokenTest is Test {
     }
 
     /// @dev make sure the vault's underlying is weth
-    function test_vault_asset() public {
+    function test_vault_asset() public view {
         assertEq(address(bryan.underlying()), address(weth), "underlying isn't weth");
     }
 
     /// @dev coverage for supply and assets
-    function test_vault_starts_empty() public {
+    function test_vault_starts_empty() public view {
         assertEq(bryan.totalSupply(), 0, "vault should start with zero total supply");
         assertEq(bryan.totalAssets(), 0, "vault should start with zero total assets");
     }
@@ -102,7 +102,7 @@ contract FanTokenTest is Test {
         assets = asset.deposit(underlyingAssets, receiver);
     }
 
-    function test_expected_default_sponsors() public {
+    function test_expected_default_sponsors() public view {
         assertEq(bryan.isSponsor(address(0)), false, "zero address should not be sponsor");
         assertEq(bryan.isSponsor(address(bryan)), false, "contract itself should not be sponsor"); // TODO: i'm unsure if we want this to be true or not. i think not
         assertEq(bryan.isSponsor(owner), true, "owner should be default sponsor");
@@ -1211,7 +1211,7 @@ contract FanTokenTest is Test {
         assertEq(finalRecipientAssets, transferAmount, "recipient should receive transferred assets");
     }
 
-    function test_deposit_delay_constant() public {
+    function test_deposit_delay_constant() public view {
         assertEq(bryan.DEPOSIT_DELAY(), 3 days);
     }
 
@@ -1482,7 +1482,7 @@ contract FanTokenTest is Test {
         assertGt(bryan.totalAssets(), initialContractBalance);
     }
 
-    function test_initial_total_sponsor_assets() public {
+    function test_initial_total_sponsor_assets() public view {
         assertEq(bryan.totalSponsorAssets(), 0);
     }
 
@@ -1568,8 +1568,8 @@ contract FanTokenTest is Test {
 
         // Deal assets
         (IERC4626 asset,) = _dealAsset(depositAmount * 3, address(this));
-        asset.transfer(alice, depositAmount);
-        asset.transfer(bob, depositAmount);
+        IERC20(address(asset)).safeTransfer(alice, depositAmount);
+        IERC20(address(asset)).safeTransfer(bob, depositAmount);
 
         // Alice deposits first (instant since it's the first deposit)
         vm.startPrank(alice);
@@ -1588,6 +1588,8 @@ contract FanTokenTest is Test {
         assertEq(bryan.totalSupply(), 0, "total supply should be zero");
 
         vm.stopPrank();
+
+        // TODO: have a similar test that harvests some prizes here!
 
         // Bob deposits after total supply went to zero (should be instant like first deposit)
         vm.startPrank(bob);

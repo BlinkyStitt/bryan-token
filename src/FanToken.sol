@@ -315,7 +315,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
                 // _setSponsorship(treasuryAddress, isSponsor[treasuryAddress]);
 
                 // TODO: i'd prefer to mint fan tokens for these and keep them in this contract, but i can't get the math right
-                prizeVault.transfer(treasuryAddress, treasuryFeeAssets);
+                IERC20(address(prizeVault)).safeTransfer(treasuryAddress, treasuryFeeAssets);
 
                 // TODO: maybe if theres an allowance, we call _deposit? seems silly to be transferring around extra
             }
@@ -327,7 +327,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         if (ownerAddress != address(0)) {
             uint256 ownerFeeAssets = assets.mulDiv(harvestOwnerFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);
             if (ownerFeeAssets > 0) {
-                prizeVault.transfer(ownerAddress, ownerFeeAssets);
+                IERC20(address(prizeVault)).safeTransfer(ownerAddress, ownerFeeAssets);
             }
         }
 

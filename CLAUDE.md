@@ -3,11 +3,13 @@
 ### Feature Implementation Priority Rules
 - IMMEDIATE EXECUTION: Launch parallel Tasks immediately upon feature requests
 - NO CLARIFICATION: Skip asking what type of implementation unless absolutely critical
-- PARALLEL BY DEFAULT: Always use 3-parallel-Task method for efficiency
+- PARALLEL BY DEFAULT: Always use 7-parallel-Task method for efficiency
+- Do not use `forge test` directly. Instead, run tests with `./script/test.sh test`! you can pass flags through to the forge test command
+- Do not use `forge coverage` directly. Instead, run tests with `./script/test.sh coverage` and `genhtml lcov.info --output-dir coverage`! You can pass flags through to the forge coverage command
+- Do not use `forge snapshot` directly. Instead, run tests with `./script/test.sh snapshot`! you can pass flags through to the forge snapshot command
 
 ### Memories
 
-- Do not use `forge test` directly. Instead, run tests with `./script/test.sh [test|coverage|snapshot]`! you can pass flags through to the forge test command
 - If all tests pass, you can generate coverage by running `./script/test.sh coverage` and then `genhtml lcov.info --output-dir coverage`
 - Keep functions and imports in alphabetical order. but only within groups (immutables, state vars, events, errors, internal, public, external, etc.)
 - follow open zeppelin's standards
