@@ -669,7 +669,9 @@ contract FanTokenTest is Test {
 
             // Verify fee distribution - fees are now paid in assets directly
             uint256 expectedAssetFee = (rewardAmount * ownerFeeBasisPoints) / 10000;
-            assertApproxEqRel(ownerAssetBalance, expectedAssetFee, 0.1e18, "owner should get approximately correct asset fee");
+            assertApproxEqRel(
+                ownerAssetBalance, expectedAssetFee, 0.1e18, "owner should get approximately correct asset fee"
+            );
             assertGt(ownerAssetBalance, 0, "owner should get some asset fee");
 
             // Verify no WETH left
@@ -760,7 +762,9 @@ contract FanTokenTest is Test {
         uint256 treasuryAssetBalance = feeAsset.balanceOf(treasury);
 
         uint256 expectedAssetFee = (rewardAmount * treasuryFeeBasisPoints) / 10000;
-        assertApproxEqRel(treasuryAssetBalance, expectedAssetFee, 0.1e18, "treasury should get approximately correct asset fee");
+        assertApproxEqRel(
+            treasuryAssetBalance, expectedAssetFee, 0.1e18, "treasury should get approximately correct asset fee"
+        );
         assertGt(treasuryAssetBalance, 0, "treasury should get some asset fee");
     }
 
@@ -1421,7 +1425,9 @@ contract FanTokenTest is Test {
 
         // After both sponsors deposit, all shares should be in the contract
         uint256 totalContractShares = bryan.totalSponsoredShares();
-        assertGt(totalContractShares, contractShares, "total sponsored shares should increase after second sponsor deposit");
+        assertGt(
+            totalContractShares, contractShares, "total sponsored shares should increase after second sponsor deposit"
+        );
         assertEq(bryan.totalSponsoredAssets(), bryan.convertToAssets(totalContractShares));
     }
 
@@ -1436,7 +1442,7 @@ contract FanTokenTest is Test {
         bryan.deposit(initialAssets, address(this));
 
         // Now set up the actual test
-        (/*IERC4626 asset2*/, uint256 assets) = _dealAsset(1 ether, address(this));
+        ( /*IERC4626 asset2*/ , uint256 assets) = _dealAsset(1 ether, address(this));
         require(asset.transfer(depositor, assets));
 
         // Depositor requests sponsorship and starts deposit
@@ -1464,7 +1470,11 @@ contract FanTokenTest is Test {
 
         // Depositor's direct balance should be zero since they're a sponsor
         uint256 depositorBalanceAfter = bryan.balanceOf(depositor);
-        assertEq(depositorBalanceAfter, 0, "sponsor depositor should have zero direct balance, shares moved to sponsored pool");
+        assertEq(
+            depositorBalanceAfter,
+            0,
+            "sponsor depositor should have zero direct balance, shares moved to sponsored pool"
+        );
     }
 
     function test_harvesting_weth() public {
