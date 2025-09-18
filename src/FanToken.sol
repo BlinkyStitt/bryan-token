@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.20;
 
-import {Auction, AuctionSwapper} from "./forks/AuctionSwapper.sol";
+import {AuctionSwapper} from "./forks/AuctionSwapper.sol";
 import {ERC20, ERC4626, IERC20, IERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
@@ -47,11 +47,11 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
     /// @notice the treasury gets a configurable portion of all harvests
     /// todo: better name for this
-    address public immutable treasury;
+    address public immutable TREASURY;
 
     /// @notice the backing token for this fan token's prize tickets. fan tokens can be redeemed for this token.
     /// @dev the linter says this should be capitalized
-    IERC20 public immutable underlying;
+    IERC20 public immutable UNDERLYING;
 
     /// @notice if the underlying is WETH, make it easy to deposit by just sending ETH
     IWETH9 public immutable WETH;
@@ -97,7 +97,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
         FACTORY = IFanTokenFactory(msg.sender);
 
-        underlying = IERC20(_prizeVault.asset());
+        UNDERLYING = IERC20(_prizeVault.asset());
 
         // TODO: i can't decide if this should have one
         harvestOwnerFeeBasisPoints = _harvestOwnerFeeBasisPoints;
@@ -107,7 +107,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         if (_treasury == address(0)) {
             require(harvestTreasuryFeeBasisPoints == 0, FeesTooLarge());
         } else {
-            treasury = _treasury;
+            TREASURY = _treasury;
         }
 
         // this isn't always needed, but might be useful
@@ -137,7 +137,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
     /// @notice reset this contract's approvals. You probably won't ever need to call this.
     function setupApprovals() public {
-        underlying.forceApprove(asset(), type(uint256).max);
+        UNDERLYING.forceApprove(asset(), type(uint256).max);
     }
 
     // === Internal ===
@@ -252,9 +252,9 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         // don't allow auctioning the backing tokens! that would be bad!
         require(address(from) != address(this), InvalidAuctionToken());
         require(from != _asset, InvalidAuctionToken());
-        require(from != underlying, InvalidAuctionToken());
+        require(from != UNDERLYING, InvalidAuctionToken());
 
-        auctionId = _enableAuction(address(from), address(underlying));
+        auctionId = _enableAuction(address(from), address(UNDERLYING));
 
         // TODO: allow calling disable auction if none are pending? i think that just wastes gas
 
@@ -271,9 +271,9 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// @dev you probably want to kick an auction of POOL and maybe other tokens before calling this
     function harvest() public payable returns (uint256 underlyingAssets) {
         IERC4626 prizeVault = IERC4626(asset());
-        IERC20 underlyingToken = underlying;
+        IERC20 underlyingToken = UNDERLYING;
 
-        if (address(underlying) == address(WETH)) {
+        if (address(UNDERLYING) == address(WETH)) {
             wrapETH();
         }
 
@@ -301,7 +301,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         uint256 assets = prizeVault.deposit(underlyingAssets, address(this));
 
         // optionally split some to a "treasury" address
-        address treasuryAddress = treasury;
+        address treasuryAddress = TREASURY;
         if (treasuryAddress != address(0)) {
             // TODO: which way should we round? floor seems like a safe default
             uint256 treasuryFeeAssets =
@@ -428,7 +428,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
     /// TODO: this needs more tests and coverage!
     function _setSponsorship(address who, bool state) internal {
-        // todo? require msg.sender != owner() && msg.sender != treasury?
+        // todo? require msg.sender != owner() && msg.sender != TREASURY?
         bool senderIsSponsor = isSponsor[who];
 
         if (state) {

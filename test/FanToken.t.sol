@@ -48,12 +48,12 @@ contract FanTokenTest is Test {
             weth
         );
 
-        underlying = bryan.underlying();
+        underlying = bryan.UNDERLYING();
     }
 
     /// @dev make sure the vault's underlying is weth
     function test_vault_asset() public view {
-        assertEq(address(bryan.underlying()), address(weth), "underlying isn't weth");
+        assertEq(address(bryan.UNDERLYING()), address(weth), "underlying isn't weth");
     }
 
     /// @dev coverage for supply and assets
@@ -449,7 +449,7 @@ contract FanTokenTest is Test {
     }
 
     function test_auctioning_underlying_fails() public {
-        IERC20 from = IERC20(address(bryan.underlying()));
+        IERC20 from = IERC20(address(bryan.UNDERLYING()));
 
         vm.expectRevert(InvalidAuctionToken.selector);
         bryan.enableAuction(from);
@@ -511,7 +511,7 @@ contract FanTokenTest is Test {
         console.log("auction amount needed:", auctionAmountNeeded, want);
         assertGt(auctionAmountNeeded, 0, "want amount should be nonzero");
 
-        assertEq(want, address(bryan.underlying()), "wrong want");
+        assertEq(want, address(bryan.UNDERLYING()), "wrong want");
 
         // cheat to have the necessary tokens to fulfill the auction
         weth.deposit{value: auctionAmountNeeded}();
@@ -539,7 +539,7 @@ contract FanTokenTest is Test {
     }
 
     function test_harvest_eth() public {
-        require(address(bryan.underlying()) == address(weth), "not weth");
+        require(address(bryan.UNDERLYING()) == address(weth), "not weth");
 
         uint256 amount = 1 ether;
 
@@ -549,7 +549,7 @@ contract FanTokenTest is Test {
     }
 
     function test_harvest_weth() public {
-        require(address(bryan.underlying()) == address(weth), "not weth");
+        require(address(bryan.UNDERLYING()) == address(weth), "not weth");
 
         uint256 amount = 1 ether;
 
@@ -620,7 +620,7 @@ contract FanTokenTest is Test {
         {
             vm.deal(address(this), rewardAmount);
             weth.deposit{value: rewardAmount}();
-            weth.transfer(address(feeToken), rewardAmount);
+            require(weth.transfer(address(feeToken), rewardAmount), "weth transfer failed");
 
             console.log("Sent", rewardAmount, "WETH rewards");
 
@@ -724,7 +724,7 @@ contract FanTokenTest is Test {
         uint256 rewardAmount = 1 ether;
         vm.deal(address(this), rewardAmount);
         weth.deposit{value: rewardAmount}();
-        weth.transfer(address(feeToken), rewardAmount);
+        require(weth.transfer(address(feeToken), rewardAmount), "weth transfer failed");
 
         console.log("Sent", rewardAmount, "WETH rewards");
 
@@ -794,7 +794,7 @@ contract FanTokenTest is Test {
         uint256 rewardAmount = 0.5 ether;
         vm.deal(address(this), rewardAmount);
         weth.deposit{value: rewardAmount}();
-        weth.transfer(address(feeToken), rewardAmount);
+        require(weth.transfer(address(feeToken), rewardAmount), "weth transfer failed");
 
         console.log("Sent", rewardAmount, "WETH rewards");
 
@@ -824,7 +824,7 @@ contract FanTokenTest is Test {
         {
             uint256 depositAmount = 1 ether;
             (IERC4626 asset, uint256 assets) = _dealAsset(depositAmount * 2, address(this));
-            asset.transfer(sponsor, assets);
+            require(asset.transfer(sponsor, assets), "asset transfer failed");
 
             // Sponsor deposits and becomes a sponsor
             vm.startPrank(sponsor);
@@ -888,7 +888,7 @@ contract FanTokenTest is Test {
 
         // Distribute assets
         asset.transfer(sponsor, totalAssets);
-        asset.transfer(alice, depositAmount);
+        require(asset.transfer(alice, depositAmount), "asset transfer failed");
         asset.transfer(bob, depositAmount);
 
         // Regular users deposit first
@@ -968,7 +968,7 @@ contract FanTokenTest is Test {
         uint256 depositAmount = 1 ether;
         (IERC4626 asset, uint256 assets) = _dealAsset(depositAmount, address(this));
 
-        asset.transfer(sponsor, assets);
+        require(asset.transfer(sponsor, assets), "asset transfer failed");
 
         vm.startPrank(sponsor);
         bryan.setSponsorship(true);
@@ -998,9 +998,9 @@ contract FanTokenTest is Test {
         (IERC4626 asset,) = _dealAsset(depositAmount * 4, address(this));
 
         // Give assets to all users
-        asset.transfer(sponsor, depositAmount);
-        asset.transfer(alice, depositAmount);
-        asset.transfer(bob, depositAmount);
+        require(asset.transfer(sponsor, depositAmount));
+        require(asset.transfer(alice, depositAmount), "asset transfer failed");
+        require(asset.transfer(bob, depositAmount));
 
         // Non-sponsors deposit first with proper timing
         vm.startPrank(alice);
@@ -1010,7 +1010,6 @@ contract FanTokenTest is Test {
             vm.warp(aliceWhen);
             bryan.deposit(depositAmount, alice);
         }
-        vm.stopPrank();
 
         vm.startPrank(bob);
         asset.approve(address(bryan), type(uint256).max);
@@ -1019,7 +1018,6 @@ contract FanTokenTest is Test {
             vm.warp(bobWhen);
             bryan.deposit(depositAmount, bob);
         }
-        vm.stopPrank();
 
         // Sponsor deposits with proper timing
         vm.startPrank(sponsor);
@@ -1041,7 +1039,7 @@ contract FanTokenTest is Test {
         uint256 rewardAmount = 0.5 ether;
         vm.deal(address(this), rewardAmount);
         weth.deposit{value: rewardAmount}();
-        weth.transfer(address(bryan), rewardAmount);
+        require(weth.transfer(address(bryan), rewardAmount), "weth transfer failed");
 
         // Harvest - this should trigger harvestSponsorship automatically
         assertEq(bryan.harvest(), rewardAmount, "should harvest all rewards");
@@ -1070,9 +1068,9 @@ contract FanTokenTest is Test {
         (IERC4626 asset,) = _dealAsset(depositAmount * 4, address(this));
 
         // Distribute assets
-        asset.transfer(sponsor1, depositAmount);
-        asset.transfer(sponsor2, depositAmount);
-        asset.transfer(alice, depositAmount);
+        require(asset.transfer(sponsor1, depositAmount), "asset transfer failed");
+        require(asset.transfer(sponsor2, depositAmount), "asset transfer failed");
+        require(asset.transfer(alice, depositAmount), "asset transfer failed");
 
         // Alice (non-sponsor) deposits first with proper timing
         vm.startPrank(alice);
@@ -1129,7 +1127,7 @@ contract FanTokenTest is Test {
         {
             vm.deal(address(this), rewardAmount);
             weth.deposit{value: rewardAmount}();
-            weth.transfer(address(bryan), rewardAmount);
+            require(weth.transfer(address(bryan), rewardAmount), "weth transfer failed");
             console.log("Sent", rewardAmount, "WETH rewards");
 
             uint256 harvested = bryan.harvest();
@@ -1168,7 +1166,7 @@ contract FanTokenTest is Test {
 
         // Set up sponsor with assets
         (IERC4626 asset, uint256 assets) = _dealAsset(1 ether, address(this));
-        asset.transfer(sponsor, assets);
+        require(asset.transfer(sponsor, assets), "asset transfer failed");
 
         vm.startPrank(sponsor);
         bryan.setSponsorship(true);
@@ -1264,7 +1262,7 @@ contract FanTokenTest is Test {
         // Send some WETH to simulate rewards
         vm.deal(address(this), 1 ether);
         weth.deposit{value: 1 ether}();
-        weth.transfer(address(bryan), 1 ether);
+        require(weth.transfer(address(bryan), 1 ether));
 
         uint256 harvested = bryan.harvest();
         assertEq(harvested, 1 ether, "should harvest exactly 1 ether of rewards");
@@ -1276,7 +1274,7 @@ contract FanTokenTest is Test {
         address sponsor = makeAddr("sponsor");
 
         (IERC4626 asset, uint256 assets) = _dealAsset(10 ether, address(this));
-        asset.transfer(sponsor, assets);
+        require(asset.transfer(sponsor, assets), "asset transfer failed");
 
         vm.startPrank(sponsor);
         bryan.setSponsorship(true);
@@ -1311,7 +1309,7 @@ contract FanTokenTest is Test {
         address sponsor2 = makeAddr("sponsor2");
 
         (IERC4626 asset, uint256 assets) = _dealAsset(10 ether, address(this));
-        asset.transfer(sponsor1, assets);
+        require(asset.transfer(sponsor1, assets));
 
         vm.startPrank(sponsor1);
         bryan.setSponsorship(true);
@@ -1355,7 +1353,7 @@ contract FanTokenTest is Test {
         address sponsor2 = makeAddr("sponsor2");
 
         (IERC4626 asset, uint256 assets) = _dealAsset(10 ether, address(this));
-        asset.transfer(sponsor1, assets);
+        require(asset.transfer(sponsor1, assets));
 
         vm.startPrank(sponsor1);
         bryan.setSponsorship(true);
@@ -1390,8 +1388,8 @@ contract FanTokenTest is Test {
         uint256 assets1 = (totalAssets * 2) / 3; // 10 ether worth
         uint256 assets2 = totalAssets - assets1; // 5 ether worth
 
-        asset.transfer(sponsor1, assets1);
-        asset.transfer(sponsor2, assets2);
+        require(asset.transfer(sponsor1, assets1));
+        require(asset.transfer(sponsor2, assets2));
 
         vm.startPrank(sponsor1);
         bryan.setSponsorship(true);
@@ -1439,7 +1437,7 @@ contract FanTokenTest is Test {
 
         // Now set up the actual test
         (/*IERC4626 asset2*/, uint256 assets) = _dealAsset(1 ether, address(this));
-        asset.transfer(depositor, assets);
+        require(asset.transfer(depositor, assets));
 
         // Depositor requests sponsorship and starts deposit
         vm.startPrank(depositor);
@@ -1473,7 +1471,7 @@ contract FanTokenTest is Test {
         // Add WETH to contract and sweep it
         vm.deal(address(this), 2 ether);
         weth.deposit{value: 2 ether}();
-        weth.transfer(address(bryan), 2 ether);
+        require(weth.transfer(address(bryan), 2 ether));
 
         uint256 initialContractBalance = bryan.totalAssets();
         uint256 harvested = bryan.harvest();
@@ -1516,8 +1514,8 @@ contract FanTokenTest is Test {
 
         // Deal assets and distribute
         (IERC4626 asset,) = _dealAsset(depositAmount * 2, address(this));
-        asset.transfer(sponsor, depositAmount);
-        asset.transfer(alice, depositAmount);
+        require(asset.transfer(sponsor, depositAmount));
+        require(asset.transfer(alice, depositAmount), "asset transfer failed");
 
         // Alice deposits first (will be instant since it's first deposit)
         vm.startPrank(alice);

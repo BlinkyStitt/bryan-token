@@ -65,7 +65,7 @@ contract FanTokenFactoryTest is Test {
     }
 
     function test_vault_asset() public view {
-        require(address(bryan.underlying()) == address(weth));
+        require(address(bryan.UNDERLYING()) == address(weth));
     }
 
     function test_factory_payable_deposit() public {
@@ -97,7 +97,7 @@ contract FanTokenFactoryTest is Test {
         // TODO: for some reason we can't deal the ERC4626. We can deal the ERC20 though.
         uint256 underlyingAssets = 1 ether;
 
-        IERC20 underlying = bryan.underlying();
+        IERC20 underlying = bryan.UNDERLYING();
         deal(address(underlying), alice, underlyingAssets, false);
 
         // test the factory's deposit function
