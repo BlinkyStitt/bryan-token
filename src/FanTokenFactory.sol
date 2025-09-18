@@ -50,6 +50,8 @@ contract FanTokenFactory {
 
         emit Created(msg.sender, address(_prizeVault), _treasury, address(fanToken));
 
+        // TODO: set up the uniswap v4 pool for making trades transparently. Our mini-app should use our redeem/deposit helpers. but wallets already support getting prices through 0x/uniswap
+
         if (_initialDeposit > 0) {
             startDeposit(fanToken, _initialDeposit, msg.sender);
         }
