@@ -8,7 +8,7 @@ Every day, [PoolTogether prizes](https://pooltogether.com/) might go out to all 
 
 You shouldn't buy this token. This token is meant to be given as a gift. If you have any, it's probably from an interaction with the owner on farcaster.
 
-Fan tokens can be created for free by depositing pooltogether tickets.
+If you want to support the owner even more, fan tokens can be created for free by depositing pooltogether tickets.
 
 If you received some fan tokens and don't want to participate in the game, you can return them for the backing pooltogether tickets (which are themselves backed by valuable tokens like ETH or USDC).
 
@@ -27,19 +27,18 @@ If something would be nice to change but could be abused, then make it impossibl
 
 ## Problems Left To Fix
 
-The deposit queue stops people from stealing rewards, but it also means that the owner will probably have a large amount sitting idle. And that means they'll be getting a larger share of the rewards than I had planned. Possible fix: when the owner receives tokens, they get moved to a "sponsor" section that doesn't receive any rewards? I think we need sponsorships, but they are tricky to get right since they might bring back the isseus that led to having a deposit queue.
-
 If the vault suffers losses, we need to make sure the sponsors can't take an unfair share. It might be fine, but this needs investigation. Any losses should be shared fairly.
 
 Gas golf by adding some "unchecked" when we know its impossible. better to wait until the end on that since things might get moved around
 
 What happens if 100% of the tokens are burned/sponsored after there is some liquidity in the system?
 
-If someone does a dust attack and then kicks an auction, they might be able to do some trickery with the deposit queue
 
 ## Miscellaneous Ideas and Todos
 
-Primarily, this project gives me a reason to play with some smart contract tools/fras]meworks to prepare for a more serious project.
+Primarily, this project gives me a reason to play with some smart contract tools/frameworks to prepare for a more serious project.
+
+If someone does a dust attack and then kicks an auction, they might be able to do some trickery with the deposit queue. This forces the deposit queue to be 3 days long. (so that theres time for 2 auctions and some buffer).
 
 The fan token owner can create the token with any name and symbol and fees that they want. But these settings cannot be changed.
 
@@ -97,7 +96,9 @@ I need a mini-app for managing deposits and redeems. Also for deploying your own
 
 Should fan tokens be able to hold NFTs? we'll need some ERC165 things
 
-Allow cancelling a pending deposit
+Allow cancelling a pending deposit?
+
+New Auction Factory: https://etherscan.io/address/0xbC587a495420aBB71Bbd40A0e291B64e80117526#code
 
 ## Further Reading
 
