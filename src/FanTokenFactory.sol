@@ -114,7 +114,7 @@ contract FanTokenFactory {
 
     // TODO: do we need mint/withdraw?
 
-    function version() public returns (string memory) {
+    function version() public pure returns (string memory) {
         return "3.0.0";
     }
 }

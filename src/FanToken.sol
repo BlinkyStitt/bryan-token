@@ -551,12 +551,12 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     }
 
     /// TODO: this isn't really necessary
-    function totalSponsoredShares() public returns (uint256 shares) {
+    function totalSponsoredShares() public view returns (uint256 shares) {
         shares = balanceOf(address(this));
     }
 
     /// TODO: this isn't really necessary
-    function totalSponsoredAssets() public returns (uint256 assets) {
+    function totalSponsoredAssets() public view returns (uint256 assets) {
         uint256 shares = totalSponsoredShares();
         assets = previewRedeem(shares);
     }
