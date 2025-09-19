@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.20;
 
-import {AuctionSwapper} from "./forks/AuctionSwapper.sol";
+import {AuctionSwapper, IAuction, IAuctionFactory} from "./forks/AuctionSwapper.sol";
 import {ERC20, ERC4626, IERC20, IERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
@@ -132,8 +132,8 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         // TODO: maybe we should have a _transfer override that makes sure we aren't letting users call transfer to the factory
         isSponsor[msg.sender] = true;
 
-        IAuction auction = AUCTION_FACTORY.createNewAuction(address(UNDERLYING));
-        _setAuction(auction);
+        IAuction auction = IAuction(AUCTION_FACTORY.createNewAuction(address(UNDERLYING)));
+        _setAuction(address(auction));
     }
 
     /// @dev allow receiving eth
@@ -247,8 +247,9 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     }
 
     /// @notice prepare the auction contract for selling a token
+    /// @dev this resets approvals to max (unlikely to be needed, but its a good safety measure)
     /// TODO: i feel like we should store a minimum trade amount here. but i don't know how to make that open. maybe this should be an only-owner function?
-    function enableAuction(IERC20 from) public returns (bytes32 auctionId) {
+    function enableAuction(IERC20 from) public {
         IERC20 _asset = IERC20(asset());
 
         // don't allow auctioning the backing tokens! that would be bad!
@@ -256,11 +257,10 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         require(from != _asset, InvalidAuctionToken());
         require(from != UNDERLYING, InvalidAuctionToken());
 
-        auctionId = _enableAuction(address(from), address(UNDERLYING));
+        if (IAuction(auction).auctions(address(from)).scaler == 0) {
+            IAuction(auction).enable(address(from));
+        }
 
-        // TODO: allow calling disable auction if none are pending? i think that just wastes gas
-
-        // TODO: allow resetting this approval with a helper function
         from.forceApprove(auction, type(uint256).max);
     }
 

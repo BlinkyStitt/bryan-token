@@ -33,6 +33,7 @@ Gas golf by adding some "unchecked" when we know its impossible. better to wait 
 
 What happens if 100% of the tokens are burned/sponsored after there is some liquidity in the system?
 
+Someone can send us a single wei of a token and then start an auction. That auction will probably fail. This will waste a day of our time. Possible solution: if the kickable balance is 100x the current balance, allow cancelling the auction. That might open a griefing attack. 
 
 ## Miscellaneous Ideas and Todos
 

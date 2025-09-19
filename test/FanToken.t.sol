@@ -468,7 +468,7 @@ contract FanTokenTest is Test {
 
         IERC20 from = IERC20(0xd652C5425aea2Afd5fb142e120FeCf79e18fafc3); // POOL
 
-        bytes32 auctionId = bryan.enableAuction(from);
+        bryan.enableAuction(from);
 
         uint256 fromAmount = 1 ether;
         console.log("fromAmount", fromAmount);
@@ -481,7 +481,7 @@ contract FanTokenTest is Test {
         require(address(auction) != address(0), "no auction contract");
 
         // TODO: do we need to approvals here? i don't think so
-        uint256 available = auction.kick(auctionId);
+        uint256 available = auction.kick(address(from));
 
         assertEq(fromAmount, available, "auction size incorrect");
 
@@ -491,7 +491,7 @@ contract FanTokenTest is Test {
         address want = auction.want();
         console.log("want:", want);
 
-        uint256 auctionAmountNeeded = auction.getAmountNeeded(auctionId, fromAmount);
+        uint256 auctionAmountNeeded = auction.getAmountNeeded(address(from), fromAmount);
         console.log("auction amount needed:", auctionAmountNeeded, want);
         assertGt(auctionAmountNeeded, 0, "want amount should be nonzero");
 
@@ -501,7 +501,7 @@ contract FanTokenTest is Test {
         weth.deposit{value: auctionAmountNeeded}();
 
         IERC20(want).approve(address(auction), auctionAmountNeeded);
-        uint256 amountFromTaken = auction.take(auctionId);
+        uint256 amountFromTaken = auction.take(address(from));
         console.log("amountFromTaken:", amountFromTaken, want);
 
         assertEq(amountFromTaken, fromAmount, "from amount error");
