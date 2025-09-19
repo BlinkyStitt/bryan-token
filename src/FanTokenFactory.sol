@@ -76,7 +76,6 @@ contract FanTokenFactory {
 
             WETH.deposit{value: underlyingAssets}();
         } else {
-            // TODO: custom error instead of string errors
             require(underlyingAssets > 0, NoUnderlyingAssets());
 
             // get the underlying into this contract so we can do things with it

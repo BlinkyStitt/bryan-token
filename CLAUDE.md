@@ -4,9 +4,11 @@
 - IMMEDIATE EXECUTION: Launch parallel Tasks immediately upon feature requests
 - NO CLARIFICATION: Skip asking what type of implementation unless absolutely critical
 - PARALLEL BY DEFAULT: Always use 7-parallel-Task method for efficiency
-- TESTING: Do not use `forge test` directly. Instead, run tests with `./script/test.sh test`! you can pass flags through to the forge test command
-- COVERAGE: Do not use `forge coverage` directly. Instead, run tests with `./script/test.sh coverage` and `genhtml lcov.info --output-dir coverage`! You can pass flags through to the forge coverage command
+- TESTING: Do not use `forge test` directly! Instead, run tests with `./script/test.sh test`! you can pass flags through to the forge test command
+- COVERAGE: Do not use `forge coverage` directly. Instead, run tests with `./script/test.sh coverage`! You can pass flags through to the forge coverage command. If tests pass, the html coverage report will be created.
 - GAS USAGE SNAPSHOT: Do not use `forge snapshot` directly. Instead, run tests with `./script/test.sh snapshot`! you can pass flags through to the forge snapshot command
+
+- AGAIN: Do not use `forge test` directly! Use the helper script!
 
 ### Memories
 

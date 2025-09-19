@@ -5,7 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {AtLeastOneSideMustBeSponsor, InsufficientSponsorBalance, InvalidAuctionToken, FanToken, IERC20, IERC4626, IWETH9} from "../src/FanToken.sol";
 import {FanTokenFactory} from "../src/FanTokenFactory.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {Auction} from "../src/forks/AuctionSwapper.sol";
+import {IAuction} from "../src/interfaces/IAuction.sol";
 import {console} from "forge-std/console.sol";
 
 contract FanTokenTest is Test {
@@ -462,22 +462,6 @@ contract FanTokenTest is Test {
         bryan.enableAuction(from);
     }
 
-    function test_post_take_blocked() public {
-        // vm.assume(sender != address(0));
-        // vm.assume(sender != address(bryan));
-
-        IERC20 from = IERC20(0xd652C5425aea2Afd5fb142e120FeCf79e18fafc3); // POOL
-
-        // call enable action once to create the auction contract
-        bryan.enableAuction(from);
-
-        address auction = bryan.auction();
-        require(auction != address(0), "auction not set");
-
-        vm.expectRevert();
-        bryan.postTake(address(0), 0, 0);
-    }
-
     function test_auctioning_pool() public {
         IERC20 prizeVault = IERC20(bryan.asset());
         console.log("prizeVault:", address(prizeVault));
@@ -493,7 +477,7 @@ contract FanTokenTest is Test {
 
         assertEq(bryan.kickable(address(from)), fromAmount, "kickable amount wrong");
 
-        Auction auction = Auction(bryan.auction());
+        IAuction auction = IAuction(bryan.auction());
         require(address(auction) != address(0), "no auction contract");
 
         // TODO: do we need to approvals here? i don't think so
@@ -1728,6 +1712,17 @@ contract FanTokenTest is Test {
         bryan.sponsorTransfer(nonSponsor2, transferAmount);
 
         vm.stopPrank();
+    }
+
+    function test_harvestSponsorship_public_function() public {
+        // Test that harvestSponsorship() can be called as a public function
+        // This should typically return 0 when there's no excess shares to burn
+
+        // Call harvestSponsorship directly as public function
+        uint256 amount = bryan.harvestSponsorship();
+
+        // Should return 0 when there are no excess shares
+        assertEq(amount, 0, "harvestSponsorship should return 0 with no excess shares");
     }
 
     function test_sponsor_withdraw_with_approval() public {

@@ -1,51 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0
 //
 // The original contract depends on a helper from OZ 4.x but we have OZ 5.x. I couldn't figure out how to make remappings handle mixing them.
-//
-// TODO: a new version of the auction process is in development. this version does not support cow swap, but that seems like a good idea
 pragma solidity >=0.8.18;
 
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-
-error NotAuction();
-error WrongWant();
-
-interface AuctionFactory {
-    function createNewAuction(address _want) external returns (address);
-    function createNewAuction(address _want, address _hook) external returns (address);
-    function createNewAuction(address _want, address _hook, address _governance) external returns (address);
-    function createNewAuction(address _want, address _hook, address _governance, uint256 _auctionLength)
-        external
-        returns (address);
-    function createNewAuction(
-        address _want,
-        address _hook,
-        address _governance,
-        uint256 _auctionLength,
-        uint256 _auctionCooldown
-    ) external returns (address);
-    function createNewAuction(
-        address _want,
-        address _hook,
-        address _governance,
-        uint256 _auctionLength,
-        uint256 _auctionCooldown,
-        uint256 _startingPrice
-    ) external returns (address);
-    function getAllAuctions() external view returns (address[] memory);
-    function numberOfAuctions() external view returns (uint256);
-}
-
-interface Auction {
-    function disable(address _from) external;
-    function enable(address _from) external returns (bytes32);
-    function getAmountNeeded(bytes32 _auctionId, uint256 _amountToTake) external returns (uint256);
-    function kick(bytes32 _auctionId) external returns (uint256 available);
-    function setHookFlags(bool _kickable, bool _kick, bool _preTake, bool _postTake) external;
-    function take(bytes32 _auctionId) external returns (uint256);
-    function want() external view returns (address);
-}
+import {IAuctionFactory} from "tokenized-strategy-periphery/src/interfaces/IAuctionFactory.sol";
+import {IAuction} from "tokenized-strategy-periphery/src/interfaces/IAuction.sol";
+import {BaseSwapper} from "tokenized-strategy-periphery/src/swappers/BaseSwapper.sol";
 
 /**
  *   @title AuctionSwapper
@@ -55,176 +17,164 @@ interface Auction {
  *   This contract is meant to be inherited by a V3 strategy in order
  *   to easily integrate dutch auctions into a contract for token swaps.
  *
- *   The strategist will need to implement a way to call `_enableAuction`
- *   for an token pair they want to use, or a setter to manually set the
- *   `auction` contract.
+ *   AUCTION SETUP:
+ *   - The strategist needs to implement a way to call `_setAuction()`
+ *     to set the auction contract address for token sales
+ *   - `useAuction` defaults to false but is automatically set to true
+ *     when a non-zero auction address is set via `_setAuction()`
+ *   - Auctions can be manually enabled/disabled using `_setUseAuction()`
  *
- *   The contract comes with all of the needed function to act as a `hook`
- *   contract for the specific auction contract with the ability to override
- *   any of the functions to implement custom hooks.
+ *   PERMISSIONLESS OPERATIONS:
+ *   - `kickAuction()` is public and permissionless - anyone can trigger
+ *     auctions when conditions are met (sufficient balance, auctions enabled)
+ *   - This allows for automated auction triggering by bots or external systems
  *
- *   NOTE: If any hooks are not desired, the strategist should also
- *   implement a way to call the {setHookFlags} on the auction contract
- *   to avoid unnecessary gas for unused functions.
+ *   AUCTION TRIGGER INTEGRATION:
+ *   - Implements `auctionTrigger()` for integration with CommonAuctionTrigger
+ *   - Returns encoded calldata for `kickAuction()` when conditions are met
+ *   - Provides smart logic to prevent duplicate auctions and handle edge cases
+ *
+ *   HOOKS:
+ *   - The contract can act as a `hook` contract for the auction with the
+ *     ability to override functions to implement custom hooks
+ *   - If hooks are not desired, call `setHookFlags()` on the auction contract
+ *     to avoid unnecessary gas for unused functions
  */
-contract AuctionSwapper {
+contract AuctionSwapper is BaseSwapper {
     using SafeERC20 for ERC20;
 
-    modifier onlyAuction() {
-        _isAuction();
-        _;
-    }
+    event AuctionSet(address indexed auction);
+    event UseAuctionSet(bool indexed useAuction);
 
-    /**
-     * @dev Check the caller is the auction contract for hooks.
-     */
-    function _isAuction() internal view virtual {
-        require(msg.sender == auction, NotAuction());
-    }
-
-    /// @notice The pre-deployed Auction factory for cloning.
-    /// @dev todo: should this be an immutable instead of a constant?
-    address public constant AUCTION_FACTORY = 0xE6aB098E8582178A76DC80d55ca304d1Dec11AD8;
-
-    /// @notice Address of the specific Auction this strategy uses.
+    /// @notice Address of the specific Auction contract this strategy uses for token sales.
     address public auction;
+
+    /// @notice Whether to use auctions for token swaps.
+    /// @dev Defaults to false but automatically set to true when setting a non-zero auction address.
+    ///      Can be manually controlled via _setUseAuction() for fine-grained control.
+    bool public useAuction;
 
     /*//////////////////////////////////////////////////////////////
                     AUCTION STARTING AND STOPPING
     //////////////////////////////////////////////////////////////*/
 
-    function _enableAuction(address _from, address _want) internal virtual returns (bytes32) {
-        return _enableAuction(_from, _want, 1 days, 3 days, 1e6);
-    }
-
-    /**
-     * @dev Used to enable a new Auction to sell `_from` to `_want`.
-     *   If this is the first auction enabled it will deploy a new `auction`
-     *   contract to use from the factory.
-     *
-     * NOTE: This only supports one `_want` token per strategy.
-     *
-     * @param _from Token to sell
-     * @param _want Token to buy.
-     * @return .The auction ID.
-     */
-    function _enableAuction(
-        address _from,
-        address _want,
-        uint256 _auctionLength,
-        uint256 _auctionCooldown,
-        uint256 _startingPrice
-    ) internal virtual returns (bytes32) {
-        address _auction = auction;
-
-        // If this is the first auction.
-        if (_auction == address(0)) {
-            // Deploy a new auction
-            _auction = AuctionFactory(AUCTION_FACTORY).createNewAuction(
-                _want, address(this), address(this), _auctionLength, _auctionCooldown, _startingPrice
+    /// @notice Set the auction contract to use.
+    /// @dev Automatically enables auctions (useAuction = true) when setting a non-zero address.
+    /// @param _auction The auction contract address. Must have this contract as receiver.
+    function _setAuction(address _auction) internal virtual {
+        if (_auction != address(0)) {
+            require(
+                IAuction(_auction).receiver() == address(this),
+                "wrong receiver"
             );
-            // Store it for future use.
-            auction = _auction;
-        } else {
-            // Can only use one `want` per auction contract.
-            require(Auction(_auction).want() == _want, WrongWant());
+            // Automatically enable auctions when setting a non-zero auction address
+            if (!useAuction) {
+                useAuction = true;
+                emit UseAuctionSet(true);
+            }
         }
+        auction = _auction;
+        emit AuctionSet(_auction);
+    }
 
-        // Enable new auction for `_from` token.
-        return Auction(_auction).enable(_from);
+    /// @notice Manually enable or disable auction usage.
+    /// @dev Can be used to override the auto-enable behavior or temporarily disable auctions.
+    /// @param _useAuction Whether to use auctions for token swaps.
+    function _setUseAuction(bool _useAuction) internal virtual {
+        useAuction = _useAuction;
+        emit UseAuctionSet(_useAuction);
     }
 
     /**
-     * @dev Disable an auction for a given token.
-     * @param _from The token that was being sold.
-     */
-    function _disableAuction(address _from) internal virtual {
-        Auction(auction).disable(_from);
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                        OPTIONAL AUCTION HOOKS
-    //////////////////////////////////////////////////////////////*/
-
-    /**
-     * @notice Return how much `_token` could currently be kicked into auction.
-     * @dev This can be overridden by a strategist to implement custom logic.
-     * @param _token Address of the `_from` token.
-     * @return . The amount of `_token` ready to be auctioned off.
+     * @notice Return how much of a token could currently be kicked into auction.
+     * @dev Includes both contract balance and tokens already in the auction contract.
+     * @param _token The token that could be sold in auction.
+     * @return The total amount of `_token` available for auction (0 if auctions disabled).
      */
     function kickable(address _token) public view virtual returns (uint256) {
-        return ERC20(_token).balanceOf(address(this));
+        if (!useAuction) return 0;
+
+        address _auction = auction;
+        if (_auction == address(0)) return 0;
+
+        if (
+            IAuction(_auction).isActive(_token) &&
+            IAuction(_auction).available(_token) > 0
+        ) {
+            return 0;
+        }
+
+        return
+            ERC20(_token).balanceOf(address(this)) +
+            ERC20(_token).balanceOf(_auction);
     }
 
     /**
-     * @dev To override if something other than just sending the loose balance
-     *  of `_token` to the auction is desired, such as accruing and and claiming rewards.
-     *
-     * @param _token Address of the token being auctioned off
+     * @notice Kick an auction for a given token (PERMISSIONLESS).
+     * @dev Anyone can call this function to trigger auctions when conditions are met.
+     *      Useful for automated systems, bots, or manual triggering.
+     * @param _from The token to be sold in the auction.
+     * @return The amount of tokens that were kicked into the auction.
      */
-    function _auctionKicked(address _token) internal virtual returns (uint256) {
-        // Send any loose balance to the auction.
-        uint256 balance = ERC20(_token).balanceOf(address(this));
-        if (balance != 0) ERC20(_token).safeTransfer(auction, balance);
-        return ERC20(_token).balanceOf(auction);
+    function kickAuction(address _from) external virtual returns (uint256) {
+        return _kickAuction(_from);
     }
 
     /**
-     * @dev To override if something needs to be done before a take is completed.
-     *   This can be used if the auctioned token only will be freed up when a `take`
-     *   occurs.
-     * @param _token Address of the token being taken.
-     * @param _amountToTake Amount of `_token` needed.
-     * @param _amountToPay Amount of `want` that will be payed.
+     * @dev Internal function to kick an auction for a given token.
+     * @param _from The token that was being sold.
      */
-    function _preTake(address _token, uint256 _amountToTake, uint256 _amountToPay) internal virtual {}
+    function _kickAuction(address _from) internal virtual returns (uint256) {
+        require(useAuction, "useAuction is false");
+        address _auction = auction;
 
-    /**
-     * @dev To override if a post take action is desired.
-     *
-     * This could be used to re-deploy the bought token back into the yield source,
-     * or in conjunction with {_preTake} to check that the price sold at was within
-     * some allowed range.
-     *
-     * @param _token Address of the token that the strategy was sent.
-     * @param _amountTaken Amount of the from token taken.
-     * @param _amountPayed Amount of `_token` that was sent to the strategy.
-     */
-    function _postTake(address _token, uint256 _amountTaken, uint256 _amountPayed) internal virtual {}
+        if (IAuction(_auction).isActive(_from)) {
+            if (IAuction(_auction).available(_from) > 0) {
+                return 0;
+            }
+
+            IAuction(_auction).settle(_from);
+        }
+
+        uint256 _balance = ERC20(_from).balanceOf(address(this));
+        if (_balance > 0) {
+            ERC20(_from).safeTransfer(_auction, _balance);
+        }
+
+        return IAuction(_auction).kick(_from);
+    }
 
     /*//////////////////////////////////////////////////////////////
-                            AUCTION HOOKS
+                        AUCTION TRIGGER INTERFACE
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice External hook for the auction to call during a `kick`.
-     * @dev Will call the internal version for the strategist to override.
-     * @param _token Token being kicked into auction.
-     * @return . The amount of `_token` to be auctioned off.
+     * @notice Default auction trigger implementation for CommonAuctionTrigger integration.
+     * @dev Returns whether an auction should be kicked and the encoded calldata to do so.
+     *      This enables automated auction triggering through external trigger systems.
+     * @param _from The token that could be sold in an auction.
+     * @return shouldKick True if an auction should be kicked for this token.
+     * @return data Encoded calldata for `kickAuction(_from)` if shouldKick is true,
+     *              otherwise a descriptive error message explaining why not.
      */
-    function auctionKicked(address _token) external virtual onlyAuction returns (uint256) {
-        return _auctionKicked(_token);
-    }
+    function auctionTrigger(
+        address _from
+    ) external view virtual returns (bool shouldKick, bytes memory data) {
+        address _auction = auction;
+        if (_auction == address(0)) {
+            return (false, bytes("No auction set"));
+        }
 
-    /**
-     * @notice External hook for the auction to call before a `take`.
-     * @dev Will call the internal version for the strategist to override.
-     * @param _token Token being taken in the auction.
-     * @param _amountToTake The amount of `_token` to be sent to the taker.
-     * @param _amountToPay Amount of `want` that will be payed.
-     */
-    function preTake(address _token, uint256 _amountToTake, uint256 _amountToPay) external virtual onlyAuction {
-        _preTake(_token, _amountToTake, _amountToPay);
-    }
+        if (!useAuction) {
+            return (false, bytes("Auctions disabled"));
+        }
 
-    /**
-     * @notice External hook for the auction to call after a `take` completed.
-     * @dev Will call the internal version for the strategist to override.
-     * @param _token The `want` token that was sent to the strategy.
-     * @param _amountTaken Amount of the from token taken.
-     * @param _amountPayed Amount of `_token` that was sent to the strategy.
-     */
-    function postTake(address _token, uint256 _amountTaken, uint256 _amountPayed) external virtual onlyAuction {
-        _postTake(_token, _amountTaken, _amountPayed);
+        uint256 kickableAmount = kickable(_from);
+
+        if (kickableAmount != 0 && kickableAmount >= minAmountToSell) {
+            return (true, abi.encodeCall(this.kickAuction, (_from)));
+        }
+
+        return (false, bytes("not enough kickable"));
     }
 }

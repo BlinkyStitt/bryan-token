@@ -57,6 +57,8 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// @notice if the underlying is WETH, make it easy to deposit by just sending ETH
     IWETH9 public immutable WETH;
 
+    IAuctionFactory public constant AUCTION_FACTORY = IAuctionFactory(0xbC587a495420aBB71Bbd40A0e291B64e80117526);
+
     /// @notice assets held for the DEPOSIT_DELAY
     uint256 public totalPendingAssets = 0;
 
@@ -129,6 +131,9 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         // TODO: i'm not sure about this. i think it just adds gas overhead. but it also seems like a good idea
         // TODO: maybe we should have a _transfer override that makes sure we aren't letting users call transfer to the factory
         isSponsor[msg.sender] = true;
+
+        IAuction auction = AUCTION_FACTORY.createNewAuction(address(UNDERLYING));
+        _setAuction(auction);
     }
 
     /// @dev allow receiving eth
@@ -161,13 +166,11 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     {
         PendingDeposit storage pendingDeposit = pendingDepositOf[originalCaller][receiver];
 
-        // TODO: custom error
         require(pendingDeposit.when != 0 && block.timestamp >= pendingDeposit.when, DepositNotReady());
 
         if (assets == 0) {
             assets = pendingDeposit.assets;
         } else {
-            // TODO: custom error
             require(pendingDeposit.assets == assets, IncorrectAssets());
         }
 
@@ -282,7 +285,6 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         // calculate how many more tickets we can get
         uint256 maxDepositAssets = prizeVault.maxDeposit(address(this));
 
-        // TODO: does OZ have a Math helper for this?
         if (underlyingAssets > maxDepositAssets) {
             // TODO: what should we do with any excess? hopefully it can be deposited in the future?
             underlyingAssets = maxDepositAssets;
@@ -302,7 +304,6 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         // optionally split some to a "treasury" address
         address treasuryAddress = TREASURY;
         if (treasuryAddress != address(0)) {
-            // TODO: which way should we round? floor seems like a safe default
             uint256 treasuryFeeAssets =
                 assets.mulDiv(harvestTreasuryFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);
             if (treasuryFeeAssets > 0) {
