@@ -18,6 +18,7 @@ error ZeroOwner();
 error DepositNotReady();
 error IncorrectAssets();
 error BothSidesMustBeSponsor();
+error InsufficientSponsorBalance(address owner, uint256 availableAssets, uint256 availableShares, uint256 requestedAssets, uint256 requestedShares);
 
 interface IFanTokenFactory {
     function version() external returns (string memory);
@@ -367,11 +368,17 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
      */
     function redeem(uint256 shares, address receiver, address owner) public override returns (uint256) {
         if (isSponsor[owner]) {
-            uint256 ownerSponsorShares = previewWithdraw(balanceOfSponsor[owner]);
+            uint256 ownerSponsorAssets = balanceOfSponsor[owner];
+            uint256 assets = previewRedeem(shares);
 
-            if (shares > ownerSponsorShares) {
-                revert ERC20InsufficientBalance(owner, ownerSponsorShares, shares);
+            if (assets > ownerSponsorAssets) {
+                uint256 availableShares = previewWithdraw(ownerSponsorAssets);
+                revert InsufficientSponsorBalance(owner, ownerSponsorAssets, availableShares, assets, shares);
             }
+
+            // Update sponsor accounting before moving shares
+            balanceOfSponsor[owner] -= assets;
+            totalSponsorAssets -= assets;
 
             super._update(address(this), owner, shares);
         }
@@ -538,15 +545,22 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
      */
     function withdraw(uint256 assets, address receiver, address owner) public override returns (uint256) {
         if (isSponsor[owner]) {
-            uint256 ownerSponsorShares = previewWithdraw(balanceOfSponsor[owner]);
+            uint256 ownerSponsorAssets = balanceOfSponsor[owner];
             uint256 shares = previewWithdraw(assets);
 
-            if (shares > ownerSponsorShares) {
-                revert ERC20InsufficientBalance(owner, ownerSponsorShares, shares);
+            if (assets > ownerSponsorAssets) {
+                uint256 availableShares = previewWithdraw(ownerSponsorAssets);
+                revert InsufficientSponsorBalance(owner, ownerSponsorAssets, availableShares, assets, shares);
             }
+
+            // Update sponsor accounting before moving shares
+            balanceOfSponsor[owner] -= assets;
+            totalSponsorAssets -= assets;
 
             super._update(address(this), owner, shares);
         }
+
+        // approvals are checked here
         return super.withdraw(assets, receiver, owner);
     }
 
