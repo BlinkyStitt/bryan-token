@@ -68,9 +68,12 @@ case "$mode" in
 
         # Generate HTML coverage report if lcov.info exists
         if [ -f "lcov.info" ]; then
-            echo "Generating HTML coverage report..."
             genhtml lcov.info --output-dir coverage
-            echo "Coverage report generated in coverage/ directory"
+
+            echo "The coverage index file is at $(pwd)/coverage/index.html"
+            echo "The coverage can be opened in a browser with \`open $(pwd)/coverage/index.html\` to open them"
+        else
+            echo "ERROR! No lcov.info exists! Did the tests pass?"
         fi
         ;;
     snapshot)

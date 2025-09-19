@@ -17,7 +17,7 @@ error Unimplemented(string err);
 error ZeroOwner();
 error DepositNotReady();
 error IncorrectAssets();
-error BothSidesMustBeSponsor();
+error AtLeastOneSideMustBeSponsor();
 error InsufficientSponsorBalance(address owner, uint256 availableAssets, uint256 availableShares, uint256 requestedAssets, uint256 requestedShares);
 
 interface IFanTokenFactory {
@@ -229,12 +229,10 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     function balanceOfUnderlying(address who) public view returns (uint256) {
         uint256 fanTokenShares = balanceOf(who);
 
-        // TODO: convertToAssets or previewRedeem?
         uint256 prizeVaultShares = previewRedeem(fanTokenShares);
 
         IERC4626 prizeVault = IERC4626(asset());
 
-        // TODO: convertToAssets or previewRedeem? i'm pretty sure preview is correct
         return prizeVault.previewRedeem(prizeVaultShares);
     }
 
@@ -518,7 +516,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             // this will move the shares to this contract and update sponsorhip accounting
             _setSponsorship(to, true);
         } else {
-            revert BothSidesMustBeSponsor();
+            revert AtLeastOneSideMustBeSponsor();
         }
     }
 
@@ -531,7 +529,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// @dev i wanted to override `transfer` to work transparently, but that got too complicated quickly
     function sponsorTransferFrom(address from, address to, uint256 assets) public returns (bool) {
         address spender = msg.sender;
-        _spendAllowance(from, spender, convertToShares(assets));
+        _spendAllowance(from, spender, previewWithdraw(assets));
         _sponsorTransfer(from, to, assets);
         return true;
     }

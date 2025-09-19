@@ -67,3 +67,43 @@
 - Verify events are emitted with correct parameters
 - Test integration scenarios with external contracts
 - Include gas consumption tests for critical functions
+
+### MEV Protection & Economic Security
+- CHECK for sandwich attack vulnerabilities in AMM operations
+- VERIFY slippage protection in DEX interactions
+- ANALYZE for flash loan arbitrage attack vectors
+- REVIEW token economics for inflation/deflation exploits
+- CHECK for governance token voting manipulation
+- VERIFY time-lock mechanisms on critical parameter changes
+- ANALYZE cross-chain bridge vulnerabilities
+
+### State Consistency Checks
+- VERIFY state transitions follow expected business logic
+- CHECK for race conditions in multi-step operations
+- ENSURE atomic operations where required (all-or-nothing)
+- VALIDATE state machine transitions are properly gated
+- CHECK for storage collision issues in proxy patterns
+- VERIFY initialization can only happen once
+- ENSURE proper cleanup in failure scenarios
+
+### DeFi Protocol Auditing
+- VERIFY oracle price feeds are properly validated and have circuit breakers
+- CHECK for yield farming reward calculation errors
+- ANALYZE liquidation mechanisms for edge cases
+- VERIFY collateral ratio calculations handle all scenarios
+- CHECK for protocol fee extraction vulnerabilities
+- ANALYZE governance proposal execution safeguards
+
+### Token Standards Compliance
+- VERIFY ERC-20/721/1155 standard compliance
+- CHECK for transfer hooks and callback vulnerabilities
+- ENSURE proper approval/allowance handling
+- VERIFY metadata immutability where required
+
+### Systematic Audit Approach
+1. ARCHITECTURE REVIEW: Understand system design and trust assumptions
+2. CODE WALKTHROUGH: Line-by-line review of critical functions
+3. INVARIANT ANALYSIS: Identify and test system invariants
+4. ATTACK VECTOR MAPPING: Systematically check each vulnerability class
+5. INTEGRATION TESTING: Test interactions with external protocols
+6. ECONOMIC ANALYSIS: Model token economics and incentive structures

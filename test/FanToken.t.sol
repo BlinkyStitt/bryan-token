@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {BothSidesMustBeSponsor, InsufficientSponsorBalance, InvalidAuctionToken, FanToken, IERC20, IERC4626, IWETH9} from "../src/FanToken.sol";
+import {AtLeastOneSideMustBeSponsor, InsufficientSponsorBalance, InvalidAuctionToken, FanToken, IERC20, IERC4626, IWETH9} from "../src/FanToken.sol";
 import {FanTokenFactory} from "../src/FanTokenFactory.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Auction} from "../src/forks/AuctionSwapper.sol";
@@ -1723,8 +1723,8 @@ contract FanTokenTest is Test {
         console.log("  Non-sponsor2 balance:", bryan.balanceOf(nonSponsor2));
         console.log("  Transfer amount:", transferAmount);
 
-        // This should revert with BothSidesMustBeSponsor
-        vm.expectRevert(BothSidesMustBeSponsor.selector);
+        // This should revert with AtLeastOneSideMustBeSponsor
+        vm.expectRevert(AtLeastOneSideMustBeSponsor.selector);
         bryan.sponsorTransfer(nonSponsor2, transferAmount);
 
         vm.stopPrank();
