@@ -5,6 +5,7 @@
 - NO CLARIFICATION: Skip asking what type of implementation unless absolutely critical
 - PARALLEL BY DEFAULT: Always use 7-parallel-Task method for efficiency
 - TESTING: Do not use `forge test` directly! Instead, run tests with `./script/test.sh test`! you can pass flags through to the forge test command
+- ONE TEST: To run one test, do `./script/test.sh -vvv --match-test THE_ONE_TEST`
 - COVERAGE: Do not use `forge coverage` directly. Instead, run tests with `./script/test.sh coverage`! You can pass flags through to the forge coverage command. If tests pass, the html coverage report will be created.
 - GAS USAGE SNAPSHOT: Do not use `forge snapshot` directly. Instead, run tests with `./script/test.sh snapshot`! you can pass flags through to the forge snapshot command
 
