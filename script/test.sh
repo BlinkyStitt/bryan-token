@@ -60,11 +60,18 @@ case "$mode" in
             "$@"
         ;;
     coverage)
-        exec forge coverage \
+        forge coverage \
             --fork-block-number "$block_number" \
             --fork-url "$fork_url" \
             --report lcov \
             "$@"
+
+        # Generate HTML coverage report if lcov.info exists
+        if [ -f "lcov.info" ]; then
+            echo "Generating HTML coverage report..."
+            genhtml lcov.info --output-dir coverage
+            echo "Coverage report generated in coverage/ directory"
+        fi
         ;;
     snapshot)
         exec forge snapshot \
