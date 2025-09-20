@@ -142,11 +142,7 @@ contract FanTokenFactoryTest is Test {
         address[] memory initialTokens = fanTokenFactory.getAllDeployedTokens();
         assertEq(initialTokens.length, initialCount, "initial token count should match");
 
-        // Create first new token and measure pure deployment gas
-        vm.pauseGasMetering();
-        uint256 gasBefore = gasleft();
-        vm.resumeGasMetering();
-
+        // Create first new token
         FanToken token1 = fanTokenFactory.create(
             "Token 1",
             "TK1",
@@ -157,11 +153,6 @@ contract FanTokenFactoryTest is Test {
             bytes32(uint256(1)),
             0
         );
-
-        vm.pauseGasMetering();
-        uint256 gasUsed = gasBefore - gasleft();
-        console.log("Pure token deployment gas cost:", gasUsed);
-        vm.resumeGasMetering();
 
         // Verify count increased
         assertEq(fanTokenFactory.getDeployedTokenCount(), initialCount + 1, "count should increase by 1");
