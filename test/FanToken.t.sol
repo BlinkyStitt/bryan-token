@@ -2033,6 +2033,7 @@ contract FanTokenTest is Test {
 
         uint256 sponsorAssets = bryan.balanceOfSponsor(sponsor);
         uint256 sharesToRedeem = bryan.previewWithdraw(sponsorAssets / 2);
+        assertEq(sharesToRedeem, 1 ether, "should calculate 1 ether of shares to redeem");
 
         console.log("Before redeem (sponsor):");
         console.log("  Sponsor assets:", sponsorAssets);
@@ -2045,7 +2046,7 @@ contract FanTokenTest is Test {
         console.log("  Redeemed amount:", redeemed);
         console.log("  Sponsor assets:", bryan.balanceOfSponsor(sponsor));
 
-        assertEq(redeemed, 1 ether, "should redeem 1 ether of shares");
+        assertEq(redeemed, sharesToRedeem, "should redeem the calculated shares amount");
         // redeem now properly updates sponsor accounting
         uint256 redeemedAssets = bryan.previewRedeem(sharesToRedeem);
         assertEq(bryan.balanceOfSponsor(sponsor), sponsorAssets - redeemedAssets, "sponsor assets should decrease");
@@ -2071,6 +2072,7 @@ contract FanTokenTest is Test {
 
         uint256 userShares = bryan.balanceOf(user);
         uint256 sharesToRedeem = userShares / 2;
+        assertEq(sharesToRedeem, 0.5 ether, "should calculate 0.5 ether of shares to redeem");
 
         console.log("Before redeem (non-sponsor):");
         console.log("  User shares:", userShares);
@@ -2083,7 +2085,7 @@ contract FanTokenTest is Test {
         console.log("  Redeemed amount:", redeemed);
         console.log("  User shares remaining:", bryan.balanceOf(user));
 
-        assertEq(redeemed, 0.5 ether, "should redeem 0.5 ether of shares");
+        assertEq(redeemed, sharesToRedeem, "should redeem the calculated shares amount");
         assertEq(bryan.balanceOf(user), userShares - sharesToRedeem, "user shares should decrease");
 
         vm.stopPrank();
