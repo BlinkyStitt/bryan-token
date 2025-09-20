@@ -3,7 +3,6 @@ pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 import {FanToken, FanTokenFactory, IERC20, IERC4626, IWETH9, IPoolManager, IHooks} from "../src/FanTokenFactory.sol";
-import {console} from "forge-std/console.sol";
 
 contract FanTokenFactoryTest is Test {
     IERC4626 prizeVault;
@@ -34,6 +33,7 @@ contract FanTokenFactoryTest is Test {
         uint256 initialDeposit = 0 ether;
 
         bytes32 salt = bytes32(0);
+        bool setupUniswapV4HookedPool = false;
 
         vm.prank(owner);
         bryan = fanTokenFactory.create(
@@ -45,7 +45,7 @@ contract FanTokenFactoryTest is Test {
             treasury,
             salt,
             initialDeposit,
-            false // setupUniswapV4HookedPool
+            setupUniswapV4HookedPool
         );
     }
 
@@ -85,7 +85,9 @@ contract FanTokenFactoryTest is Test {
 
         prizeVault = IERC4626(bryan.asset());
 
-        assertEq(bryan.balanceOf(receiver), underlyingAssets, "receiver should receive shares equal to deposited assets");
+        assertEq(
+            bryan.balanceOf(receiver), underlyingAssets, "receiver should receive shares equal to deposited assets"
+        );
         assertEq(prizeVault.balanceOf(address(bryan)), underlyingAssets, "token should hold the deposited assets");
 
         // TODO: test fees! I want this fee to be sent as bryan, not as prizeVault!
@@ -126,9 +128,35 @@ contract FanTokenFactoryTest is Test {
         assertEq(bryan.balanceOf(address(alice)), 0, "our balance of bryan should be empty");
     }
 
-    function test_enumeration_functions() public {
-        vm.pauseGasMetering();
+    function test_create_without_uniswap() public {
+        FanToken token1 = fanTokenFactory.create(
+            "Token 1",
+            "TK1",
+            500,
+            0,
+            prizeVault,
+            address(0),
+            bytes32(uint256(0)),
+            0,
+            false // setupUniswapV4HookedPool
+        );
+    }
 
+    function test_create_with_uniswap() public {
+        FanToken token1 = fanTokenFactory.create(
+            "Token 1",
+            "TK1",
+            0,
+            0,
+            prizeVault,
+            address(0),
+            bytes32(uint256(1)),
+            0,
+            true // setupUniswapV4HookedPool
+        );
+    }
+
+    function test_enumeration_functions() public {
         // Get initial count (should include the bryan token from setUp)
         uint256 initialCount = fanTokenFactory.getDeployedTokenCount();
 
@@ -140,7 +168,6 @@ contract FanTokenFactoryTest is Test {
         assertEq(initialTokens.length, initialCount, "initial token count should match");
 
         // Create first new token - resume gas metering only for this call
-        vm.resumeGasMetering();
         FanToken token1 = fanTokenFactory.create(
             "Token 1",
             "TK1",
@@ -150,7 +177,7 @@ contract FanTokenFactoryTest is Test {
             address(0),
             bytes32(uint256(1)),
             0,
-            false // setupUniswapV4HookedPool
+            true // setupUniswapV4HookedPool
         );
         vm.pauseGasMetering();
 
