@@ -12,7 +12,7 @@ import {
     IERC4626,
     IWETH9
 } from "../src/FanToken.sol";
-import {FanTokenFactory} from "../src/FanTokenFactory.sol";
+import {FanTokenFactory, IPoolManager, IHooks} from "../src/FanTokenFactory.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IAuction} from "../src/interfaces/IAuction.sol";
 import {console} from "forge-std/console.sol";
@@ -25,7 +25,7 @@ contract FanTokenTest is Test {
     IWETH9 weth;
     IERC20 underlying;
     address owner;
-    address factory;
+    FanTokenFactory factory;
 
     function setUp() public {
         // TODO: use flags on the test command instead of forcing a fork here?
@@ -41,11 +41,15 @@ contract FanTokenTest is Test {
         uint256 harvestTreasuryFeeBasisPoints = 0;
         treasury = makeAddr("treasury");
 
-        // Deploy a real factory instead of using makeAddr
-        FanTokenFactory realFactory = new FanTokenFactory(weth);
-        factory = address(realFactory);
+        // Base network
+        IPoolManager poolManager = IPoolManager(address(0x498581fF718922c3f8e6A244956aF099B2652b2b));
+        // this is a hook that works with erc4626 vaults
 
-        vm.prank(factory);
+        IHooks uniswapV4Hook = IHooks(address(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888));
+
+        factory = new FanTokenFactory(weth, poolManager, uniswapV4Hook);
+
+        vm.prank(address(factory));
         bryan = new FanToken(
             "ETH from Bryan",
             "BRY-ETH",
@@ -177,7 +181,7 @@ contract FanTokenTest is Test {
         assertEq(bryan.isSponsor(address(bryan)), false, "contract itself should not be sponsor"); // TODO: i'm unsure if we want this to be true or not. i think not
         assertEq(bryan.isSponsor(owner), true, "owner should be default sponsor");
         assertEq(bryan.isSponsor(treasury), true, "treasury should be default sponsor");
-        assertEq(bryan.isSponsor(factory), true, "factory should be default sponsor");
+        assertEq(bryan.isSponsor(address(factory)), true, "factory should be default sponsor");
     }
 
     function test_multiple_users_depositing_without_sponsorship() public {
@@ -646,8 +650,8 @@ contract FanTokenTest is Test {
         uint256 ownerFeeBasisPoints = 2500; // 25%
 
         {
-            // TODO: don't prank the factory. instead, call factory.create!
-            vm.prank(factory);
+            // TODO: don't prank the factory. instead, use factory.create! initial deposit needs to be set up first
+            vm.prank(address(factory));
             feeToken = new FanToken(
                 "Fee Test Token",
                 "FEE",
@@ -753,7 +757,7 @@ contract FanTokenTest is Test {
         uint256 treasuryFeeBasisPoints = 1500; // 15%
 
         // TODO: don't prank the factory. instead, call factory.create!
-        vm.prank(factory);
+        vm.prank(address(factory));
         FanToken feeToken = new FanToken(
             "Treasury Fee Test",
             "TFEE",
@@ -829,7 +833,7 @@ contract FanTokenTest is Test {
 
     function test_harvest_with_both_fees() public {
         // Simplified test to avoid stack too deep
-        vm.prank(factory);
+        vm.prank(address(factory));
         FanToken feeToken = new FanToken(
             "Both Fees Test",
             "BOTH",

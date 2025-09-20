@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {FanToken, FanTokenFactory, IERC20, IERC4626, IWETH9} from "../src/FanTokenFactory.sol";
+import {FanToken, FanTokenFactory, IERC20, IERC4626, IWETH9, IPoolManager, IHooks} from "../src/FanTokenFactory.sol";
 import {console} from "forge-std/console.sol";
 
 contract FanTokenFactoryTest is Test {
@@ -16,7 +16,11 @@ contract FanTokenFactoryTest is Test {
     function setUp() public {
         weth = IWETH9(address(0x4200000000000000000000000000000000000006));
 
-        fanTokenFactory = new FanTokenFactory(weth);
+        // Use real Uniswap V4 contracts
+        IPoolManager poolManager = IPoolManager(address(0x498581fF718922c3f8e6A244956aF099B2652b2b)); // Base network
+        IHooks uniswapV4Hook = IHooks(address(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888));
+
+        fanTokenFactory = new FanTokenFactory(weth, poolManager, uniswapV4Hook);
 
         // TODO: use flags on the test command instead of forcing a fork here?
         address owner = makeAddr("bryan owner");
@@ -40,7 +44,8 @@ contract FanTokenFactoryTest is Test {
             prizeVault,
             treasury,
             salt,
-            initialDeposit
+            initialDeposit,
+            false // setupUniswapV4HookedPool
         );
     }
 
@@ -48,7 +53,7 @@ contract FanTokenFactoryTest is Test {
         uint256 initialDeposit = 1 ether;
 
         FanToken fanToken = fanTokenFactory.create{value: initialDeposit}(
-            "ETH from Bryan Again", "BRY-ETH-2", 0, 0, prizeVault, address(0), bytes32(0), initialDeposit
+            "ETH from Bryan Again", "BRY-ETH-2", 0, 0, prizeVault, address(0), bytes32(0), initialDeposit, false
         );
 
         uint256 initialShares = fanToken.previewWithdraw(initialDeposit);
@@ -154,7 +159,8 @@ contract FanTokenFactoryTest is Test {
             prizeVault,
             address(0),
             bytes32(uint256(1)),
-            0
+            0,
+            false // setupUniswapV4HookedPool
         );
         vm.pauseGasMetering();
 
@@ -177,7 +183,8 @@ contract FanTokenFactoryTest is Test {
             prizeVault,
             address(0),
             bytes32(uint256(2)),
-            0
+            0,
+            false // setupUniswapV4HookedPool
         );
 
         // Test final state

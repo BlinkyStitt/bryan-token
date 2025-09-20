@@ -27,13 +27,15 @@ If something would be nice to change but could be abused, then make it impossibl
 
 ## Problems Left To Fix
 
-If the vault suffers losses, we need to make sure the sponsors can't take an unfair share. It might be fine, but this needs investigation. Any losses should be shared fairly.
+TODO: If the vault suffers losses, we need to make sure the sponsors can't take an unfair share. It might be fine, but this needs investigation. Any losses should be shared fairly.
 
-Gas golf by adding some "unchecked" when we know its impossible. better to wait until the end on that since things might get moved around
+TODO: Gas golf by adding some "unchecked" when we know its impossible. better to wait until the end on that since things might get moved around. It's also probably more dangerous than its worth. But we should do some basic gas golfing.
 
-What happens if 100% of the tokens are burned/sponsored after there is some liquidity in the system?
+TODO: What happens if 100% of the tokens are burned/sponsored after there is some liquidity in the system? I have a test for this, but I want more.
 
-Someone can send us a single wei of a token and then start an auction. That auction will probably fail. This will waste a day of our time. Possible solution: if the kickable balance is 100x the current balance, allow cancelling the auction. That might open a griefing attack. 
+TODO: Someone can send us a single wei of a token and then start an auction. That auction will probably fail. This will waste a day of our time. Possible solution: if the kickable balance is 100x the current balance, allow cancelling the auction. That might open a griefing attack. 
+
+TODO: should our contract have harvest (or a similar function) do the work of claiming the pool together prize? Right now we let them handle that gas.
 
 ## Miscellaneous Ideas and Todos
 
