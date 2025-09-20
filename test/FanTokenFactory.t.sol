@@ -129,13 +129,14 @@ contract FanTokenFactoryTest is Test {
     }
 
     function test_create_without_uniswap() public {
+        address testTreasury = makeAddr("testTreasury");
         FanToken token1 = fanTokenFactory.create(
             "Token 1",
             "TK1",
-            500,
-            0,
+            5000,
+            2500,
             prizeVault,
-            address(0),
+            testTreasury,
             bytes32(uint256(0)),
             0,
             false // setupUniswapV4HookedPool
