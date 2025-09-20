@@ -1,7 +1,7 @@
 ## Feature Implementation System Guidelines
 
 ### Feature Implementation Priority Rules
-- GIT: `git commit` after every major step, especially after code is done or tests pass.
+- SAVING: `git commit` after every major step, especially after code is done or tests pass.
 - IMMEDIATE EXECUTION: Launch parallel Tasks immediately upon feature requests
 - NO CLARIFICATION: Skip asking what type of implementation unless absolutely critical
 - PARALLEL BY DEFAULT: Always use 7-parallel-Task method for efficiency
