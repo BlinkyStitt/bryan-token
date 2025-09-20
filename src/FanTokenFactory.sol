@@ -56,6 +56,8 @@ contract FanTokenFactory {
     ) public payable returns (FanToken fanToken) {
         address underlying = address(_prizeVault.asset());
 
+        // TODO: if salt is 0, should we generate one? msg.sender is already part of the args
+
         // TODO: use fancy cloning code
         fanToken = new FanToken{salt: _salt}(
             _name,
@@ -111,6 +113,13 @@ contract FanTokenFactory {
         MAYBE there is a way to look at the underlying prize pool.
         */
 
+        if (tokenA == address(WETH)) {
+            // TODO: i don't think this will ever be true, but I guess it's a fine safety check
+            tokenA = address(0);
+        } else if (tokenB == address(WETH)) {
+            tokenB = address(0);
+        }
+
         // Sort currencies (Uniswap V4 requires currency0 < currency1)
         (Currency currency0, Currency currency1) = tokenA < tokenB
             ? (Currency.wrap(tokenA), Currency.wrap(tokenB))
@@ -133,6 +142,7 @@ contract FanTokenFactory {
         if (sqrtPriceX96 == 0) {
             // Set initial price to 1:1 ratio - the hook will override all pricing logic anyway
             // The hook handles actual conversions based on ERC4626 exchange rates and deposit queues
+            // TODO: should we just hard code 79228162514264337593543950336?
             uint160 initialPrice = TickMath.getSqrtPriceAtTick(0); // Tick 0 = 1:1 price (2^96 in Q96 format)
             POOL_MANAGER.initialize(poolKey, initialPrice);
         }
