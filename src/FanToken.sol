@@ -209,6 +209,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     function _startDeposit(address caller, uint256 assets, address receiver) internal returns (uint256 when) {
         if (totalSupply() == 0) {
             super.deposit(assets, receiver);
+            // TODO: gas golf this
             when = 0;
         } else {
             PendingDeposit storage pendingDeposit = pendingDepositOf[caller][receiver];
