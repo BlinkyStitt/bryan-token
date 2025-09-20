@@ -217,7 +217,6 @@ contract FanTokenTest is Test {
         assertEq(bryan.balanceOfUnderlying(alice), quarterAssets, "alice initial deposit should work");
         assertEq(bryan.balanceOfUnderlying(bob), 0, "bob should have zero");
         assertEq(bryan.balanceOfUnderlying(charlie), 0, "charlie should have zero");
-        // TODO: what is the balance expected to be?
 
         // check sponsorship levels
         assertEq(bryan.isSponsor(alice), false, "alice must not be a sponsor");
@@ -320,7 +319,6 @@ contract FanTokenTest is Test {
         assertEq(bryan.balanceOfUnderlying(alice), quarterAssets, "alice initial deposit should work");
         assertEq(bryan.balanceOfUnderlying(bob), 0, "bob should have zero");
         assertEq(bryan.balanceOfUnderlying(charlie), 0, "charlie should have zero");
-        // TODO: what is the balance expected to be?
 
         // mark bob as a sponsor
         vm.startPrank(bob);
@@ -495,7 +493,6 @@ contract FanTokenTest is Test {
         assertEq(bryan.totalSupply(), shares + newShares, "supply wrong 3");
 
         // TODO: the fees make this annoying
-        // TODO: make sure that the balance of the prize vault grew by the underlying assets
         assertEq(asset.balanceOf(address(bryan)), assets, "asset balance does not match assets");
         assertEq(bryan.balanceOf(address(this)), shares + newShares, "bryan balance does not match shares");
         assertApproxEqAbs(

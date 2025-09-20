@@ -114,7 +114,6 @@ contract FanTokenFactoryTest is Test {
         uint256 assets = bryan.previewRedeem(shares);
         assertEq(assets, underlyingAssets, "shares should be redeemable for deposited amount");
 
-        // TODO: the fees make this annoying. TODO: I'm also not sure these are even the right checks. think about these more
         assertGe(asset.balanceOf(address(bryan)), underlyingAssets, "token should hold at least the deposited assets");
 
         // test the main redeem function
