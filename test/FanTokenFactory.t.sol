@@ -65,8 +65,6 @@ contract FanTokenFactoryTest is Test {
 
         // TODO: i can't decide if we should override balanceOf to include sponsor tokens. that will make transfers easy, but i think has other problems
         assertEq(fanToken.balanceOf(address(this)), 0, "there should be some initial shares");
-
-        // TODO: what should the value of this actually be?
     }
 
     function test_vault_asset() public view {
@@ -87,7 +85,6 @@ contract FanTokenFactoryTest is Test {
 
         prizeVault = IERC4626(bryan.asset());
 
-        // TODO: what should the amounts actually be?
         assertEq(bryan.balanceOf(receiver), underlyingAssets, "receiver should receive shares equal to deposited assets");
         assertEq(prizeVault.balanceOf(address(bryan)), underlyingAssets, "token should hold the deposited assets");
 
