@@ -4,6 +4,7 @@ pragma solidity ^0.8.20;
 // TODO: use cloneable instead of deploying a full contract every time?
 
 import {FanToken, SafeERC20, IERC20, IERC4626, IWETH9} from "./FanToken.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 error InvalidFanToken();
 error IncorrectUnderlying(address underlying);
@@ -11,11 +12,13 @@ error NoUnderlyingAssets();
 
 contract FanTokenFactory {
     using SafeERC20 for IERC20;
+    using EnumerableSet for EnumerableSet.AddressSet;
 
     /// @notice make it easy to deposit by just sending ETH
     IWETH9 public immutable WETH;
 
-    mapping(address => bool) public deployed;
+    /// @notice enumerable set of all deployed fan tokens
+    EnumerableSet.AddressSet private _deployedTokens;
 
     // TODO: how should we do indexes on this?
     event Created(address indexed _owner, address indexed _prizeVault, address indexed _treasury, address _token);
@@ -46,7 +49,7 @@ contract FanTokenFactory {
             WETH
         );
 
-        deployed[address(fanToken)] = true;
+        _deployedTokens.add(address(fanToken));
 
         emit Created(msg.sender, address(_prizeVault), _treasury, address(fanToken));
 
@@ -63,7 +66,7 @@ contract FanTokenFactory {
         returns (uint256)
     {
         // only allow depositing to a fan token that we deployed
-        require(deployed[address(fanToken)] == true, InvalidFanToken());
+        require(_deployedTokens.contains(address(fanToken)), InvalidFanToken());
 
         IERC4626 prizeVault = IERC4626(fanToken.asset());
         IERC20 underlying = IERC20(prizeVault.asset());
@@ -95,7 +98,7 @@ contract FanTokenFactory {
     }
 
     function redeem(FanToken fanToken, uint256 shares, address receiver) public returns (uint256) {
-        require(deployed[address(fanToken)] == true, InvalidFanToken());
+        require(_deployedTokens.contains(address(fanToken)), InvalidFanToken());
 
         IERC4626 prizeVault = IERC4626(fanToken.asset());
 
@@ -115,5 +118,36 @@ contract FanTokenFactory {
 
     function version() external pure returns (string memory) {
         return "3.0.0";
+    }
+
+    // === Enumeration Functions ===
+
+    /// @notice get all deployed fan tokens (for off-chain use)
+    /// @dev this can be expensive for large numbers of tokens, but fine for Base network
+    function getAllDeployedTokens() external view returns (address[] memory) {
+        return _deployedTokens.values();
+    }
+
+    /// @notice get a paginated list of deployed fan tokens
+    /// @param start starting index (inclusive)
+    /// @param end ending index (exclusive)
+    /// @dev uses OpenZeppelin's efficient pagination: values(set, start, end)
+    function getDeployedTokens(uint256 start, uint256 end) external view returns (address[] memory) {
+        return _deployedTokens.values(start, end);
+    }
+
+    /// @notice get the total number of deployed fan tokens
+    function getDeployedTokenCount() external view returns (uint256) {
+        return _deployedTokens.length();
+    }
+
+    /// @notice get a specific deployed fan token by index
+    function getDeployedTokenAt(uint256 index) external view returns (address) {
+        return _deployedTokens.at(index);
+    }
+
+    /// @notice check if a fan token was deployed by this factory
+    function isDeployed(address token) external view returns (bool) {
+        return _deployedTokens.contains(token);
     }
 }
