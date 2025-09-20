@@ -407,7 +407,6 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         _setSponsorship(to, isSponsor[to]);
     }
 
-    /// TODO: this needs more tests and coverage!
     function _setSponsorship(address who, bool state) internal {
         // todo? require msg.sender != owner() && msg.sender != TREASURY?
         bool senderIsSponsor = isSponsor[who];
