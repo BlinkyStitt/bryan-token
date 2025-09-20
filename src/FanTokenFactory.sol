@@ -113,17 +113,22 @@ contract FanTokenFactory {
         MAYBE there is a way to look at the underlying prize pool.
         */
 
+        Currency currency0;
+        Currency currency1;
+
         if (tokenA == address(WETH)) {
             // TODO: i don't think this will ever be true, but I guess it's a fine safety check
-            tokenA = address(0);
+            currency0 = CurrencyLibrary.ADDRESS_ZERO;
+            currency1 = Currency.wrap(tokenB);
         } else if (tokenB == address(WETH)) {
-            tokenB = address(0);
+            currency0 = CurrencyLibrary.ADDRESS_ZERO;
+            currency1 = Currency.wrap(tokenA);
+        } else {
+            // Sort currencies (Uniswap V4 requires currency0 < currency1)
+            (currency0, currency1) = tokenA < tokenB
+                ? (Currency.wrap(tokenA), Currency.wrap(tokenB))
+                : (Currency.wrap(tokenB), Currency.wrap(tokenA));
         }
-
-        // Sort currencies (Uniswap V4 requires currency0 < currency1)
-        (Currency currency0, Currency currency1) = tokenA < tokenB
-            ? (Currency.wrap(tokenA), Currency.wrap(tokenB))
-            : (Currency.wrap(tokenB), Currency.wrap(tokenA));
 
         // Create pool key for hooked pool with specialized ERC4626 handling
         PoolKey memory poolKey = PoolKey({
@@ -140,10 +145,12 @@ contract FanTokenFactory {
 
         // Create pool if it doesn't exist (sqrtPriceX96 == 0 means uninitialized)
         if (sqrtPriceX96 == 0) {
-            // Set initial price to 1:1 ratio - the hook will override all pricing logic anyway
-            // The hook handles actual conversions based on ERC4626 exchange rates and deposit queues
-            // TODO: should we just hard code 79228162514264337593543950336?
-            uint160 initialPrice = TickMath.getSqrtPriceAtTick(0); // Tick 0 = 1:1 price (2^96 in Q96 format)
+            // the startingPrice is expressed as sqrtPriceX96: floor(sqrt(token1 / token0) * 2^96)
+            // i.e. 79228162514264337593543950336 is the starting price for a 1:1 pool
+            uint160 initialPrice = 79228162514264337593543950336;
+
+            // uint160 initialPrice = TickMath.getSqrtPriceAtTick(0); // Tick 0 = 1:1 price (2^96 in Q96 format)
+
             POOL_MANAGER.initialize(poolKey, initialPrice);
         }
     }
