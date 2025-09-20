@@ -547,6 +547,11 @@ contract FanTokenTest is Test {
 
         assertEq(bryan.kickable(address(from)), fromAmount, "kickable amount wrong");
 
+        // Test auctionTrigger before kicking
+        (bool shouldKick, bytes memory triggerData) = bryan.auctionTrigger(address(from));
+        assertTrue(shouldKick, "auctionTrigger should return true for kickable amount");
+        assertGt(triggerData.length, 0, "trigger data should not be empty");
+
         IAuction auction = IAuction(bryan.auction());
         require(address(auction) != address(0), "no auction contract");
 
