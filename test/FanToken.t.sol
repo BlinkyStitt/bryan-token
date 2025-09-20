@@ -102,6 +102,67 @@ contract FanTokenTest is Test {
         assets = asset.deposit(underlyingAssets, receiver);
     }
 
+    /// @dev Helper function for deposit operations with proper Transfer event expectations
+    function _depositWithEvents(uint256 assets, address receiver) internal returns (uint256 shares) {
+        // Deposit operations emit two Transfer events:
+        // 1. Mint to contract: Transfer(address(0), address(bryan), assets)
+        // 2. Transfer to user: Transfer(address(bryan), receiver, assets)
+        vm.expectEmit(true, true, false, true);
+        emit IERC20.Transfer(address(0), address(bryan), assets);
+        vm.expectEmit(true, true, false, true);
+        emit IERC20.Transfer(address(bryan), receiver, assets);
+        return bryan.deposit(assets, receiver);
+    }
+
+    /// @dev Helper function for withdraw operations with proper Transfer event expectations
+    function _withdrawWithEvents(uint256 assets, address to, address from) internal returns (uint256 shares) {
+        uint256 expectedShares = bryan.previewWithdraw(assets);
+
+        if (bryan.isSponsor(from)) {
+            // Sponsor withdraw operations emit THREE Transfer events:
+            // 1. Transfer(address(bryan), from, assets) - Contract to sponsor (assets)
+            // 2. Transfer(from, address(0), expectedShares) - Burn shares from sponsor
+            // 3. Transfer(address(bryan), to, assets) - Contract to recipient (final assets)
+            vm.expectEmit(true, true, false, true);
+            emit IERC20.Transfer(address(bryan), from, assets);
+            vm.expectEmit(true, true, false, true);
+            emit IERC20.Transfer(from, address(0), expectedShares);
+            vm.expectEmit(true, true, false, true);
+            emit IERC20.Transfer(address(bryan), to, assets);
+        } else {
+            // Non-sponsor withdraw operations emit TWO Transfer events:
+            // 1. Transfer(from, address(0), shares) - Burn shares from user
+            // 2. Transfer(address(bryan), to, assets) - Transfer assets from contract to recipient
+            vm.expectEmit(true, true, false, true);
+            emit IERC20.Transfer(from, address(0), expectedShares);
+            vm.expectEmit(true, true, false, true);
+            emit IERC20.Transfer(address(bryan), to, assets);
+        }
+        return bryan.withdraw(assets, to, from);
+    }
+
+    /// @dev Helper function for redeem operations with proper Transfer event expectations
+    function _redeemWithEvents(uint256 shares, address to, address from) internal returns (uint256 assets) {
+        if (bryan.isSponsor(from)) {
+            // Sponsor redeem operations emit THREE Transfer events:
+            // 1. Transfer(address(bryan), from, shares) - Contract to sponsor
+            // 2. Transfer(from, address(0), shares) - Burn from sponsor
+            // 3. Transfer(address(bryan), to, assets) - Contract to recipient (underlying assets)
+            uint256 expectedAssets = bryan.previewRedeem(shares);
+            vm.expectEmit(true, true, false, true);
+            emit IERC20.Transfer(address(bryan), from, shares);
+            vm.expectEmit(true, true, false, true);
+            emit IERC20.Transfer(from, address(0), shares);
+            vm.expectEmit(true, true, false, true);
+            emit IERC20.Transfer(address(bryan), to, expectedAssets);
+        } else {
+            // Non-sponsor redeem operations emit one Transfer event: Transfer(from, address(0), shares)
+            vm.expectEmit(true, true, false, true);
+            emit IERC20.Transfer(from, address(0), shares);
+        }
+        return bryan.redeem(shares, to, from);
+    }
+
     function test_expected_default_sponsors() public view {
         assertEq(bryan.isSponsor(address(0)), false, "zero address should not be sponsor");
         assertEq(bryan.isSponsor(address(bryan)), false, "contract itself should not be sponsor"); // TODO: i'm unsure if we want this to be true or not. i think not
@@ -172,7 +233,7 @@ contract FanTokenTest is Test {
 
         // fast forward and finalize deposit
         vm.warp(block.timestamp + bryan.DEPOSIT_DELAY());
-        uint256 bobFanTokens = bryan.deposit(quarterAssets, address(bob));
+        uint256 bobFanTokens = _depositWithEvents(quarterAssets, address(bob));
         console.log("bob's fan tokens:", bobFanTokens);
 
         assertEq(bryan.balanceOfUnderlying(alice), quarterAssets, "alice initial deposit should work");
@@ -429,7 +490,7 @@ contract FanTokenTest is Test {
         );
 
         // test the main redeem function
-        uint256 redeemed = bryan.redeem(shares + newShares, address(this), address(this));
+        uint256 redeemed = _redeemWithEvents(shares + newShares, address(this), address(this));
         console.log("redeemed", shares + newShares, "shares into", redeemed);
 
         assertGt(redeemed, 0, "none redeemed"); // TODO: what should this amount be?
@@ -1182,6 +1243,8 @@ contract FanTokenTest is Test {
         bryan.setSponsorship(true);
 
         vm.startPrank(sponsor);
+        vm.expectEmit(true, true, false, true);
+        emit IERC20.Transfer(sponsor, recipient, transferAmount);
         bryan.sponsorTransfer(recipient, transferAmount);
         vm.stopPrank();
 
@@ -1324,6 +1387,8 @@ contract FanTokenTest is Test {
         uint256 sponsor2Before = bryan.balanceOf(sponsor2);
 
         // Transfer from sponsor1 to sponsor2
+        vm.expectEmit(true, true, false, true);
+        emit IERC20.Transfer(sponsor1, sponsor2, transferAmount);
         vm.prank(sponsor2);
         bool success = bryan.sponsorTransferFrom(sponsor1, sponsor2, transferAmount);
         assertTrue(success, "sponsorTransferFrom should return true on successful transfer");
@@ -1667,6 +1732,8 @@ contract FanTokenTest is Test {
         bryan.setSponsorship(true);
 
         // Transfer from non-sponsor to sponsor
+        vm.expectEmit(true, true, false, true);
+        emit IERC20.Transfer(nonSponsor, sponsor, bryan.previewWithdraw(transferAmount));
         vm.prank(nonSponsor);
         bryan.sponsorTransfer(sponsor, transferAmount);
 

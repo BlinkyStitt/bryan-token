@@ -417,15 +417,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     }
 
     function _update(address from, address to, uint256 amount) internal override {
-        console.log("_update: transferring", amount, "shares from", from);
-        console.log("_update: to", to);
-        console.log("_update: from balance before:", balanceOf(from));
-        console.log("_update: to balance before:", balanceOf(to));
-
         super._update(from, to, amount);
-
-        console.log("_update: from balance after:", balanceOf(from));
-        console.log("_update: to balance after:", balanceOf(to));
 
         // this might be too gas heavy. but i think it ensures we always have the right accounting.
         _setSponsorship(from, isSponsor[from]);
