@@ -9,8 +9,6 @@ import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IWETH9} from "v4-periphery/src/interfaces/external/IWETH9.sol";
 
-import {console} from "forge-std/console.sol";
-
 error InvalidAuctionToken();
 error FeesTooLarge();
 error FactoryOnly();
@@ -180,13 +178,10 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         if (shares == 0) {
             // Calculate shares at finalization time using current share price
             shares = previewDeposit(assets);
-            console.log("_finishDeposit: calculated shares at finalization:", shares);
         }
 
         // Mint the shares now that we're finalizing the deposit
-        console.log("_finishDeposit: minting", shares, "shares");
         _mint(address(this), shares);
-        console.log("_finishDeposit: mint complete. contract balance:", balanceOf(address(this)));
 
         pendingDeposit.when = 0;
         pendingDeposit.assets = 0;
@@ -216,8 +211,6 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
             // this is from msg.sender, NOT caller. i don't love that.
             SafeERC20.safeTransferFrom(IERC20(asset()), msg.sender, address(this), assets);
-
-            console.log("_startDeposit: not minting shares yet, just tracking pending deposit");
 
             // update counters - don't mint shares yet, calculate them at finalization
             totalPendingAssets += assets;
@@ -311,10 +304,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             uint256 treasuryFeeAssets =
                 assets.mulDiv(harvestTreasuryFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);
             if (treasuryFeeAssets > 0) {
-                // console.log("harvest: minting", treasuryFeeAssets, "treasury fee shares to", treasuryAddress);
-                // console.log("harvest: treasury isSponsor:", isSponsor[treasuryAddress]);
                 // _mint(treasuryAddress, treasuryFeeShares);
-                // console.log("harvest: treasury mint complete. treasury balance:", balanceOf(treasuryAddress));
                 // set sponsorship status to ensure proper accounting
                 // _setSponsorship(treasuryAddress, isSponsor[treasuryAddress]);
 
@@ -347,23 +337,12 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         uint256 correctShares = previewWithdraw(totalSponsorAssets);
         uint256 currentShares = balanceOf(address(this));
 
-        console.log("harvestSponsorship: totalSponsorAssets=", totalSponsorAssets);
-        console.log("harvestSponsorship: correctShares=", correctShares);
-        console.log("harvestSponsorship: currentShares=", currentShares);
-
         if (currentShares > correctShares) {
             amount = currentShares - correctShares;
 
-            console.log("harvestSponsorship: burn needed!", correctShares, currentShares, amount);
-            console.log("harvestSponsorship: burning", amount, "shares from", address(this));
-
             // burn the excess shares to redistribute rewards to non-sponsored token holders
             _update(address(this), address(0), amount);
-
-            console.log("harvestSponsorship: burn complete. new balance:", balanceOf(address(this)));
-        } else {
-            console.log("harvestSponsorship: no burn needed");
-        }
+        } else {}
     }
 
     /**
