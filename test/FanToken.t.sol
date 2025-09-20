@@ -78,7 +78,7 @@ contract FanTokenTest is Test {
     function test_ownership() public {
         address nextOwner = makeAddr("nextOwner");
 
-        console.log("changing ownership from", owner, "to", nextOwner);
+        // changing ownership from owner to nextOwner
 
         assertEq(owner, bryan.owner(), "initial owner should match expected owner");
 
@@ -108,7 +108,7 @@ contract FanTokenTest is Test {
 
         // asset == prize vault
         asset = IERC4626(bryan.asset());
-        console.log("asset", address(asset));
+        assertNotEq(address(asset), address(0), "asset should not be zero address");
 
         // approve and deposit the underlying to get the asset that backs Bryan
         underlying.approve(address(asset), type(uint256).max);
@@ -195,7 +195,7 @@ contract FanTokenTest is Test {
         (IERC4626 asset, uint256 assets) = _dealAsset(underlyingAssets * 4, address(this));
 
         uint256 quarterAssets = assets / 4;
-        console.log("quarter assets:", quarterAssets);
+        assertGt(quarterAssets, 0, "quarter assets should be positive");
 
         require(asset.transfer(alice, quarterAssets));
         require(asset.transfer(bob, quarterAssets));
@@ -211,7 +211,7 @@ contract FanTokenTest is Test {
         assertEq(aliceWhen, 0, "first deposit should be instant");
 
         uint256 aliceFanTokens = bryan.balanceOf(alice);
-        console.log("alice's fan tokens:", aliceFanTokens);
+        assertEq(aliceFanTokens, quarterAssets, "alice should receive fan tokens equal to deposited assets");
 
         // check balances
         assertEq(bryan.balanceOfUnderlying(alice), quarterAssets, "alice initial deposit should work");
@@ -247,7 +247,7 @@ contract FanTokenTest is Test {
         // fast forward and finalize deposit
         vm.warp(block.timestamp + bryan.DEPOSIT_DELAY());
         uint256 bobFanTokens = _depositWithEvents(quarterAssets, address(bob));
-        console.log("bob's fan tokens:", bobFanTokens);
+        assertEq(bobFanTokens, quarterAssets, "bob should receive fan tokens equal to deposited assets");
 
         assertEq(bryan.balanceOfUnderlying(alice), quarterAssets, "alice initial deposit should work");
         assertEq(bryan.balanceOfUnderlying(bob), quarterAssets, "bob should have a deposit now");
@@ -269,7 +269,7 @@ contract FanTokenTest is Test {
         // fast forward and finalize deposit
         vm.warp(block.timestamp + bryan.DEPOSIT_DELAY());
         uint256 charlieFanTokens = bryan.deposit(quarterAssets, address(charlie));
-        console.log("charlie's fan tokens:", charlieFanTokens);
+        assertEq(charlieFanTokens, quarterAssets, "charlie should receive fan tokens equal to deposited assets");
 
         assertEq(bryan.balanceOfUnderlying(alice), quarterAssets, "alice should still have their original deposit");
         assertEq(bryan.balanceOfUnderlying(bob), quarterAssets, "bob should still have their original deposit");
@@ -298,7 +298,7 @@ contract FanTokenTest is Test {
         (IERC4626 asset, uint256 assets) = _dealAsset(underlyingAssets * 4, address(this));
 
         uint256 quarterAssets = assets / 4;
-        console.log("quarter assets:", quarterAssets);
+        assertGt(quarterAssets, 0, "quarter assets should be positive");
 
         require(asset.transfer(alice, quarterAssets));
         require(asset.transfer(bob, quarterAssets));
@@ -314,7 +314,7 @@ contract FanTokenTest is Test {
         assertEq(aliceWhen, 0, "first deposit should be instant");
 
         uint256 aliceFanTokens = bryan.balanceOf(alice);
-        console.log("alice's fan tokens:", aliceFanTokens);
+        assertEq(aliceFanTokens, quarterAssets, "alice should receive fan tokens equal to deposited assets");
 
         // check balances
         assertEq(bryan.balanceOfUnderlying(alice), quarterAssets, "alice initial deposit should work");
@@ -353,7 +353,7 @@ contract FanTokenTest is Test {
         // fast forward and finalize deposit
         vm.warp(block.timestamp + bryan.DEPOSIT_DELAY());
         uint256 bobFanTokens = bryan.deposit(quarterAssets, address(bob));
-        console.log("bob's fan tokens:", bobFanTokens);
+        assertEq(bobFanTokens, quarterAssets, "bob should receive fan tokens equal to deposited assets");
 
         assertEq(bryan.balanceOfUnderlying(alice), quarterAssets, "alice initial deposit should work");
         assertEq(bryan.balanceOfUnderlying(bob), 0, "bob should still have zero");
@@ -379,7 +379,7 @@ contract FanTokenTest is Test {
         // fast forward and finalize deposit
         vm.warp(block.timestamp + bryan.DEPOSIT_DELAY());
         uint256 charlieFanTokens = bryan.deposit(quarterAssets, address(charlie));
-        console.log("charlie's fan tokens:", charlieFanTokens);
+        assertEq(charlieFanTokens, quarterAssets, "charlie should receive fan tokens equal to deposited assets");
 
         assertEq(bryan.balanceOfUnderlying(alice), quarterAssets, "alice should still have their original deposit");
         assertEq(bryan.balanceOfUnderlying(bob), 0, "bob is a sponsor and should have zero still");
@@ -403,10 +403,10 @@ contract FanTokenTest is Test {
 
     function test_toggle_sponsorship() public {
         uint256 underlyingAssets = 1 ether;
-        console.log("underlyingAssets:", underlyingAssets, "ether");
+        assertEq(underlyingAssets, 1 ether, "should be 1 ether of underlying assets");
 
         (IERC4626 asset, uint256 assets) = _dealAsset(underlyingAssets, address(this));
-        console.log("assets:", assets, address(asset));
+        assertGt(assets, 0, "should have positive assets from dealing");
 
         asset.approve(address(bryan), type(uint256).max);
         uint256 when = bryan.startDeposit(assets);
@@ -414,7 +414,7 @@ contract FanTokenTest is Test {
         assertEq(when, 0, "this deposit should be instant");
 
         uint256 originalTotalSupply = bryan.totalSupply();
-        console.log("total supply:", originalTotalSupply);
+        assertGt(originalTotalSupply, 0, "should have positive total supply");
 
         assertEq(bryan.balanceOfUnderlying(address(this)), underlyingAssets, "initial deposit amount");
         assertEq(bryan.balanceOfSponsor(address(this)), 0, "initial deposit amount shouldn't have any sponsorship");
