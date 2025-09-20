@@ -57,7 +57,7 @@ contract FanTokenFactoryTest is Test {
         );
 
         uint256 initialShares = fanToken.previewWithdraw(initialDeposit);
-        console.log("initial shares:", initialShares);
+        assertEq(initialShares, initialDeposit, "initial deposit should be 1:1 shares");
 
         assertEq(fanToken.balanceOfSponsor(address(this)), initialDeposit, "initial deposits should be 1:1");
 
@@ -112,10 +112,10 @@ contract FanTokenFactoryTest is Test {
 
         IERC4626 asset = IERC4626(bryan.asset());
         uint256 shares = bryan.balanceOf(alice);
-        console.log("shares:", shares);
+        assertEq(shares, underlyingAssets, "alice should receive shares equal to deposited assets");
 
         uint256 assets = bryan.previewRedeem(shares);
-        console.log("assets:", assets);
+        assertEq(assets, underlyingAssets, "shares should be redeemable for deposited amount");
 
         // TODO: check against a specific value
         assertGt(assets, 0, "no assets redeemed");
@@ -127,7 +127,7 @@ contract FanTokenFactoryTest is Test {
         // TODO: send to a "receiver" address just to make the accounting clean?
         bryan.approve(address(fanTokenFactory), type(uint256).max);
         uint256 redeemed = fanTokenFactory.redeem(bryan, shares, address(alice));
-        console.log("redeemed:", redeemed);
+        assertEq(redeemed, underlyingAssets, "should redeem original deposited amount");
 
         // TODO: the fees make this annoying. TODO: I'm also not sure these are even the right checks. think about these more
         assertGt(redeemed, 0, "none redeemed"); // TODO: what should this amount be?
