@@ -130,4 +130,76 @@ contract FanTokenFactoryTest is Test {
         assertEq(IERC20(bryan.asset()).balanceOf(address(bryan)), 0, "token's asset balance should be empty");
         assertEq(bryan.balanceOf(address(alice)), 0, "our balance of bryan should be empty");
     }
+
+    function test_enumeration_functions() public {
+        // Get initial count (should include the bryan token from setUp)
+        uint256 initialCount = fanTokenFactory.getDeployedTokenCount();
+
+        // Verify the bryan token is in the set
+        assertTrue(fanTokenFactory.isDeployed(address(bryan)), "bryan token should be deployed");
+
+        // Initial getAllDeployedTokens should include bryan
+        address[] memory initialTokens = fanTokenFactory.getAllDeployedTokens();
+        assertEq(initialTokens.length, initialCount, "initial token count should match");
+
+        // Create first new token
+        FanToken token1 = fanTokenFactory.create(
+            "Token 1",
+            "TK1",
+            0,
+            0,
+            prizeVault,
+            address(0),
+            bytes32(uint256(1)),
+            0
+        );
+
+        // Verify count increased
+        assertEq(fanTokenFactory.getDeployedTokenCount(), initialCount + 1, "count should increase by 1");
+
+        // Verify token is marked as deployed
+        assertTrue(fanTokenFactory.isDeployed(address(token1)), "token1 should be deployed");
+        assertFalse(fanTokenFactory.isDeployed(address(0x123)), "random address should not be deployed");
+
+        // Verify we can get it by index
+        assertEq(fanTokenFactory.getDeployedTokenAt(initialCount), address(token1), "should get token1 at new index");
+
+        // Create second token
+        FanToken token2 = fanTokenFactory.create(
+            "Token 2",
+            "TK2",
+            0,
+            0,
+            prizeVault,
+            address(0),
+            bytes32(uint256(2)),
+            0
+        );
+
+        // Test final state
+        assertEq(fanTokenFactory.getDeployedTokenCount(), initialCount + 2, "should have 2 more tokens");
+        assertTrue(fanTokenFactory.isDeployed(address(token2)), "token2 should be deployed");
+        assertEq(fanTokenFactory.getDeployedTokenAt(initialCount + 1), address(token2), "should get token2 at index");
+
+        // Test getAllDeployedTokens
+        address[] memory allTokens = fanTokenFactory.getAllDeployedTokens();
+        assertEq(allTokens.length, initialCount + 2, "should return all tokens");
+        assertEq(allTokens[initialCount], address(token1), "token1 should be at correct position");
+        assertEq(allTokens[initialCount + 1], address(token2), "token2 should be at correct position");
+
+        // Test pagination - get just the new tokens
+        address[] memory newTokens = fanTokenFactory.getDeployedTokens(initialCount, initialCount + 2);
+        assertEq(newTokens.length, 2, "pagination should return 2 tokens");
+        assertEq(newTokens[0], address(token1), "first new token should be token1");
+        assertEq(newTokens[1], address(token2), "second new token should be token2");
+
+        // Test single token pagination
+        address[] memory singleToken = fanTokenFactory.getDeployedTokens(initialCount, initialCount + 1);
+        assertEq(singleToken.length, 1, "single token pagination should return 1");
+        assertEq(singleToken[0], address(token1), "should return token1");
+
+        // Test empty pagination
+        address[] memory emptyRange = fanTokenFactory.getDeployedTokens(initialCount + 2, initialCount + 2);
+        assertEq(emptyRange.length, 0, "empty range should return empty array");
+    }
 }
