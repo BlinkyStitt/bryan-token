@@ -550,7 +550,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
     // === minor helpers ===
 
-    function version() public returns (string memory) {
+    function version() external returns (string memory) {
         return FACTORY.version();
     }
 
