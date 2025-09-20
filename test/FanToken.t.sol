@@ -406,7 +406,7 @@ contract FanTokenTest is Test {
         assertEq(underlyingAssets, 1 ether, "should be 1 ether of underlying assets");
 
         (IERC4626 asset, uint256 assets) = _dealAsset(underlyingAssets, address(this));
-        assertGt(assets, 0, "should have positive assets from dealing");
+        assertEq(assets, underlyingAssets, "should deal exactly the underlying assets amount");
 
         asset.approve(address(bryan), type(uint256).max);
         uint256 when = bryan.startDeposit(assets);
@@ -414,12 +414,12 @@ contract FanTokenTest is Test {
         assertEq(when, 0, "this deposit should be instant");
 
         uint256 originalTotalSupply = bryan.totalSupply();
-        assertGt(originalTotalSupply, 0, "should have positive total supply");
+        assertEq(originalTotalSupply, underlyingAssets, "initial total supply should equal underlying assets");
 
         assertEq(bryan.balanceOfUnderlying(address(this)), underlyingAssets, "initial deposit amount");
         assertEq(bryan.balanceOfSponsor(address(this)), 0, "initial deposit amount shouldn't have any sponsorship");
         assertEq(bryan.totalAssets(), assets, "initial deposit assets");
-        assertGt(originalTotalSupply, 0, "there should be some total supply");
+        assertEq(originalTotalSupply, underlyingAssets, "total supply should equal underlying assets");
 
         bryan.setSponsorship(true);
 
@@ -506,7 +506,7 @@ contract FanTokenTest is Test {
         uint256 redeemed = _redeemWithEvents(shares + newShares, address(this), address(this));
         console.log("redeemed", shares + newShares, "shares into", redeemed);
 
-        assertGt(redeemed, 0, "none redeemed"); // TODO: what should this amount be?
+        assertEq(redeemed, underlyingAssets, "should redeem the original deposit amount");
         assertApproxEqAbs(
             IERC20(bryan.asset()).balanceOf(address(bryan)), 0, 1, "token's asset balance should be empty"
         );
@@ -554,7 +554,7 @@ contract FanTokenTest is Test {
         // Test auctionTrigger before kicking
         (bool shouldKick, bytes memory triggerData) = bryan.auctionTrigger(address(from));
         assertTrue(shouldKick, "auctionTrigger should return true for kickable amount");
-        assertGt(triggerData.length, 0, "trigger data should not be empty");
+        assertNotEq(triggerData.length, 0, "trigger data should not be empty");
 
         IAuction auction = IAuction(bryan.auction());
         require(address(auction) != address(0), "no auction contract");
@@ -1306,11 +1306,11 @@ contract FanTokenTest is Test {
         feeToken.deposit(assets, address(this));
 
         uint256 shares = feeToken.balanceOf(address(this));
-        assertGt(shares, 0, "should receive shares after fee token deposit");
+        assertEq(shares, depositAmount, "should receive shares equal to deposit amount");
 
         // Test withdrawal
         uint256 withdrawn = feeToken.redeem(shares, address(this), address(this));
-        assertGt(withdrawn, 0, "should receive assets after fee token redeem");
+        assertEq(withdrawn, depositAmount, "should receive assets equal to original deposit amount");
         assertEq(feeToken.balanceOf(address(this)), 0, "balance should be zero after redeem");
     }
     */
@@ -1364,7 +1364,7 @@ contract FanTokenTest is Test {
 
             uint256 sponsorSharesAfter = bryan.balanceOf(sponsor);
             assertLe(sponsorSharesAfter, sponsorShares, "sponsor shares should not increase after withdrawal");
-            assertGt(withdrawn, 0, "should receive assets from withdrawal");
+            assertEq(withdrawn, withdrawAmount, "should receive withdrawn assets");
         }
         vm.stopPrank();
         // Total sponsored shares are tracked by the contract
@@ -1528,7 +1528,7 @@ contract FanTokenTest is Test {
         vm.startPrank(finisher);
         uint256 finishedDeposit = bryan.finishDeposit(depositor, depositor);
 
-        assertGt(finishedDeposit, 0, "there should be some finished deposit");
+        assertEq(finishedDeposit, assets, "should finish deposit of original amount");
 
         // Since depositor became a sponsor, their shares should be moved to the contract
         uint256 contractSponsoredShares = bryan.totalSponsoredShares();
@@ -1857,7 +1857,7 @@ contract FanTokenTest is Test {
         console.log("  Sponsor assets:", bryan.balanceOfSponsor(sponsor));
         console.log("  Withdrawer received:", asset.balanceOf(withdrawer));
 
-        assertGt(withdrawn, 0, "withdrawal should succeed");
+        assertEq(withdrawn, withdrawAmount, "should withdraw the requested amount");
         assertEq(bryan.balanceOfSponsor(sponsor), sponsorAssets - withdrawAmount, "sponsor assets should decrease");
 
         vm.stopPrank();
@@ -1927,7 +1927,7 @@ contract FanTokenTest is Test {
         console.log("  Withdrawn amount:", withdrawn);
         console.log("  User shares remaining:", bryan.balanceOf(user));
 
-        assertGt(withdrawn, 0, "withdrawal should succeed");
+        assertEq(withdrawn, withdrawAmount, "should withdraw the requested amount");
         assertLt(bryan.balanceOf(user), userShares, "user shares should decrease");
 
         vm.stopPrank();
@@ -1965,7 +1965,7 @@ contract FanTokenTest is Test {
         console.log("  Sponsor assets:", bryan.balanceOfSponsor(sponsor));
         console.log("  Total sponsor assets:", bryan.totalSponsorAssets());
 
-        assertGt(withdrawn, 0, "withdrawal should succeed");
+        assertEq(withdrawn, withdrawAmount, "should withdraw the requested amount");
         assertEq(bryan.balanceOfSponsor(sponsor), sponsorAssets - withdrawAmount, "sponsor assets should decrease");
         assertEq(bryan.totalSponsorAssets(), sponsorAssets - withdrawAmount, "total sponsor assets should decrease");
 
@@ -2045,7 +2045,7 @@ contract FanTokenTest is Test {
         console.log("  Redeemed amount:", redeemed);
         console.log("  Sponsor assets:", bryan.balanceOfSponsor(sponsor));
 
-        assertGt(redeemed, 0, "redeem should succeed");
+        assertEq(redeemed, sharesToRedeem, "should redeem the requested shares");
         // redeem now properly updates sponsor accounting
         uint256 redeemedAssets = bryan.previewRedeem(sharesToRedeem);
         assertEq(bryan.balanceOfSponsor(sponsor), sponsorAssets - redeemedAssets, "sponsor assets should decrease");
@@ -2083,7 +2083,7 @@ contract FanTokenTest is Test {
         console.log("  Redeemed amount:", redeemed);
         console.log("  User shares remaining:", bryan.balanceOf(user));
 
-        assertGt(redeemed, 0, "redeem should succeed");
+        assertEq(redeemed, sharesToRedeem, "should redeem the requested shares");
         assertEq(bryan.balanceOf(user), userShares - sharesToRedeem, "user shares should decrease");
 
         vm.stopPrank();
@@ -2164,7 +2164,7 @@ contract FanTokenTest is Test {
 
         uint256 withdrawn = bryan.withdraw(withdrawAmount, withdrawer, user);
 
-        assertGt(withdrawn, 0, "withdrawal should succeed");
+        assertEq(withdrawn, withdrawAmount, "should withdraw the requested amount");
         assertEq(bryan.balanceOf(user), userShares - sharesToApprove, "user shares should decrease");
         assertEq(bryan.allowance(user, withdrawer), 0, "allowance should be consumed");
 
@@ -2365,7 +2365,7 @@ contract FanTokenTest is Test {
 
         // First deposit should be immediate (already processed by startDeposit)
         uint256 shares1 = bryan.balanceOf(user1);
-        assertGt(shares1, 0, "Should receive shares immediately for first deposit");
+        assertEq(shares1, assets1, "Should receive shares equal to deposited assets for first deposit");
         vm.stopPrank();
 
         // Second deposit should have delay (totalSupply > 0)
@@ -2385,7 +2385,7 @@ contract FanTokenTest is Test {
         // Should be able to finalize exactly at delay time
         vm.warp(startTime + expectedDelay);
         uint256 shares2 = bryan.finishDeposit(user2, user2);
-        assertGt(shares2, 0, "Should receive shares after delay");
+        assertEq(shares2, assets2, "Should receive shares equal to deposited assets after delay");
 
         vm.stopPrank();
     }
