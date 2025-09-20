@@ -4,6 +4,7 @@ pragma solidity ^0.8.13;
 import {Test} from "forge-std/Test.sol";
 import {
     AtLeastOneSideMustBeSponsor,
+    DepositNotReady,
     InsufficientSponsorBalance,
     InvalidAuctionToken,
     FanToken,
@@ -2159,5 +2160,287 @@ contract FanTokenTest is Test {
         assertEq(bryan.allowance(user, withdrawer), 0, "allowance should be consumed");
 
         vm.stopPrank();
+    }
+
+    // ============ INVARIANT TESTS ============
+    // Tests for critical invariants and logical correctness
+
+    function test_sponsor_accounting_invariant() public {
+        address sponsor1 = makeAddr("sponsor1");
+        address sponsor2 = makeAddr("sponsor2");
+        address sponsor3 = makeAddr("sponsor3");
+
+        // Setup multiple sponsors with different amounts
+        (IERC4626 asset, uint256 assets1) = _dealAsset(5 ether, sponsor1);
+        (, uint256 assets2) = _dealAsset(3 ether, sponsor2);
+        (, uint256 assets3) = _dealAsset(2 ether, sponsor3);
+
+        // All become sponsors and deposit
+        address[] memory sponsors = new address[](3);
+        uint256[] memory amounts = new uint256[](3);
+        sponsors[0] = sponsor1;
+        amounts[0] = assets1;
+        sponsors[1] = sponsor2;
+        amounts[1] = assets2;
+        sponsors[2] = sponsor3;
+        amounts[2] = assets3;
+
+        for (uint256 i = 0; i < 3; i++) {
+            vm.startPrank(sponsors[i]);
+            bryan.setSponsorship(true);
+            asset.approve(address(bryan), type(uint256).max);
+            uint256 when = bryan.startDeposit(amounts[i], sponsors[i]);
+            if (when > 0) {
+                vm.warp(when);
+                bryan.finishDeposit(sponsors[i], sponsors[i]);
+            }
+            vm.stopPrank();
+        }
+
+        // Check invariant: totalSponsorAssets = sum of individual balances
+        _checkSponsorAccountingInvariant(sponsors);
+
+        // Perform various operations and check invariant holds
+        vm.prank(sponsor1);
+        bryan.sponsorTransfer(sponsor2, 1 ether);
+        _checkSponsorAccountingInvariant(sponsors);
+
+        vm.prank(sponsor2);
+        bryan.sponsorBurn(0.5 ether);
+        _checkSponsorAccountingInvariant(sponsors);
+
+        vm.prank(sponsor3);
+        bryan.setSponsorship(false);
+        _checkSponsorAccountingInvariant(sponsors);
+    }
+
+    function _checkSponsorAccountingInvariant(address[] memory sponsors) internal view {
+        uint256 sumIndividual = 0;
+        for (uint256 i = 0; i < sponsors.length; i++) {
+            sumIndividual += bryan.balanceOfSponsor(sponsors[i]);
+        }
+
+        uint256 totalReported = bryan.totalSponsorAssets();
+        assertEq(totalReported, sumIndividual, "totalSponsorAssets must equal sum of individual balanceOfSponsor");
+    }
+
+    function test_conversion_consistency() public {
+        address user = makeAddr("user");
+        (IERC4626 asset, uint256 assets) = _dealAsset(10 ether, user);
+
+        vm.startPrank(user);
+        asset.approve(address(bryan), type(uint256).max);
+        uint256 shares = bryan.deposit(assets, user);
+
+        // Test round-trip conversions
+        uint256 assetsFromShares = bryan.convertToAssets(shares);
+        uint256 sharesFromAssets = bryan.convertToShares(assetsFromShares);
+
+        // Should be approximately equal (allowing for rounding)
+        assertApproxEqAbs(shares, sharesFromAssets, 1, "Round-trip share conversion failed");
+        assertApproxEqAbs(assets, assetsFromShares, 1, "Asset conversion inconsistent");
+
+        // Test preview functions match actual operations
+        uint256 previewWithdrawShares = bryan.previewWithdraw(assets / 2);
+        uint256 actualWithdrawShares = bryan.withdraw(assets / 2, user, user);
+        assertEq(previewWithdrawShares, actualWithdrawShares, "previewWithdraw mismatch");
+
+        // Test remaining balance consistency
+        uint256 remainingShares = bryan.balanceOf(user);
+        uint256 remainingAssets = bryan.convertToAssets(remainingShares);
+        assertApproxEqAbs(remainingAssets, assets / 2, 1, "Remaining balance inconsistent");
+
+        vm.stopPrank();
+    }
+
+    function test_sponsor_withdrawal_boundaries() public {
+        address sponsor = makeAddr("sponsor");
+        (IERC4626 asset, uint256 totalAssets) = _dealAsset(10 ether, sponsor);
+
+        vm.startPrank(sponsor);
+        bryan.setSponsorship(true);
+        asset.approve(address(bryan), type(uint256).max);
+        uint256 when = bryan.startDeposit(totalAssets, sponsor);
+        if (when > 0) {
+            vm.warp(when);
+            bryan.finishDeposit(sponsor, sponsor);
+        }
+
+        uint256 sponsorBalance = bryan.balanceOfSponsor(sponsor);
+        assertEq(sponsorBalance, totalAssets, "Sponsor balance should equal deposited assets");
+
+        // Test exact balance withdrawal
+        uint256 withdrawn1 = bryan.withdraw(sponsorBalance, sponsor, sponsor);
+        assertEq(withdrawn1, sponsorBalance, "Should withdraw exact sponsor balance");
+        assertEq(bryan.balanceOfSponsor(sponsor), 0, "Sponsor balance should be zero after full withdrawal");
+
+        // Deposit again for next test
+        uint256 when2 = bryan.startDeposit(totalAssets, sponsor);
+        if (when2 > 0) {
+            vm.warp(when2);
+            bryan.finishDeposit(sponsor, sponsor);
+        }
+
+        // Test withdrawal that exceeds balance should revert
+        uint256 excessiveAmount = bryan.balanceOfSponsor(sponsor) + 1;
+        uint256 availableShares = bryan.previewWithdraw(bryan.balanceOfSponsor(sponsor));
+        uint256 excessiveShares = bryan.previewWithdraw(excessiveAmount);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                InsufficientSponsorBalance.selector,
+                sponsor,
+                bryan.balanceOfSponsor(sponsor),
+                availableShares,
+                excessiveAmount,
+                excessiveShares
+            )
+        );
+        bryan.withdraw(excessiveAmount, sponsor, sponsor);
+
+        vm.stopPrank();
+    }
+
+    function test_fee_distribution_precision() public {
+        address user = makeAddr("user");
+        (IERC4626 asset, uint256 initialAssets) = _dealAsset(100 ether, user);
+
+        vm.startPrank(user);
+        asset.approve(address(bryan), type(uint256).max);
+        bryan.deposit(initialAssets, user);
+        vm.stopPrank();
+
+        // Add some rewards to harvest by dealing to the vault
+        _dealAsset(10 ether, address(bryan));
+
+        uint256 ownerBalanceBefore = bryan.UNDERLYING().balanceOf(bryan.owner());
+        uint256 treasuryBalanceBefore = bryan.UNDERLYING().balanceOf(bryan.TREASURY());
+        uint256 totalSupplyBefore = bryan.totalSupply();
+
+        uint256 harvested = bryan.harvest();
+
+        uint256 ownerBalanceAfter = bryan.UNDERLYING().balanceOf(bryan.owner());
+        uint256 treasuryBalanceAfter = bryan.UNDERLYING().balanceOf(bryan.TREASURY());
+        uint256 totalSupplyAfter = bryan.totalSupply();
+
+        // Get the fee basis points from the contract
+        uint256 ownerFeeBasisPoints = bryan.harvestOwnerFeeBasisPoints();
+        uint256 treasuryFeeBasisPoints = bryan.harvestTreasuryFeeBasisPoints();
+
+        if (harvested > 0) {
+            // Verify fee amounts are correct based on actual fee settings
+            uint256 expectedOwnerFee = (harvested * ownerFeeBasisPoints) / 10000;
+            uint256 expectedTreasuryFee = (harvested * treasuryFeeBasisPoints) / 10000;
+
+            assertEq(ownerBalanceAfter - ownerBalanceBefore, expectedOwnerFee, "Owner fee amount incorrect");
+            assertEq(treasuryBalanceAfter - treasuryBalanceBefore, expectedTreasuryFee, "Treasury fee amount incorrect");
+
+            // Remaining should inflate token value
+
+            // Total supply shouldn't change (rewards inflate existing shares)
+            assertEq(totalSupplyAfter, totalSupplyBefore, "Total supply should not change from harvest");
+        }
+    }
+
+    function test_deposit_delay_timing() public {
+        address user1 = makeAddr("user1");
+        address user2 = makeAddr("user2");
+        (IERC4626 asset, uint256 assets1) = _dealAsset(1 ether, user1);
+        (, uint256 assets2) = _dealAsset(1 ether, user2);
+
+        // First deposit should have no delay (totalSupply == 0)
+        vm.startPrank(user1);
+        asset.approve(address(bryan), type(uint256).max);
+        uint256 claimWhen1 = bryan.startDeposit(assets1, user1);
+        assertEq(claimWhen1, 0, "First deposit should have no delay");
+
+        // First deposit should be immediate (already processed by startDeposit)
+        uint256 shares1 = bryan.balanceOf(user1);
+        assertGt(shares1, 0, "Should receive shares immediately for first deposit");
+        vm.stopPrank();
+
+        // Second deposit should have delay (totalSupply > 0)
+        vm.startPrank(user2);
+        asset.approve(address(bryan), type(uint256).max);
+
+        uint256 startTime = block.timestamp;
+        uint256 expectedDelay = bryan.DEPOSIT_DELAY();
+        uint256 claimWhen2 = bryan.startDeposit(assets2, user2);
+
+        assertEq(claimWhen2, startTime + expectedDelay, "Second deposit claim time calculation incorrect");
+
+        // Should not be able to finalize before delay
+        vm.expectRevert(abi.encodeWithSelector(DepositNotReady.selector));
+        bryan.finishDeposit(user2, user2);
+
+        // Should be able to finalize exactly at delay time
+        vm.warp(startTime + expectedDelay);
+        uint256 shares2 = bryan.finishDeposit(user2, user2);
+        assertGt(shares2, 0, "Should receive shares after delay");
+
+        vm.stopPrank();
+    }
+
+    function test_sponsorship_transfer_edge_cases() public {
+        address sponsor1 = makeAddr("sponsor1");
+        address sponsor2 = makeAddr("sponsor2");
+        address nonSponsor = makeAddr("nonSponsor");
+
+        (IERC4626 asset, uint256 assets) = _dealAsset(5 ether, sponsor1);
+        (, uint256 assets2) = _dealAsset(3 ether, nonSponsor);
+
+        // Setup sponsor1
+        vm.startPrank(sponsor1);
+        bryan.setSponsorship(true);
+        asset.approve(address(bryan), type(uint256).max);
+        uint256 when1 = bryan.startDeposit(assets, sponsor1);
+        if (when1 > 0) {
+            vm.warp(when1);
+            bryan.finishDeposit(sponsor1, sponsor1);
+        }
+        vm.stopPrank();
+
+        // Setup nonSponsor (must wait for delay since sponsor1 already deposited)
+        vm.startPrank(nonSponsor);
+        asset.approve(address(bryan), type(uint256).max);
+        uint256 when2 = bryan.startDeposit(assets2, nonSponsor);
+        if (when2 > 0) {
+            vm.warp(when2);
+            bryan.finishDeposit(nonSponsor, nonSponsor);
+        }
+        vm.stopPrank();
+
+        // Setup sponsor2 (empty initially)
+        vm.prank(sponsor2);
+        bryan.setSponsorship(true);
+
+        uint256 transferAmount = 1 ether;
+
+        // Test sponsor-to-sponsor transfer
+        vm.prank(sponsor1);
+        bryan.sponsorTransfer(sponsor2, transferAmount);
+
+        assertEq(bryan.balanceOfSponsor(sponsor1), assets - transferAmount, "Sponsor1 balance incorrect after transfer");
+        assertEq(bryan.balanceOfSponsor(sponsor2), transferAmount, "Sponsor2 balance incorrect after transfer");
+
+        // Total should remain unchanged
+        assertEq(bryan.totalSponsorAssets(), assets, "Total sponsor assets should remain constant");
+
+        // Test non-sponsor to sponsor transfer (should convert shares)
+        uint256 nonSponsorShares = bryan.balanceOf(nonSponsor);
+        uint256 nonSponsorAssets = bryan.convertToAssets(nonSponsorShares);
+
+        vm.prank(nonSponsor);
+        bryan.sponsorTransfer(sponsor1, nonSponsorAssets);
+
+        // Non-sponsor should lose all shares
+        assertEq(bryan.balanceOf(nonSponsor), 0, "Non-sponsor should have no shares left");
+
+        // Sponsor should gain the assets
+        assertEq(
+            bryan.balanceOfSponsor(sponsor1),
+            assets - transferAmount + nonSponsorAssets,
+            "Sponsor1 balance incorrect after receiving from non-sponsor"
+        );
     }
 }
