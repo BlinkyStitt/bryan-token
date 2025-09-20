@@ -481,7 +481,7 @@ contract FanTokenTest is Test {
         require(address(auction) != address(0), "no auction contract");
 
         // TODO: do we need to approvals here? i don't think so
-        uint256 available = auction.kick(address(from));
+        uint256 available = bryan.kickAuction(address(from));
 
         assertEq(fromAmount, available, "auction size incorrect");
 

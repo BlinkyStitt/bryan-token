@@ -42,7 +42,7 @@ else
 fi
 
 # Support different modes: test, coverage, snapshot
-mode="coverage"  # default to coverage
+mode="test"  # default to coverage
 if [ $# -gt 0 ]; then
     case "$1" in
         test|coverage|snapshot)
