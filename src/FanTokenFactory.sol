@@ -68,16 +68,15 @@ contract FanTokenFactory {
         }
 
         if (setupUniswapV4HookedPool) {
-            _setupUniswapV4HookedPool(address(_prizeVault), underlying);
-            _setupUniswapV4HookedPool(address(_prizeVault), address(fanToken));
+            _setupUniswapV4HookedPool(address(_prizeVault));
+            _setupUniswapV4HookedPool(address(fanToken));
         }
     }
 
     /// @notice Creates a Uniswap V4 pool using the Generic4626Router hook
     /// @dev The hook manages pool creation and authorization for ERC4626 vaults
-    /// @param prizeVault The ERC4626 prize vault address
-    /// @param otherToken The other token (underlying asset or fan token)
-    function _setupUniswapV4HookedPool(address prizeVault, address otherToken) internal {
+    /// @param vault The ERC4626 vault address to initialize a pool for
+    function _setupUniswapV4HookedPool(address vault) internal {
         /*
         The Generic4626Router hook manages ERC4626 vault pools with specialized routing logic.
         It handles pool creation internally and maintains authorization for supported vaults.
@@ -88,7 +87,9 @@ contract FanTokenFactory {
         - Manages vault authorization
         */
 
-        try UNISWAP_V4_ERC4626_HOOK.initializePool(prizeVault) {
+        // TODO: gas golf this. better to try, or should we have our own check if its already been deployed?
+
+        try UNISWAP_V4_ERC4626_HOOK.initializePool(vault) {
             // Pool created successfully by hook
         } catch {
             // Hook rejected the vault (not authorized or already exists)

@@ -151,9 +151,8 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
     /// @dev after the initial deposit, this does NOT transfer the tokens. instead, make sure `startDeposit` is called first
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
-        if (totalSupply() == 0) {
-            // TODO: should this check `totalPendingAssets == 0`?
-            // the first deposit shouldn't have any delay
+        if (totalSupply() == 0 && totalPendingAssets == 0) {
+            // The very first deposit shouldn't have any delay and no pending deposits should exist
             super._deposit(caller, receiver, assets, shares);
         } else {
             _finishDeposit(caller, receiver, assets, shares);

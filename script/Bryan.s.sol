@@ -34,6 +34,8 @@ contract BryanScript is Script {
         // prepare creation code
         revert("todo: this is wrong now. we need a helper function for checking salts from the factory");
 
+        // TODO: deploy a token for WETH and a token for USDC
+
         /*
         bytes memory creationCode = abi.encodePacked(type(FanToken).creationCode, abi.encode(owner, wethPrizeVault));
 
