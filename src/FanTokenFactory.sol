@@ -114,7 +114,8 @@ contract FanTokenFactory {
         return prizeVault.redeem(vaultShares, receiver, address(this));
     }
 
-    // TODO: do we need mint/withdraw?
+    // TODO: do we need mint? mint is hard because we care about the assets, not the shares during the deposit queue.
+    // TODO: do we need a withdraw? its similar to redeem but takes assets instead of shares
 
     function version() external pure returns (string memory) {
         return "3.0.0";
@@ -123,7 +124,7 @@ contract FanTokenFactory {
     // === Enumeration Functions ===
 
     /// @notice get all deployed fan tokens (for off-chain use)
-    /// @dev this can be expensive for large numbers of tokens, but fine for Base network
+    /// @dev this can be expensive for large numbers of tokens, but should be fine for a long time on Base network
     function getAllDeployedTokens() external view returns (address[] memory) {
         return _deployedTokens.values();
     }
@@ -131,7 +132,6 @@ contract FanTokenFactory {
     /// @notice get a paginated list of deployed fan tokens
     /// @param start starting index (inclusive)
     /// @param end ending index (exclusive)
-    /// @dev uses OpenZeppelin's efficient pagination: values(set, start, end)
     function getDeployedTokens(uint256 start, uint256 end) external view returns (address[] memory) {
         return _deployedTokens.values(start, end);
     }
