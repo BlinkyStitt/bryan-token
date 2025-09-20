@@ -88,8 +88,8 @@ contract FanTokenFactoryTest is Test {
         prizeVault = IERC4626(bryan.asset());
 
         // TODO: what should the amounts actually be?
-        assertGt(bryan.balanceOf(receiver), 0, "receiver should have a balance");
-        assertGt(prizeVault.balanceOf(address(bryan)), 0, "token should have a balance");
+        assertEq(bryan.balanceOf(receiver), underlyingAssets, "receiver should receive shares equal to deposited assets");
+        assertEq(prizeVault.balanceOf(address(bryan)), underlyingAssets, "token should hold the deposited assets");
 
         // TODO: test fees! I want this fee to be sent as bryan, not as prizeVault!
         // assertGt(prizeVault.balanceOf(bryan.owner()), 0);
@@ -117,20 +117,14 @@ contract FanTokenFactoryTest is Test {
         uint256 assets = bryan.previewRedeem(shares);
         assertEq(assets, underlyingAssets, "shares should be redeemable for deposited amount");
 
-        // TODO: check against a specific value
-        assertGt(assets, 0, "no assets redeemed");
-
         // TODO: the fees make this annoying. TODO: I'm also not sure these are even the right checks. think about these more
-        assertGt(asset.balanceOf(address(bryan)), 0, "asset balance does not match assets");
+        assertGe(asset.balanceOf(address(bryan)), underlyingAssets, "token should hold at least the deposited assets");
 
         // test the main redeem function
         // TODO: send to a "receiver" address just to make the accounting clean?
         bryan.approve(address(fanTokenFactory), type(uint256).max);
         uint256 redeemed = fanTokenFactory.redeem(bryan, shares, address(alice));
         assertEq(redeemed, underlyingAssets, "should redeem original deposited amount");
-
-        // TODO: the fees make this annoying. TODO: I'm also not sure these are even the right checks. think about these more
-        assertGt(redeemed, 0, "none redeemed"); // TODO: what should this amount be?
         assertEq(underlying.balanceOf(address(alice)), underlyingAssets, "we should have our asset back");
         assertEq(IERC20(bryan.asset()).balanceOf(address(bryan)), 0, "token's asset balance should be empty");
         assertEq(bryan.balanceOf(address(alice)), 0, "our balance of bryan should be empty");

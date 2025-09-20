@@ -195,7 +195,7 @@ contract FanTokenTest is Test {
         (IERC4626 asset, uint256 assets) = _dealAsset(underlyingAssets * 4, address(this));
 
         uint256 quarterAssets = assets / 4;
-        assertGt(quarterAssets, 0, "quarter assets should be positive");
+        assertEq(quarterAssets, underlyingAssets, "quarter assets should equal underlying assets (1 ether)");
 
         require(asset.transfer(alice, quarterAssets));
         require(asset.transfer(bob, quarterAssets));
@@ -298,7 +298,7 @@ contract FanTokenTest is Test {
         (IERC4626 asset, uint256 assets) = _dealAsset(underlyingAssets * 4, address(this));
 
         uint256 quarterAssets = assets / 4;
-        assertGt(quarterAssets, 0, "quarter assets should be positive");
+        assertEq(quarterAssets, underlyingAssets, "quarter assets should equal underlying assets (1 ether)");
 
         require(asset.transfer(alice, quarterAssets));
         require(asset.transfer(bob, quarterAssets));
