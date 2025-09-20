@@ -1,44 +1,21 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.4;
 
-library IHooks {
-    struct Permissions {
-        bool beforeInitialize;
-        bool afterInitialize;
-        bool beforeAddLiquidity;
-        bool afterAddLiquidity;
-        bool beforeRemoveLiquidity;
-        bool afterRemoveLiquidity;
-        bool beforeSwap;
-        bool afterSwap;
-        bool beforeDonate;
-        bool afterDonate;
-        bool beforeSwapReturnDelta;
-        bool afterSwapReturnDelta;
-        bool afterAddLiquidityReturnDelta;
-        bool afterRemoveLiquidityReturnDelta;
-    }
-}
+import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
+import {PoolKey} from "v4-core/src/types/PoolKey.sol";
+import {PoolId} from "v4-core/src/types/PoolId.sol";
+import {Currency} from "v4-core/src/types/Currency.sol";
+import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
+import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 
 interface IGeneric4626Router {
-    type BalanceDelta is int256;
     type BeforeSwapDelta is int256;
-    type Currency is address;
-    type PoolId is bytes32;
 
     struct ModifyLiquidityParams {
         int24 tickLower;
         int24 tickUpper;
         int256 liquidityDelta;
         bytes32 salt;
-    }
-
-    struct PoolKey {
-        Currency currency0;
-        Currency currency1;
-        uint24 fee;
-        int24 tickSpacing;
-        address hooks;
     }
 
     struct SwapParams {
@@ -102,7 +79,7 @@ interface IGeneric4626Router {
     function beforeSwap(address sender, PoolKey memory key, SwapParams memory params, bytes memory hookData)
         external
         returns (bytes4, BeforeSwapDelta, uint24);
-    function getHookPermissions() external pure returns (IHooks.Permissions memory);
+    function getHookPermissions() external pure returns (Hooks.Permissions memory);
     function initializePool(address vault) external returns (PoolKey memory poolKey, PoolId poolId);
     function poolDetails(PoolId poolId) external view returns (bool isInitialized, bool wrapsZeroToOne);
     function poolManager() external view returns (address);

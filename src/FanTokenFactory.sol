@@ -88,9 +88,7 @@ contract FanTokenFactory {
         - Manages vault authorization
         */
 
-        try UNISWAP_V4_ERC4626_HOOK.initializePool(prizeVault) returns (
-            IGeneric4626Router.PoolKey memory, IGeneric4626Router.PoolId
-        ) {
+        try UNISWAP_V4_ERC4626_HOOK.initializePool(prizeVault) {
             // Pool created successfully by hook
         } catch {
             // Hook rejected the vault (not authorized or already exists)
