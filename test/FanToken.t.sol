@@ -2,7 +2,15 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {AtLeastOneSideMustBeSponsor, InsufficientSponsorBalance, InvalidAuctionToken, FanToken, IERC20, IERC4626, IWETH9} from "../src/FanToken.sol";
+import {
+    AtLeastOneSideMustBeSponsor,
+    InsufficientSponsorBalance,
+    InvalidAuctionToken,
+    FanToken,
+    IERC20,
+    IERC4626,
+    IWETH9
+} from "../src/FanToken.sol";
 import {FanTokenFactory} from "../src/FanTokenFactory.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IAuction} from "../src/interfaces/IAuction.sol";
@@ -1981,7 +1989,16 @@ contract FanTokenTest is Test {
         // Should fail with InsufficientSponsorBalance
         uint256 excessiveShares = bryan.previewWithdraw(excessiveAmount);
         uint256 availableShares = bryan.previewWithdraw(sponsorAssets);
-        vm.expectRevert(abi.encodeWithSelector(InsufficientSponsorBalance.selector, sponsor, sponsorAssets, availableShares, excessiveAmount, excessiveShares));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                InsufficientSponsorBalance.selector,
+                sponsor,
+                sponsorAssets,
+                availableShares,
+                excessiveAmount,
+                excessiveShares
+            )
+        );
         bryan.withdraw(excessiveAmount, sponsor, sponsor);
 
         vm.stopPrank();
@@ -2091,7 +2108,16 @@ contract FanTokenTest is Test {
         // Should fail with InsufficientSponsorBalance
         uint256 excessiveAssets = bryan.previewRedeem(excessiveShares);
         uint256 availableShares = bryan.previewWithdraw(sponsorAssets);
-        vm.expectRevert(abi.encodeWithSelector(InsufficientSponsorBalance.selector, sponsor, sponsorAssets, availableShares, excessiveAssets, excessiveShares));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                InsufficientSponsorBalance.selector,
+                sponsor,
+                sponsorAssets,
+                availableShares,
+                excessiveAssets,
+                excessiveShares
+            )
+        );
         bryan.redeem(excessiveShares, sponsor, sponsor);
 
         vm.stopPrank();

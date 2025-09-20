@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.20;
 
-import {AuctionSwapper, IAuction, IAuctionFactory} from "./forks/AuctionSwapper.sol";
+import {IAuctionFactory} from "tokenized-strategy-periphery/src/interfaces/IAuctionFactory.sol";
+import {AuctionSwapper, IAuction} from "./forks/AuctionSwapper.sol";
 import {ERC20, ERC4626, IERC20, IERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
@@ -18,7 +19,9 @@ error ZeroOwner();
 error DepositNotReady();
 error IncorrectAssets();
 error AtLeastOneSideMustBeSponsor();
-error InsufficientSponsorBalance(address owner, uint256 availableAssets, uint256 availableShares, uint256 requestedAssets, uint256 requestedShares);
+error InsufficientSponsorBalance(
+    address owner, uint256 availableAssets, uint256 availableShares, uint256 requestedAssets, uint256 requestedShares
+);
 
 interface IFanTokenFactory {
     function version() external returns (string memory);
