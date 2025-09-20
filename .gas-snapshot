@@ -1,4 +1,4 @@
-FanTokenFactoryTest:test_enumeration_functions() (gas: 6167370)
+FanTokenFactoryTest:test_enumeration_functions() (gas: 3080353)
 FanTokenFactoryTest:test_factory_deposit_and_withdraw() (gas: 944353)
 FanTokenFactoryTest:test_factory_payable_deposit() (gas: 484618)
 FanTokenFactoryTest:test_initial_deposit() (gas: 3587024)
