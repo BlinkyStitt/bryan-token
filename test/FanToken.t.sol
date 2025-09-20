@@ -12,7 +12,8 @@ import {
     IERC4626,
     IWETH9
 } from "../src/FanToken.sol";
-import {FanTokenFactory, IPoolManager, IHooks} from "../src/FanTokenFactory.sol";
+import {FanTokenFactory} from "../src/FanTokenFactory.sol";
+import {IGeneric4626Router} from "../src/interfaces/IGeneric4626Router.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IAuction} from "../src/interfaces/IAuction.sol";
 import {console} from "forge-std/console.sol";
@@ -41,13 +42,10 @@ contract FanTokenTest is Test {
         uint256 harvestTreasuryFeeBasisPoints = 0;
         treasury = makeAddr("treasury");
 
-        // Base network
-        IPoolManager poolManager = IPoolManager(address(0x498581fF718922c3f8e6A244956aF099B2652b2b));
-        // this is a hook that works with erc4626 vaults
+        // Generic4626Router hook that works with erc4626 vaults
+        IGeneric4626Router uniswapV4Hook = IGeneric4626Router(address(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888));
 
-        IHooks uniswapV4Hook = IHooks(address(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888));
-
-        factory = new FanTokenFactory(weth, poolManager, uniswapV4Hook);
+        factory = new FanTokenFactory(weth, uniswapV4Hook);
 
         vm.prank(address(factory));
         bryan = new FanToken(

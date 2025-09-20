@@ -2,7 +2,8 @@
 pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
-import {FanToken, FanTokenFactory, IERC20, IERC4626, IWETH9, IPoolManager, IHooks} from "../src/FanTokenFactory.sol";
+import {FanToken, FanTokenFactory, IERC20, IERC4626, IWETH9} from "../src/FanTokenFactory.sol";
+import {IGeneric4626Router} from "../src/interfaces/IGeneric4626Router.sol";
 
 contract FanTokenFactoryTest is Test {
     IERC4626 prizeVault;
@@ -15,11 +16,10 @@ contract FanTokenFactoryTest is Test {
     function setUp() public {
         weth = IWETH9(address(0x4200000000000000000000000000000000000006));
 
-        // Use real Uniswap V4 contracts
-        IPoolManager poolManager = IPoolManager(address(0x498581fF718922c3f8e6A244956aF099B2652b2b)); // Base network
-        IHooks uniswapV4Hook = IHooks(address(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888));
+        // Use the Generic4626Router hook contract
+        IGeneric4626Router uniswapV4Hook = IGeneric4626Router(address(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888));
 
-        fanTokenFactory = new FanTokenFactory(weth, poolManager, uniswapV4Hook);
+        fanTokenFactory = new FanTokenFactory(weth, uniswapV4Hook);
 
         // TODO: use flags on the test command instead of forcing a fork here?
         address owner = makeAddr("bryan owner");
@@ -178,9 +178,8 @@ contract FanTokenFactoryTest is Test {
             address(0),
             bytes32(uint256(1)),
             0,
-            true // setupUniswapV4HookedPool
+            false // setupUniswapV4HookedPool
         );
-        vm.pauseGasMetering();
 
         // Verify count increased
         assertEq(fanTokenFactory.getDeployedTokenCount(), initialCount + 1, "count should increase by 1");

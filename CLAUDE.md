@@ -1,7 +1,7 @@
 ## Feature Implementation System Guidelines
 
 ### Feature Implementation Priority Rules
-- SAVING: `git commit` after every major step, especially after code is done or tests pass.
+- SAVING: after every major step (especially after code is done or tests pass), run`forge fmt` and `forge lint` and then if things are clean `git commit`.
 - IMMEDIATE EXECUTION: Launch parallel Tasks immediately upon feature requests
 - NO CLARIFICATION: Skip asking what type of implementation unless absolutely critical
 - PARALLEL BY DEFAULT: Always use 7-parallel-Task method for efficiency
@@ -9,6 +9,7 @@
 - ONE TEST: To run one test, do `./script/test.sh -vvv --match-test THE_ONE_TEST`
 - COVERAGE: Do not use `forge coverage` directly. Instead, run tests with `./script/test.sh coverage`! You can pass flags through to the forge coverage command. If tests pass, the html coverage report will be created.
 - GAS USAGE SNAPSHOT: Do not use `forge snapshot` directly. Instead, run tests with `./script/test.sh snapshot`! you can pass flags through to the forge snapshot command
+- INTERFACES: Run `cast interface $ADDRESS --chain base --name $INAME --output src/interfaces/$INAME.sol)`
 
 - AGAIN: Do not use `forge test` directly! Use the helper script!
 

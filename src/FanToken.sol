@@ -283,8 +283,9 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         uint256 maxDepositAssets = prizeVault.maxDeposit(address(this));
 
         if (underlyingAssets > maxDepositAssets) {
-            // TODO: what should we do with any excess? hopefully it can be deposited in the future?
+            // we leave any excess here.
             underlyingAssets = maxDepositAssets;
+
             // TODO: emit an event about having some excess tokens stuck
         }
 

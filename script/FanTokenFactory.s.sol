@@ -3,7 +3,8 @@ pragma solidity ^0.8.13;
 
 import {LibString} from "solady/utils/LibString.sol";
 import {Script} from "forge-std/Script.sol";
-import {FanTokenFactory, IWETH9, IPoolManager, IHooks} from "../src/FanTokenFactory.sol";
+import {FanTokenFactory, IWETH9} from "../src/FanTokenFactory.sol";
+import {IGeneric4626Router} from "../src/interfaces/IGeneric4626Router.sol";
 
 contract FanTokenFactoryScript is Script {
     using LibString for uint256;
@@ -16,17 +17,14 @@ contract FanTokenFactoryScript is Script {
         // constructor arguments
         IWETH9 weth = IWETH9(address(0x4200000000000000000000000000000000000006));
 
-        // Uniswap V4 PoolManager address on Base network
-        IPoolManager poolManager = IPoolManager(address(0x498581fF718922c3f8e6A244956aF099B2652b2b));
-
-        // Hook contract address provided by user
-        IHooks uniswapV4Hook = IHooks(address(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888));
+        // Generic4626Router hook contract address
+        IGeneric4626Router uniswapV4Hook = IGeneric4626Router(address(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888));
 
         string memory addressPrefix = "0x00FA00";
 
         // prepare creation code
         bytes memory creationCode =
-            abi.encodePacked(type(FanTokenFactory).creationCode, abi.encode(weth, poolManager, uniswapV4Hook));
+            abi.encodePacked(type(FanTokenFactory).creationCode, abi.encode(weth, uniswapV4Hook));
 
         bytes32 creationCodeHash = keccak256(creationCode);
 
@@ -43,7 +41,7 @@ contract FanTokenFactoryScript is Script {
 
         // deploy the contract with our found salt
         vm.startBroadcast();
-        fanTokenFactory = new FanTokenFactory{salt: salt}(weth, poolManager, uniswapV4Hook);
+        fanTokenFactory = new FanTokenFactory{salt: salt}(weth, uniswapV4Hook);
 
         // TODO: make sure the address for the deployed contract matches the address prefix
 

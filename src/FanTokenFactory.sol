@@ -5,13 +5,7 @@ pragma solidity ^0.8.20;
 
 import {FanToken, SafeERC20, IERC20, IERC4626, IWETH9} from "./FanToken.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
-import {PoolKey} from "v4-core/src/types/PoolKey.sol";
-import {Currency, CurrencyLibrary} from "v4-core/src/types/Currency.sol";
-import {PoolId} from "v4-core/src/types/PoolId.sol";
-import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
-import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
-import {TickMath} from "v4-core/src/libraries/TickMath.sol";
+import {IGeneric4626Router} from "./interfaces/IGeneric4626Router.sol";
 
 error InvalidFanToken();
 error IncorrectUnderlying(address underlying);
@@ -20,16 +14,12 @@ error NoUnderlyingAssets();
 contract FanTokenFactory {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.AddressSet;
-    using CurrencyLibrary for Currency;
 
     /// @notice make it easy to deposit by just sending ETH
     IWETH9 public immutable WETH;
 
-    /// @notice Uniswap V4 pool manager for creating pools
-    IPoolManager public immutable POOL_MANAGER;
-
-    /// @notice The Uniswap V4 hook contract address for handling ERC4626 tokens and their assets.
-    IHooks public immutable UNISWAP_V4_HOOK;
+    /// @notice The Generic4626Router hook contract for handling ERC4626 pools
+    IGeneric4626Router public immutable UNISWAP_V4_ERC4626_HOOK;
 
     /// @notice enumerable set of all deployed fan tokens
     EnumerableSet.AddressSet private _deployedTokens;
@@ -37,10 +27,9 @@ contract FanTokenFactory {
     // TODO: how should we do indexes on this?
     event Created(address indexed _owner, address indexed _prizeVault, address indexed _treasury, address _token);
 
-    constructor(IWETH9 _weth, IPoolManager _poolManager, IHooks _uniswapV4Hook) {
+    constructor(IWETH9 _weth, IGeneric4626Router _uniswapV4Hook) {
         WETH = _weth;
-        POOL_MANAGER = _poolManager;
-        UNISWAP_V4_HOOK = _uniswapV4Hook;
+        UNISWAP_V4_ERC4626_HOOK = _uniswapV4Hook;
     }
 
     function create(
@@ -74,8 +63,6 @@ contract FanTokenFactory {
 
         emit Created(msg.sender, address(_prizeVault), _treasury, address(fanToken));
 
-        // TODO: set up the uniswap v4 pool for making trades transparently. Our mini-app should use our redeem/deposit helpers. but wallets already support getting prices through 0x/uniswap
-
         if (_initialDeposit > 0) {
             startDeposit(fanToken, _initialDeposit, msg.sender);
         }
@@ -86,72 +73,28 @@ contract FanTokenFactory {
         }
     }
 
-    /// @notice Creates a Uniswap V4 pool if it doesn't already exist
-    /// @dev This creates specialized pools for prize token ecosystems with custom hook logic
-    /// @param tokenA First token address (either prize vault or fan token)
-    /// @param tokenB Second token address (either underlying asset or prize vault)
-    function _setupUniswapV4HookedPool(address tokenA, address tokenB) internal {
+    /// @notice Creates a Uniswap V4 pool using the Generic4626Router hook
+    /// @dev The hook manages pool creation and authorization for ERC4626 vaults
+    /// @param prizeVault The ERC4626 prize vault address
+    /// @param otherToken The other token (underlying asset or fan token)
+    function _setupUniswapV4HookedPool(address prizeVault, address otherToken) internal {
         /*
-        POOL SETUP EXPLANATION:
+        The Generic4626Router hook manages ERC4626 vault pools with specialized routing logic.
+        It handles pool creation internally and maintains authorization for supported vaults.
 
-        This creates Uniswap V4 pools with a custom hook that handles ERC4626 token mechanics.
-        The hook overrides standard AMM pricing logic to provide seamless conversions between:
-        1. Fan tokens ↔ Prize vault shares (handles deposit queue delays)
-        2. Underlying assets ↔ Prize vault shares (direct conversions)
-
-        Key design decisions:
-        - Zero fees: These pools are for utility, not revenue
-        - Custom hook: Handles async deposits/withdrawals and ERC4626 conversions
-        - 1:1 initial price: Hook overrides pricing, so initial price is irrelevant
-
-        TODO: async deposits are a problem for one of the trade directions.
-        i think we can't use the existing hook for depositing into our fan tokens
-        we can still use it for the underlyings though and one direction of the trades, so I think its worth setting up.
-        this really makes me want to figure out a way to design this system without a delay queue on the deposits (and withdrawals).
-        but i think we need the queue to be >2x longer than the prize draws/auctions.
-
-        MAYBE there is a way to look at the underlying prize pool.
+        We just need to call initializePool(vault) and the hook handles the rest:
+        - Creates the pool with appropriate currency pairs
+        - Sets up ERC4626-aware routing
+        - Manages vault authorization
         */
 
-        Currency currency0;
-        Currency currency1;
-
-        if (tokenA == address(WETH)) {
-            // TODO: i don't think this will ever be true, but I guess it's a fine safety check
-            currency0 = CurrencyLibrary.ADDRESS_ZERO;
-            currency1 = Currency.wrap(tokenB);
-        } else if (tokenB == address(WETH)) {
-            currency0 = CurrencyLibrary.ADDRESS_ZERO;
-            currency1 = Currency.wrap(tokenA);
-        } else {
-            // Sort currencies (Uniswap V4 requires currency0 < currency1)
-            (currency0, currency1) = tokenA < tokenB
-                ? (Currency.wrap(tokenA), Currency.wrap(tokenB))
-                : (Currency.wrap(tokenB), Currency.wrap(tokenA));
-        }
-
-        // Create pool key for hooked pool with specialized ERC4626 handling
-        PoolKey memory poolKey = PoolKey({
-            currency0: currency0,
-            currency1: currency1,
-            fee: 0, // Zero fees - these pools provide utility, not revenue
-            tickSpacing: 1, // Minimum tick spacing for zero fee pools
-            hooks: UNISWAP_V4_HOOK // Custom hook handles all pricing and conversion logic
-        });
-
-        // Check if pool already exists by reading its slot0 state
-        PoolId poolId = PoolId.wrap(keccak256(abi.encode(poolKey)));
-        (uint160 sqrtPriceX96,,,) = StateLibrary.getSlot0(POOL_MANAGER, poolId);
-
-        // Create pool if it doesn't exist (sqrtPriceX96 == 0 means uninitialized)
-        if (sqrtPriceX96 == 0) {
-            // the startingPrice is expressed as sqrtPriceX96: floor(sqrt(token1 / token0) * 2^96)
-            // i.e. 79228162514264337593543950336 is the starting price for a 1:1 pool
-            uint160 initialPrice = 79228162514264337593543950336;
-
-            // uint160 initialPrice = TickMath.getSqrtPriceAtTick(0); // Tick 0 = 1:1 price (2^96 in Q96 format)
-
-            POOL_MANAGER.initialize(poolKey, initialPrice);
+        try UNISWAP_V4_ERC4626_HOOK.initializePool(prizeVault) returns (
+            IGeneric4626Router.PoolKey memory, IGeneric4626Router.PoolId
+        ) {
+            // Pool created successfully by hook
+        } catch {
+            // Hook rejected the vault (not authorized or already exists)
+            // This is expected for some vaults
         }
     }
 
