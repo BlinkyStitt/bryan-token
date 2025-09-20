@@ -132,6 +132,8 @@ contract FanTokenFactoryTest is Test {
     }
 
     function test_enumeration_functions() public {
+        vm.pauseGasMetering();
+
         // Get initial count (should include the bryan token from setUp)
         uint256 initialCount = fanTokenFactory.getDeployedTokenCount();
 
@@ -142,7 +144,8 @@ contract FanTokenFactoryTest is Test {
         address[] memory initialTokens = fanTokenFactory.getAllDeployedTokens();
         assertEq(initialTokens.length, initialCount, "initial token count should match");
 
-        // Create first new token
+        // Create first new token - resume gas metering only for this call
+        vm.resumeGasMetering();
         FanToken token1 = fanTokenFactory.create(
             "Token 1",
             "TK1",
@@ -153,6 +156,7 @@ contract FanTokenFactoryTest is Test {
             bytes32(uint256(1)),
             0
         );
+        vm.pauseGasMetering();
 
         // Verify count increased
         assertEq(fanTokenFactory.getDeployedTokenCount(), initialCount + 1, "count should increase by 1");
