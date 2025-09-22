@@ -151,8 +151,10 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
 
     /// @dev after the initial deposit, this does NOT transfer the tokens. instead, make sure `startDeposit` is called first
     function _deposit(address caller, address receiver, uint256 assets, uint256 shares) internal override {
-        if (totalSupply() == 0 && totalPendingAssets == 0) {
-            // The very first deposit shouldn't have any delay and no pending deposits should exist
+        if (totalSupply() == 0) {
+            // totalPendingAssets will always be 0 here because pending deposits can only exist
+            // when totalSupply() > 0 (startDeposit requires existing shares for price calculation)
+            // the first deposit shouldn't have any delay
             super._deposit(caller, receiver, assets, shares);
         } else {
             _finishDeposit(caller, receiver, assets, shares);
@@ -343,6 +345,41 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             // burn the excess shares to redistribute rewards to non-sponsored token holders
             _update(address(this), address(0), amount);
         } else {}
+    }
+
+    /// @notice Returns the amount of underlying assets that can be harvested
+    /// @dev Calculates harvestable amount without executing the harvest
+    /// @return underlyingAssets Amount of underlying assets available for harvesting
+    function harvestable() external view returns (uint256 underlyingAssets) {
+        IERC4626 prizeVault = IERC4626(asset());
+        IERC20 underlyingToken = UNDERLYING;
+
+        // Calculate available balance (including any ETH if WETH)
+        underlyingAssets = underlyingToken.balanceOf(address(this));
+        if (address(UNDERLYING) == address(WETH)) {
+            underlyingAssets += address(this).balance;
+        }
+
+        // Check vault deposit limits
+        uint256 maxDepositAssets = prizeVault.maxDeposit(address(this));
+
+        if (underlyingAssets > maxDepositAssets) {
+            underlyingAssets = maxDepositAssets;
+        }
+    }
+
+    /// @notice Returns the amount of sponsorship shares that can be harvested
+    /// @dev Calculates excess shares that would be burned in harvestSponsorship
+    /// @return amount Amount of excess shares that can be harvested
+    function harvestableSponsorship() external view returns (uint256 amount) {
+        uint256 correctShares = previewWithdraw(totalSponsorAssets);
+        uint256 currentShares = balanceOf(address(this));
+
+        if (currentShares > correctShares) {
+            amount = currentShares - correctShares;
+        } else {
+            amount = 0;
+        }
     }
 
     /**
