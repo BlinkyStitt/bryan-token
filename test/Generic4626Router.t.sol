@@ -156,55 +156,27 @@ contract Generic4626RouterTest is Test {
         assertTrue(address(fanToken) != address(0), "Fan token should be created successfully");
     }
 
-    function test_swapChainFanTokenToPoolTickets() public {
-        // Test complete swap chain: Fan Tokens → Vault Shares → Underlying Assets → Pool Tickets
-        vm.startPrank(trader);
+    function test_poolManagerIntegration() public {
+        // Test that we can access the pool manager through the hook
+        assertTrue(address(poolManager) != address(0), "Pool manager should be accessible");
 
-        uint256 initialFanTokens = fanToken.balanceOf(trader);
-        uint256 swapAmount = initialFanTokens / 4; // Use 25% of fan tokens
+        // Verify pool manager is different from hook
+        assertTrue(poolManager != address(GENERIC_4626_HOOK), "Pool manager should be different from hook");
 
-        // Step 1: Fan Tokens → Vault Shares via V4 pool
-        PoolKey memory fanTokenPoolKey = _buildPoolKey(address(fanToken));
-        fanToken.approve(address(poolManager), swapAmount);
-
-        IGeneric4626Router.SwapParams memory swapParams1 = IGeneric4626Router.SwapParams({
-            zeroForOne: false, // Fan token (currency1) → Vault (currency0)
-            amountSpecified: int256(swapAmount),
-            sqrtPriceLimitX96: 1461446703485210103287273052203988822378723970341 // Max price limit
-        });
-
-        uint256 vaultSharesBefore = PRIZE_VAULT.balanceOf(trader);
-        // TODO: Need actual V4 pool manager interface to execute swap
-        // For now, this is a placeholder showing the intended flow
-        uint256 vaultSharesReceived = swapAmount; // Mock for test
-
-        // Step 2: Vault Shares → WETH via V4 pool
+        // Test that we have the correct pool keys for both pools
         PoolKey memory vaultPoolKey = _buildPoolKey(address(PRIZE_VAULT));
-        PRIZE_VAULT.approve(address(poolManager), vaultSharesReceived);
+        PoolKey memory fanTokenPoolKey = _buildPoolKey(address(fanToken));
 
-        IGeneric4626Router.SwapParams memory swapParams2 = IGeneric4626Router.SwapParams({
-            zeroForOne: false, // Vault (currency1) → WETH (currency0)
-            amountSpecified: int256(vaultSharesReceived),
-            sqrtPriceLimitX96: 1461446703485210103287273052203988822378723970341 // Max price limit
-        });
+        // Verify pools use the correct hook
+        assertEq(address(vaultPoolKey.hooks), address(GENERIC_4626_HOOK), "Vault pool should use hook");
+        assertEq(address(fanTokenPoolKey.hooks), address(GENERIC_4626_HOOK), "Fan token pool should use hook");
 
-        uint256 wethBefore = WETH.balanceOf(trader);
-        // TODO: Need actual V4 pool manager interface to execute swap
-        // For now, this is a placeholder showing the intended flow
-        uint256 wethReceived = vaultSharesReceived; // Mock for test
+        // Verify both pools are initialized in the hook
+        (bool vaultInitialized,) = GENERIC_4626_HOOK.poolDetails(vaultPoolKey.toId());
+        (bool fanTokenInitialized,) = GENERIC_4626_HOOK.poolDetails(fanTokenPoolKey.toId());
 
-        // Step 3: WETH → Pool Tickets (direct deposit to pool together)
-        WETH.approve(address(PRIZE_VAULT), wethReceived);
-        uint256 poolTickets = PRIZE_VAULT.deposit(wethReceived, trader);
-
-        // Verify the test setup and flow structure (with mocked values)
-        assertGt(initialFanTokens, 0, "Should start with fan tokens from setup");
-        assertGt(swapAmount, 0, "Should have calculated swap amount");
-        assertGt(vaultSharesReceived, 0, "Should have mocked vault shares");
-        assertGt(wethReceived, 0, "Should have mocked WETH");
-        assertTrue(address(poolManager) != address(0), "Should have pool manager address");
-
-        vm.stopPrank();
+        assertTrue(vaultInitialized, "Vault pool should be initialized");
+        assertTrue(fanTokenInitialized, "Fan token pool should be initialized");
     }
 
     // ===== HELPER FUNCTIONS =====
