@@ -101,52 +101,34 @@ contract Generic4626RouterTest is Test {
         assertTrue(vaultPoolInitialized, "Vault V4 pool should be initialized");
         assertTrue(fanTokenPoolInitialized, "Fan token V4 pool should be initialized");
 
-        console.log("Vault pool ID:", vm.toString(PoolId.unwrap(vaultPoolId)));
-        console.log("Fan token pool ID:", vm.toString(PoolId.unwrap(fanTokenPoolId)));
-    }
-
-    function test_hook_details() public {
-        // Test that the Generic4626Router hook has been properly set up
-
-        // Check that both vault and fan token have pools
-        PoolKey memory vaultPoolKey = _buildPoolKey(address(PRIZE_VAULT));
-        PoolKey memory fanTokenPoolKey = _buildPoolKey(address(fanToken));
-
-        PoolId vaultPoolId = vaultPoolKey.toId();
-        PoolId fanTokenPoolId = fanTokenPoolKey.toId();
-
-        (bool vaultInitialized, bool vaultWrapsZeroToOne) = GENERIC_ROUTER.poolDetails(vaultPoolId);
-        (bool fanTokenInitialized, bool fanTokenWrapsZeroToOne) = GENERIC_ROUTER.poolDetails(fanTokenPoolId);
-
-        assertTrue(vaultInitialized, "Vault pool should be initialized");
-        assertTrue(fanTokenInitialized, "Fan token pool should be initialized");
-
-        console.log("Vault pool wraps zero to one:", vaultWrapsZeroToOne);
-        console.log("Fan token pool wraps zero to one:", fanTokenWrapsZeroToOne);
-
-        // Log pool details for debugging
-        console.log("=== Pool Details ===");
-        console.log("Vault pool ID:", vm.toString(PoolId.unwrap(vaultPoolId)));
-        console.log("Fan token pool ID:", vm.toString(PoolId.unwrap(fanTokenPoolId)));
+        // Verify pool IDs are non-zero (valid)
+        assertTrue(PoolId.unwrap(vaultPoolId) != bytes32(0), "Vault pool ID should be non-zero");
+        assertTrue(PoolId.unwrap(fanTokenPoolId) != bytes32(0), "Fan token pool ID should be non-zero");
     }
 
     function test_withdrawing_using_the_hook() public {
         // Verify we can build the fan token pool key for potential trading
         PoolKey memory fanTokenPoolKey = _buildPoolKey(address(fanToken));
 
-        console.log("Fan token pool key currency0:", Currency.unwrap(fanTokenPoolKey.currency0));
-        console.log("Fan token pool key currency1:", Currency.unwrap(fanTokenPoolKey.currency1));
-
         // Verify the pool is properly initialized
         PoolId fanTokenPoolId = fanTokenPoolKey.toId();
         (bool fanTokenPoolInitialized,) = GENERIC_ROUTER.poolDetails(fanTokenPoolId);
         assertTrue(fanTokenPoolInitialized, "Fan token pool should be initialized");
 
-        // Test passes if we can build the fan token pool key and it's initialized
+        // Verify pool key is correctly configured
         assertTrue(address(fanTokenPoolKey.hooks) == address(GENERIC_ROUTER), "Hook should be Generic4626Router");
         assertTrue(
             Currency.unwrap(fanTokenPoolKey.currency0) != Currency.unwrap(fanTokenPoolKey.currency1),
             "Currencies should be different"
+        );
+
+        // Verify currencies are fan token and prize vault
+        address currency0 = Currency.unwrap(fanTokenPoolKey.currency0);
+        address currency1 = Currency.unwrap(fanTokenPoolKey.currency1);
+        assertTrue(
+            (currency0 == address(fanToken) && currency1 == address(PRIZE_VAULT))
+                || (currency0 == address(PRIZE_VAULT) && currency1 == address(fanToken)),
+            "Pool should be between fan token and prize vault"
         );
     }
 
@@ -154,15 +136,6 @@ contract Generic4626RouterTest is Test {
         // Verify we can build both pool keys for multihop trading path
         PoolKey memory fanTokenPoolKey = _buildPoolKey(address(fanToken));
         PoolKey memory vaultPoolKey = _buildPoolKey(address(PRIZE_VAULT));
-
-        console.log(
-            "Fan token pool currencies:",
-            Currency.unwrap(fanTokenPoolKey.currency0),
-            Currency.unwrap(fanTokenPoolKey.currency1)
-        );
-        console.log(
-            "Vault pool currencies:", Currency.unwrap(vaultPoolKey.currency0), Currency.unwrap(vaultPoolKey.currency1)
-        );
 
         // Verify both pools are initialized
         PoolId fanTokenPoolId = fanTokenPoolKey.toId();
@@ -174,11 +147,29 @@ contract Generic4626RouterTest is Test {
         assertTrue(fanTokenPoolInitialized, "Fan token pool should be initialized");
         assertTrue(vaultPoolInitialized, "Vault pool should be initialized");
 
-        // Test passes if both pool keys are valid and initialized
+        // Verify hooks are correctly configured
         assertTrue(
             address(fanTokenPoolKey.hooks) == address(GENERIC_ROUTER), "Fan token hook should be Generic4626Router"
         );
         assertTrue(address(vaultPoolKey.hooks) == address(GENERIC_ROUTER), "Vault hook should be Generic4626Router");
+
+        // Verify fan token pool currencies
+        address fanCurrency0 = Currency.unwrap(fanTokenPoolKey.currency0);
+        address fanCurrency1 = Currency.unwrap(fanTokenPoolKey.currency1);
+        assertTrue(
+            (fanCurrency0 == address(fanToken) && fanCurrency1 == address(PRIZE_VAULT))
+                || (fanCurrency0 == address(PRIZE_VAULT) && fanCurrency1 == address(fanToken)),
+            "Fan token pool should be between fan token and prize vault"
+        );
+
+        // Verify vault pool currencies
+        address vaultCurrency0 = Currency.unwrap(vaultPoolKey.currency0);
+        address vaultCurrency1 = Currency.unwrap(vaultPoolKey.currency1);
+        assertTrue(
+            (vaultCurrency0 == address(WETH) && vaultCurrency1 == address(PRIZE_VAULT))
+                || (vaultCurrency0 == address(PRIZE_VAULT) && vaultCurrency1 == address(WETH)),
+            "Vault pool should be between WETH and prize vault"
+        );
     }
 
     function test_depositing_using_the_hook() public {
@@ -187,23 +178,30 @@ contract Generic4626RouterTest is Test {
         assertEq(initialWETH, INITIAL_WETH, "Should start with initial WETH");
         assertEq(initialVaultTokens, 0, "Should start with no vault tokens");
 
-        console.log("Initial WETH balance:", initialWETH);
-        console.log("Initial vault tokens:", initialVaultTokens);
-
-        // For now, let's just verify the pools exist and log some basic info
+        // Verify vault pool setup for WETH to vault token trading
         PoolKey memory vaultPoolKey = _buildPoolKey(address(PRIZE_VAULT));
+        PoolId vaultPoolId = vaultPoolKey.toId();
+        (bool vaultPoolInitialized,) = GENERIC_ROUTER.poolDetails(vaultPoolId);
 
-        console.log("Vault pool key currency0:", Currency.unwrap(vaultPoolKey.currency0));
-        console.log("Vault pool key currency1:", Currency.unwrap(vaultPoolKey.currency1));
-        console.log("Vault pool key fee:", vaultPoolKey.fee);
-        console.log("Vault pool key hooks:", address(vaultPoolKey.hooks));
-
-        // Test passes if we can build the pool key without reverting
+        assertTrue(vaultPoolInitialized, "Vault pool should be initialized");
         assertTrue(address(vaultPoolKey.hooks) == address(GENERIC_ROUTER), "Hook should be Generic4626Router");
         assertTrue(
             Currency.unwrap(vaultPoolKey.currency0) != Currency.unwrap(vaultPoolKey.currency1),
             "Currencies should be different"
         );
+
+        // Verify pool is between WETH and prize vault
+        address currency0 = Currency.unwrap(vaultPoolKey.currency0);
+        address currency1 = Currency.unwrap(vaultPoolKey.currency1);
+        assertTrue(
+            (currency0 == address(WETH) && currency1 == address(PRIZE_VAULT))
+                || (currency0 == address(PRIZE_VAULT) && currency1 == address(WETH)),
+            "Pool should be between WETH and prize vault"
+        );
+
+        // Verify fee and tick spacing are set correctly
+        assertEq(vaultPoolKey.fee, 0, "Pool fee should be 0");
+        assertEq(vaultPoolKey.tickSpacing, 1, "Pool tick spacing should be 1");
     }
 
     // ===== HELPER FUNCTIONS =====
