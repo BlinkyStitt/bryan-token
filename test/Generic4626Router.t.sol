@@ -26,7 +26,7 @@ contract Generic4626RouterTest is Test {
     IWETH9 constant WETH = IWETH9(0x4200000000000000000000000000000000000006);
     IERC4626 constant PRIZE_VAULT = IERC4626(0x4E42f783db2D0C5bDFf40fDc66FCAe8b1Cda4a43);
     IGeneric4626Router constant GENERIC_ROUTER = IGeneric4626Router(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888);
-    IUniversalRouter constant UNIVERSAL_ROUTER = IUniversalRouter(0x3fC91A3afd70395Cd496C647d5a6CC9D4B2b7FAD);
+    IUniversalRouter constant UNIVERSAL_ROUTER = IUniversalRouter(0x6fF5693b99212Da76ad316178A184AB56D299b43);
     IPoolManager poolManager;
 
     // Test contracts
