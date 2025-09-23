@@ -26,6 +26,7 @@
 - You don't need so many `vm.stopPranks`. they dont do anything useful at the end of a test. and they dont do anything useful if you prank/startPrank right after 
   them
 - `git commit` and `git push` your code often
+- Good tests assert actual values. Do not just log values! Do not just check they are greater than 0! Test actual values.
 
 ### Feature Implementation Guidelines
 - **CRITICAL**: Make MINIMAL CHANGES to existing patterns and structures

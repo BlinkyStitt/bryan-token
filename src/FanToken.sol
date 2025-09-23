@@ -428,8 +428,6 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// @notice sponsored tokens contribute to prizes, but do not earn any prizes themselves.
     /// todo: what return value?
     /// TODO: time lock on this? i think its kind of pointless since people could just make a new address and send
-    /// TODO: override _update to handle transfers on sponsored addresses? maybe first we should make a transferSponsored function just to get it working. then figure out how to merge them so that normal transfers will work?
-    /// TODO: maybe a separate contract is better. then things like `balanceOf` won't be against the spec
     function setSponsorship(bool state) public {
         harvestSponsorship();
 
