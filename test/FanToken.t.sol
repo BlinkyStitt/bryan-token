@@ -1066,28 +1066,26 @@ contract FanTokenTest is Test {
         vm.startPrank(alice);
         asset.approve(address(bryan), type(uint256).max);
         uint256 aliceWhen = bryan.startDeposit(depositAmount, alice);
-        if (aliceWhen > 0) {
-            vm.warp(aliceWhen);
-            bryan.deposit(depositAmount, alice);
-        }
+        // Alice should be the first deposit, so immediate
+        assertEq(aliceWhen, 0, "alice first deposit should be immediate");
 
         vm.startPrank(bob);
         asset.approve(address(bryan), type(uint256).max);
         uint256 bobWhen = bryan.startDeposit(depositAmount, bob);
-        if (bobWhen > 0) {
-            vm.warp(bobWhen);
-            bryan.deposit(depositAmount, bob);
-        }
+        // Bob deposit should be delayed since Alice already deposited
+        assertGt(bobWhen, 0, "bob deposit should be delayed");
+        vm.warp(bobWhen);
+        bryan.deposit(depositAmount, bob);
 
         // Sponsor deposits with proper timing
         vm.startPrank(sponsor);
         bryan.setSponsorship(true);
         asset.approve(address(bryan), type(uint256).max);
         uint256 sponsorWhen = bryan.startDeposit(depositAmount, sponsor);
-        if (sponsorWhen > 0) {
-            vm.warp(sponsorWhen);
-            bryan.deposit(depositAmount, sponsor);
-        }
+        // Sponsor deposit should be delayed since others already deposited
+        assertGt(sponsorWhen, 0, "sponsor deposit should be delayed");
+        vm.warp(sponsorWhen);
+        bryan.deposit(depositAmount, sponsor);
 
         // Record initial state
         uint256 initialSponsorAssets = bryan.balanceOfSponsor(sponsor);
@@ -1096,6 +1094,7 @@ contract FanTokenTest is Test {
 
         // Send fake rewards to the contract using transfer
         uint256 rewardAmount = 0.5 ether;
+        vm.stopPrank();
         vm.deal(address(this), rewardAmount);
         weth.deposit{value: rewardAmount}();
         require(weth.transfer(address(bryan), rewardAmount), "weth transfer failed");
@@ -2273,8 +2272,12 @@ contract FanTokenTest is Test {
         asset.approve(address(bryan), type(uint256).max);
         bryan.deposit(initialAssets, user);
 
-        // Add some rewards to harvest by dealing to the vault
-        _dealAsset(10 ether, address(bryan));
+        // Add some rewards to harvest by transferring WETH directly
+        vm.stopPrank();
+        uint256 rewardAmount = 10 ether;
+        vm.deal(address(this), rewardAmount);
+        weth.deposit{value: rewardAmount}();
+        require(weth.transfer(address(bryan), rewardAmount), "weth transfer failed");
 
         uint256 ownerBalanceBefore = bryan.UNDERLYING().balanceOf(bryan.owner());
         uint256 treasuryBalanceBefore = bryan.UNDERLYING().balanceOf(bryan.TREASURY());
