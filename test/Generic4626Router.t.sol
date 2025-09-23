@@ -6,8 +6,8 @@ import {console} from "forge-std/console.sol";
 import {IERC20, IERC4626, IWETH9} from "../src/FanToken.sol";
 import {FanToken, FanTokenFactory} from "../src/FanTokenFactory.sol";
 import {IGeneric4626Router} from "../src/interfaces/IGeneric4626Router.sol";
-import {IV4Router} from "v4-periphery/src/interfaces/IV4Router.sol";
-import {Actions} from "v4-periphery/src/libraries/Actions.sol";
+import {IV4Router} from "@uniswap/v4-periphery/src/interfaces/IV4Router.sol";
+import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 
 // For now, use interface since V4_SWAP doesn't exist in current Commands library
 interface IUniversalRouter {
@@ -19,14 +19,14 @@ import {Commands} from "@uniswap/universal-router/contracts/libraries/Commands.s
 interface IPermit2 {
     function approve(address token, address spender, uint160 amount, uint48 expiration) external;
 }
-import {PoolIdLibrary, PoolId} from "v4-core/src/types/PoolId.sol";
-import {PoolKey} from "v4-core/src/types/PoolKey.sol";
-import {Currency, CurrencyLibrary} from "v4-core/src/types/Currency.sol";
-import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
-import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
-import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
-import {TickMath} from "v4-core/src/libraries/TickMath.sol";
-import {SwapParams} from "v4-core/src/types/PoolOperation.sol";
+import {PoolIdLibrary, PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {Currency, CurrencyLibrary} from "@uniswap/v4-core/src/types/Currency.sol";
+import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
+import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
+import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 
 using PoolIdLibrary for PoolKey;
 
