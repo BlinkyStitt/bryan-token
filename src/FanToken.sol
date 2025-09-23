@@ -270,12 +270,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
         return super.deposit(assets, receiver);
     }
 
-    /**
-     * @dev See {IERC4626-mint}.
-     */
-    function mint(uint256 shares, address receiver) public override nonReentrant returns (uint256) {
-        return super.mint(shares, receiver);
-    }
+
 
     /// @notice finish a deposit that was started by another caller
     function finishDeposit(address originalCaller, address receiver) public nonReentrant returns (uint256 shares) {
