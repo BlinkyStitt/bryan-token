@@ -512,28 +512,28 @@ contract FanTokenTest is Test {
         assertEq(bryan.balanceOfUnderlying(address(this)), 0, "underlying balance is not zeroed");
     }
 
-    function test_auctioning_asset_fails() public {
+    function test_enableAuction_asset_fails() public {
         IERC20 from = IERC20(bryan.asset());
 
         vm.expectRevert(InvalidAuctionToken.selector);
         bryan.enableAuction(from);
     }
 
-    function test_auctioning_underlying_fails() public {
+    function test_enableAuction_underlying_fails() public {
         IERC20 from = IERC20(address(bryan.UNDERLYING()));
 
         vm.expectRevert(InvalidAuctionToken.selector);
         bryan.enableAuction(from);
     }
 
-    function test_auctioning_self_fails() public {
+    function test_enableAuction_self_fails() public {
         IERC20 from = IERC20(address(bryan));
 
         vm.expectRevert(InvalidAuctionToken.selector);
         bryan.enableAuction(from);
     }
 
-    function test_auctioning_pool() public {
+    function test_enableAuction_pool_succeeds() public {
         IERC20 prizeVault = IERC20(bryan.asset());
         console.log("prizeVault:", address(prizeVault));
 
@@ -1245,6 +1245,7 @@ contract FanTokenTest is Test {
 
         assertGt(sponsorAssets, 0, "sponsor should have assets");
         assertGt(transferAmount, 0, "transfer amount should be positive");
+        vm.stopPrank();
 
         // Make recipient a sponsor for the transfer to work
         vm.prank(recipient);
@@ -1377,6 +1378,7 @@ contract FanTokenTest is Test {
             vm.warp(when);
             bryan.deposit(assets, sponsor1);
         }
+        vm.stopPrank();
 
         vm.prank(sponsor2);
         bryan.setSponsorship(true);
@@ -1422,6 +1424,7 @@ contract FanTokenTest is Test {
             vm.warp(when);
             bryan.deposit(assets, sponsor1);
         }
+        vm.stopPrank();
 
         vm.prank(sponsor2);
         bryan.setSponsorship(true);
@@ -1673,9 +1676,7 @@ contract FanTokenTest is Test {
         uint256 when = bryan.startDeposit(assets, sponsor);
         if (when > 0) {
             vm.warp(when);
-            bryan.deposit(assets, sponsor);
-        } else {
-            revert("when should be nonzero");
+            bryan.finishDeposit(sponsor, sponsor);
         }
 
         uint256 sponsorAssets = bryan.balanceOfSponsor(sponsor);
@@ -1692,9 +1693,15 @@ contract FanTokenTest is Test {
         // Transfer from sponsor to non-sponsor
         bryan.sponsorTransfer(nonSponsor, transferAmount);
 
-        // TODO: this doesn't feel right
-        assertEq(bryan.balanceOfSponsor(sponsor), transferAmount, "sponsor should have half the underlying");
-        assertEq(bryan.balanceOfUnderlying(nonSponsor), transferAmount, "non sponsor should have half the underlying");
+        // After transferring half, sponsor should have the remaining half
+        assertEq(
+            bryan.balanceOfSponsor(sponsor),
+            sponsorAssets - transferAmount,
+            "sponsor should have remaining assets after transfer"
+        );
+        assertEq(
+            bryan.balanceOfUnderlying(nonSponsor), transferAmount, "non sponsor should receive transferred underlying"
+        );
     }
 
     function test_sponsorTransfer_from_nonsponsor_to_sponsor() public {
@@ -1724,6 +1731,7 @@ contract FanTokenTest is Test {
 
         assertGt(nonSponsorShares, 0, "non-sponsor should have shares");
         assertEq(bryan.balanceOfSponsor(sponsor), 0, "sponsor should start with zero sponsor assets");
+        vm.stopPrank();
 
         // Set sponsor status for recipient
         vm.prank(sponsor);
@@ -1788,7 +1796,7 @@ contract FanTokenTest is Test {
         assertEq(amount, 0, "harvestSponsorship should return 0 with no excess shares");
     }
 
-    function test_sponsor_withdraw_with_approval() public {
+    function test_withdraw_sponsor_with_approval() public {
         address sponsor = makeAddr("sponsor");
         address withdrawer = makeAddr("withdrawer");
 
@@ -1837,7 +1845,7 @@ contract FanTokenTest is Test {
         assertEq(bryan.balanceOfSponsor(sponsor), sponsorAssets - withdrawAmount, "sponsor assets should decrease");
     }
 
-    function test_sponsor_withdraw_without_approval_should_fail() public {
+    function test_withdraw_sponsor_without_approval_should_fail() public {
         address sponsor = makeAddr("sponsor");
         address withdrawer = makeAddr("withdrawer");
 
@@ -1901,7 +1909,7 @@ contract FanTokenTest is Test {
         assertLt(bryan.balanceOf(user), userShares, "user shares should decrease");
     }
 
-    function test_sponsor_self_withdraw() public {
+    function test_withdraw_sponsor_self() public {
         address sponsor = makeAddr("sponsor");
 
         // Set up sponsor with assets
@@ -1938,7 +1946,7 @@ contract FanTokenTest is Test {
         assertEq(bryan.totalSponsorAssets(), sponsorAssets - withdrawAmount, "total sponsor assets should decrease");
     }
 
-    function test_sponsor_withdraw_insufficient_balance() public {
+    function test_withdraw_sponsor_insufficient_balance() public {
         address sponsor = makeAddr("sponsor");
 
         // Set up sponsor with assets
@@ -2051,7 +2059,7 @@ contract FanTokenTest is Test {
         assertEq(bryan.balanceOf(user), userShares - sharesToRedeem, "user shares should decrease");
     }
 
-    function test_redeem_sponsor_insufficient_balance() public {
+    function test_redeem_insufficient_balance_sponsor() public {
         address sponsor = makeAddr("sponsor");
 
         // Set up sponsor with assets
@@ -2160,6 +2168,7 @@ contract FanTokenTest is Test {
                 bryan.finishDeposit(sponsors[i], sponsors[i]);
             }
         }
+        vm.stopPrank();
 
         // Check invariant: totalSponsorAssets = sum of individual balances
         _checkSponsorAccountingInvariant(sponsors);
@@ -2215,7 +2224,7 @@ contract FanTokenTest is Test {
         assertApproxEqAbs(remainingAssets, assets / 2, 1, "Remaining balance inconsistent");
     }
 
-    function test_sponsor_withdrawal_boundaries() public {
+    function test_withdraw_sponsor_boundaries() public {
         address sponsor = makeAddr("sponsor");
         (IERC4626 asset, uint256 totalAssets) = _dealAsset(10 ether, sponsor);
 
@@ -2337,7 +2346,7 @@ contract FanTokenTest is Test {
         assertEq(shares2, assets2, "Should receive shares equal to deposited assets after delay");
     }
 
-    function test_sponsorship_transfer_edge_cases() public {
+    function test_sponsorTransfer_multiple_scenarios() public {
         address sponsor1 = makeAddr("sponsor1");
         address sponsor2 = makeAddr("sponsor2");
         address nonSponsor = makeAddr("nonSponsor");
@@ -2363,6 +2372,7 @@ contract FanTokenTest is Test {
             vm.warp(when2);
             bryan.finishDeposit(nonSponsor, nonSponsor);
         }
+        vm.stopPrank();
 
         // Setup sponsor2 (empty initially)
         vm.prank(sponsor2);

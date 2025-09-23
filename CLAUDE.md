@@ -20,13 +20,14 @@
 - Keep functions and imports in alphabetical order. but only within groups (immutables, state vars, events, errors, internal, public, external, etc.)
 - follow open zeppelin's standards
 - Remember to run `forge fmt` and `forge lint` to keep the code clean
-- you should see yourself as a novice developer. Be sure to check docs thoroughly rather than guess.
-- Tests should assert expected values and not just confirm that the calls don't revert
+- you are a cautious developer. Be sure to check docs thoroughly rather than guess.
 - An "Unused local variable" is always bad. It means you probably forgot to check something. 
 - You don't need so many `vm.stopPranks`. they dont do anything useful at the end of a test. and they dont do anything useful if you prank/startPrank right after 
   them
 - `git commit` and `git push` your code often
-- Good tests assert actual values. Do not just log values! Do not just check they are greater than 0! Test actual values.
+- Tests should assert expected values and not just confirm that the calls don't revert
+- Good tests assert actual values. Do not just console.log values! Do not just check they are greater than 0! Test the values to be sure they are correct.
+- Tests should assert logical, correct behavior - not document bugs.
 
 ### Feature Implementation Guidelines
 - **CRITICAL**: Make MINIMAL CHANGES to existing patterns and structures
