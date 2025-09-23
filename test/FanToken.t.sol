@@ -37,9 +37,9 @@ contract FanTokenTest is Test {
 
         // TODO: the entry fee isn't what i want. i want it to be in fanTokens, not in underlying!
 
-        // fees of 0 are probably too simple to be worthwhile. need to test with actual fees set
-        uint256 harvestOwnerFeeBasisPoints = 0;
-        uint256 harvestTreasuryFeeBasisPoints = 0;
+        // Use realistic fee values for thorough testing
+        uint256 harvestOwnerFeeBasisPoints = 200; // 2%
+        uint256 harvestTreasuryFeeBasisPoints = 300; // 3%
         treasury = makeAddr("treasury");
 
         // Generic4626Router hook that works with erc4626 vaults
@@ -1105,15 +1105,22 @@ contract FanTokenTest is Test {
         // Key verification: sponsor balance should remain the same in underlying value
         assertEq(bryan.balanceOfSponsor(sponsor), initialSponsorAssets, "sponsor assets should remain the same");
 
-        // Non-sponsors should benefit from the harvest - both should gain equal amounts
-        assertApproxEqAbs(
-            bryan.balanceOfUnderlying(alice) - initialAliceUnderlying,
-            bryan.balanceOfUnderlying(bob) - initialBobUnderlying,
-            1,
-            "alice and bob should gain equal amounts from harvest"
-        );
-        assertGt(bryan.balanceOfUnderlying(alice) - initialAliceUnderlying, 0, "alice should benefit from harvest");
-        assertGt(bryan.balanceOfUnderlying(bob) - initialBobUnderlying, 0, "bob should benefit from harvest");
+        // Calculate exact expected rewards for non-sponsors
+        uint256 finalAliceUnderlying = bryan.balanceOfUnderlying(alice);
+        uint256 finalBobUnderlying = bryan.balanceOfUnderlying(bob);
+        uint256 aliceGain = finalAliceUnderlying - initialAliceUnderlying;
+        uint256 bobGain = finalBobUnderlying - initialBobUnderlying;
+
+        // Both Alice and Bob have equal shares, so should get equal rewards (minus fees)
+        // Since they have equal positions, their gains should be equal
+        assertEq(aliceGain, bobGain, "alice and bob should gain exactly equal amounts from harvest");
+
+        // Both should receive reasonable portion of rewards
+        assertGt(aliceGain, rewardAmount / 4, "alice should get substantial portion of rewards");
+        assertGt(bobGain, rewardAmount / 4, "bob should get substantial portion of rewards");
+
+        // Combined gains should be less than total reward (fees are extracted)
+        assertLt(aliceGain + bobGain, rewardAmount, "combined gains should be less than total reward due to fees");
     }
 
     function test_harvestSponsorship_multiple_sponsors() public {
@@ -1162,56 +1169,37 @@ contract FanTokenTest is Test {
         uint256 initialSponsor2Assets;
 
         // Record state before harvest
-        {
-            initialAliceUnderlying = bryan.balanceOfUnderlying(alice);
-            initialSponsor1Assets = bryan.balanceOfSponsor(sponsor1);
-            initialSponsor2Assets = bryan.balanceOfSponsor(sponsor2);
-            uint256 initialTotalSponsorAssets = bryan.totalSponsorAssets();
-
-            console.log("Before harvest - multiple sponsors:");
-            console.log("  Alice underlying:", initialAliceUnderlying);
-            console.log("  Sponsor1 assets:", initialSponsor1Assets);
-            console.log("  Sponsor2 assets:", initialSponsor2Assets);
-            console.log("  Total sponsor assets:", initialTotalSponsorAssets);
-        }
+        initialAliceUnderlying = bryan.balanceOfUnderlying(alice);
+        initialSponsor1Assets = bryan.balanceOfSponsor(sponsor1);
+        initialSponsor2Assets = bryan.balanceOfSponsor(sponsor2);
 
         // Send substantial rewards and harvest
         uint256 rewardAmount = 1 ether;
         vm.stopPrank();
-        {
-            vm.deal(address(this), rewardAmount);
-            weth.deposit{value: rewardAmount}();
-            require(weth.transfer(address(bryan), rewardAmount), "weth transfer failed");
-            console.log("Sent", rewardAmount, "WETH rewards");
+        vm.deal(address(this), rewardAmount);
+        weth.deposit{value: rewardAmount}();
+        require(weth.transfer(address(bryan), rewardAmount), "weth transfer failed");
 
-            uint256 harvested = bryan.harvest();
-            assertEq(harvested, rewardAmount, "should harvest all rewards");
-        }
+        uint256 harvested = bryan.harvest();
+        assertEq(harvested, rewardAmount, "should harvest all rewards");
 
-        // Check final state and assertions
-        {
-            uint256 finalAliceUnderlying = bryan.balanceOfUnderlying(alice);
-            uint256 finalSponsor1Assets = bryan.balanceOfSponsor(sponsor1);
-            uint256 finalSponsor2Assets = bryan.balanceOfSponsor(sponsor2);
-            uint256 finalTotalSponsorAssets = bryan.totalSponsorAssets();
+        // Check final state with precise calculations
+        uint256 finalAliceUnderlying = bryan.balanceOfUnderlying(alice);
+        uint256 finalSponsor1Assets = bryan.balanceOfSponsor(sponsor1);
+        uint256 finalSponsor2Assets = bryan.balanceOfSponsor(sponsor2);
 
-            console.log("After harvest - multiple sponsors:");
-            console.log("  Alice underlying:", finalAliceUnderlying);
-            console.log("  Sponsor1 assets:", finalSponsor1Assets);
-            console.log("  Sponsor2 assets:", finalSponsor2Assets);
-            console.log("  Total sponsor assets:", finalTotalSponsorAssets);
+        // Sponsors should maintain their exact asset values (rewards don't go to sponsors)
+        assertEq(finalSponsor1Assets, initialSponsor1Assets, "sponsor1 assets should remain constant");
+        assertEq(finalSponsor2Assets, initialSponsor2Assets, "sponsor2 assets should remain constant");
 
-            // Sponsors should maintain their asset values
-            assertEq(finalSponsor1Assets, initialSponsor1Assets, "sponsor1 assets should remain constant");
-            assertEq(finalSponsor2Assets, initialSponsor2Assets, "sponsor2 assets should remain constant");
+        // Verify sponsor assets don't change when rewards are harvested
 
-            // Alice should benefit from all the rewards
-            uint256 aliceGain = finalAliceUnderlying - initialAliceUnderlying;
-            console.log("Alice's gain from harvest:", aliceGain);
+        uint256 aliceGain = finalAliceUnderlying - initialAliceUnderlying;
 
-            assertGt(aliceGain, 0, "alice should benefit from harvest with multiple sponsors");
-            assertGt(aliceGain, rewardAmount / 2, "alice should get substantial portion of rewards");
-        }
+        // For now, just verify Alice gets some reasonable portion of rewards
+        // The exact calculation may need to account for sponsor mechanics
+        assertGt(aliceGain, rewardAmount / 2, "alice should get substantial portion of rewards");
+        assertLt(aliceGain, rewardAmount, "alice should not get more than total rewards");
     }
 
     function test_sponsor_transfer_success() public {
@@ -1343,16 +1331,32 @@ contract FanTokenTest is Test {
 
         // For sponsors, shares are held by contract but they have sponsor assets
         assertEq(sponsorShares, 0, "sponsor should have 0 direct shares (held by contract)");
-        assertGt(sponsorAssets, 0, "sponsor should have sponsor assets after deposit");
+        assertEq(sponsorAssets, assets, "sponsor should have exact deposited amount as sponsor assets");
+
         uint256 withdrawAmount = sponsorAssets / 2; // withdraw half of sponsor assets
+        uint256 initialTotalSponsoredShares = bryan.totalSponsoredShares();
+        uint256 initialTotalSponsoredAssets = bryan.totalSponsoredAssets();
+
         uint256 withdrawn = bryan.withdraw(withdrawAmount, sponsor, sponsor);
 
         uint256 sponsorSharesAfter = bryan.balanceOf(sponsor);
-        assertLe(sponsorSharesAfter, sponsorShares, "sponsor shares should not increase after withdrawal");
-        assertEq(withdrawn, withdrawAmount, "should receive withdrawn assets");
-        // Total sponsored shares are tracked by the contract
-        assertGt(bryan.totalSponsoredShares(), 0);
-        assertGt(bryan.totalSponsoredAssets(), 0);
+        uint256 sponsorAssetsAfter = bryan.balanceOfSponsor(sponsor);
+
+        assertEq(sponsorSharesAfter, 0, "sponsor should still have 0 direct shares after withdrawal");
+        assertEq(withdrawn, withdrawAmount, "should receive exact withdrawn amount");
+        assertEq(sponsorAssetsAfter, sponsorAssets - withdrawAmount, "remaining sponsor assets should be exact");
+
+        // Verify total sponsored amounts decreased by exactly the withdrawal
+        assertEq(
+            bryan.totalSponsoredAssets(),
+            initialTotalSponsoredAssets - withdrawAmount,
+            "total sponsored assets should decrease by withdrawal amount"
+        );
+        assertLt(
+            bryan.totalSponsoredShares(),
+            initialTotalSponsoredShares,
+            "total sponsored shares should decrease after withdrawal"
+        );
     }
 
     function test_sponsorTransferFrom_success() public {
@@ -2289,12 +2293,16 @@ contract FanTokenTest is Test {
         uint256 treasuryBalanceAfter = bryan.UNDERLYING().balanceOf(bryan.TREASURY());
         uint256 totalSupplyAfter = bryan.totalSupply();
 
-        // Get the fee basis points from the contract
+        // Verify and use expected fee basis points
         uint256 ownerFeeBasisPoints = bryan.harvestOwnerFeeBasisPoints();
         uint256 treasuryFeeBasisPoints = bryan.harvestTreasuryFeeBasisPoints();
 
-        // Should have harvested some rewards
-        assertGt(harvested, 0, "should have harvested some rewards");
+        // Assert expected fee structure matches what we configured in setUp
+        assertEq(ownerFeeBasisPoints, 200, "owner fee should be 200 basis points (2%)");
+        assertEq(treasuryFeeBasisPoints, 300, "treasury fee should be 300 basis points (3%)");
+
+        // Should have harvested exact reward amount
+        assertEq(harvested, rewardAmount, "should harvest exact reward amount");
 
         // Verify fee amounts are correct based on actual fee settings
         uint256 expectedOwnerFee = (harvested * ownerFeeBasisPoints) / 10000;
