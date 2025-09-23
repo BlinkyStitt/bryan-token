@@ -959,27 +959,26 @@ contract FanTokenTest is Test {
         vm.startPrank(alice);
         asset.approve(address(bryan), type(uint256).max);
         uint256 aliceWhen = bryan.startDeposit(depositAmount, alice);
-        // First deposit should be immediate
-        assertEq(aliceWhen, 0, "first deposit should be immediate");
-        bryan.deposit(depositAmount, alice);
+        // Alice should be the first deposit, so immediate
+        assertEq(aliceWhen, 0, "alice first deposit should be immediate");
 
         vm.startPrank(bob);
         asset.approve(address(bryan), type(uint256).max);
         uint256 bobWhen = bryan.startDeposit(depositAmount, bob);
-        // Second deposit should be delayed
-        assertGt(bobWhen, 0, "second deposit should be delayed");
+        // Bob's deposit should be delayed since Alice already deposited
+        assertGt(bobWhen, 0, "bob second deposit should be delayed");
         vm.warp(bobWhen);
-        bryan.deposit(depositAmount, bob);
+        bryan.finishDeposit(bob, bob);
 
         // Sponsor deposits
         vm.startPrank(sponsor);
         bryan.setSponsorship(true);
         asset.approve(address(bryan), type(uint256).max);
         uint256 sponsorWhen = bryan.startDeposit(depositAmount * 2, sponsor);
-        // Sponsor deposit should also be delayed since there are already deposits
+        // Sponsor deposit should be delayed since others already deposited
         assertGt(sponsorWhen, 0, "sponsor deposit should be delayed");
         vm.warp(sponsorWhen);
-        bryan.deposit(depositAmount * 2, sponsor);
+        bryan.finishDeposit(sponsor, sponsor);
 
         // Record initial balances
         uint256 initialAliceBalance = bryan.balanceOf(alice);
@@ -1136,30 +1135,28 @@ contract FanTokenTest is Test {
         vm.startPrank(alice);
         asset.approve(address(bryan), type(uint256).max);
         uint256 aliceWhen = bryan.startDeposit(depositAmount, alice);
-        if (aliceWhen > 0) {
-            vm.warp(aliceWhen);
-            bryan.deposit(depositAmount, alice);
-        }
+        // Alice should be the first deposit, so immediate
+        assertEq(aliceWhen, 0, "alice first deposit should be immediate");
 
         // First sponsor deposits with proper timing
         vm.startPrank(sponsor1);
         bryan.setSponsorship(true);
         asset.approve(address(bryan), type(uint256).max);
         uint256 sponsor1When = bryan.startDeposit(depositAmount, sponsor1);
-        if (sponsor1When > 0) {
-            vm.warp(sponsor1When);
-            bryan.deposit(depositAmount, sponsor1);
-        }
+        // First sponsor deposit should be delayed since Alice already deposited
+        assertGt(sponsor1When, 0, "first sponsor deposit should be delayed");
+        vm.warp(sponsor1When);
+        bryan.deposit(depositAmount, sponsor1);
 
         // Second sponsor deposits with proper timing
         vm.startPrank(sponsor2);
         bryan.setSponsorship(true);
         asset.approve(address(bryan), type(uint256).max);
         uint256 sponsor2When = bryan.startDeposit(depositAmount, sponsor2);
-        if (sponsor2When > 0) {
-            vm.warp(sponsor2When);
-            bryan.deposit(depositAmount, sponsor2);
-        }
+        // Second sponsor deposit should also be delayed
+        assertGt(sponsor2When, 0, "second sponsor deposit should be delayed");
+        vm.warp(sponsor2When);
+        bryan.deposit(depositAmount, sponsor2);
 
         uint256 initialAliceUnderlying;
         uint256 initialSponsor1Assets;
@@ -1181,6 +1178,7 @@ contract FanTokenTest is Test {
 
         // Send substantial rewards and harvest
         uint256 rewardAmount = 1 ether;
+        vm.stopPrank();
         {
             vm.deal(address(this), rewardAmount);
             weth.deposit{value: rewardAmount}();
@@ -1231,7 +1229,7 @@ contract FanTokenTest is Test {
         uint256 when = bryan.startDeposit(assets, sponsor);
         // This should be the first deposit, so it should be immediate
         assertEq(when, 0, "first deposit should be immediate");
-        bryan.deposit(assets, sponsor);
+        // For immediate deposits, startDeposit already completed the deposit
 
         // Get sponsor's actual asset balance and transfer half
         uint256 sponsorAssets = bryan.balanceOfSponsor(sponsor);
@@ -1338,16 +1336,16 @@ contract FanTokenTest is Test {
         asset.approve(address(bryan), type(uint256).max);
 
         uint256 when = bryan.startDeposit(assets, sponsor);
-        if (when > 0) {
-            vm.warp(when);
-            bryan.deposit(assets, sponsor);
-        }
+        // This should be the first deposit, so immediate
+        assertEq(when, 0, "first deposit should be immediate");
 
         uint256 sponsorShares = bryan.balanceOf(sponsor);
+        uint256 sponsorAssets = bryan.balanceOfSponsor(sponsor);
 
-        // Test withdrawal - sponsor should have shares after deposit
-        assertGt(sponsorShares, 0, "sponsor should have shares after deposit");
-        uint256 withdrawAmount = bryan.convertToAssets(sponsorShares / 2); // withdraw half
+        // For sponsors, shares are held by contract but they have sponsor assets
+        assertEq(sponsorShares, 0, "sponsor should have 0 direct shares (held by contract)");
+        assertGt(sponsorAssets, 0, "sponsor should have sponsor assets after deposit");
+        uint256 withdrawAmount = sponsorAssets / 2; // withdraw half of sponsor assets
         uint256 withdrawn = bryan.withdraw(withdrawAmount, sponsor, sponsor);
 
         uint256 sponsorSharesAfter = bryan.balanceOf(sponsor);

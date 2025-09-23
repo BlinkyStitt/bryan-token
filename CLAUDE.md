@@ -26,6 +26,7 @@
   them
 - `git commit` and `git push` your code often
 - Tests should assert expected values and not just confirm that the calls don't revert
+- tests should be deterministic and test specific paths. Do not have branches in your tests!
 - Good tests assert actual values. Do not just console.log values! Do not just check they are greater than 0! Test the values to be sure they are correct.
 - Tests should assert logical, correct behavior - not document bugs.
 
