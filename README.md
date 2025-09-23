@@ -1,29 +1,52 @@
 # Fan Tokens
 
-I want to send tips to people using cryptocurrency, but I don't want to just tip out USDC or ETH. I want to be able to send something more personalized. So I made "fan tokens" as a kind of wrapping paper around these other tokens.
+A **social crypto tipping and gaming system** that creates personalized cryptocurrency tokens designed for social interactions, particularly on platforms like Farcaster. Think of fan tokens as "wrapping paper" around valuable assets - they make tips more personal and engaging than generic USDC or ETH transfers.
 
-Hold a fan token if you like the owner.
+## What Are Fan Tokens?
 
-Every day, [PoolTogether prizes](https://pooltogether.com/) might go out to all of the fan token holders.
+**🎁 Personalized Tipping Tokens**
+- Custom tokens that represent support for a creator or community member
+- Meant to be given as gifts, not bought/sold on markets
+- Each token is backed 1:1 by PoolTogether vault deposits
 
-You shouldn't buy this token. This token is meant to be given as a gift. If you have any, it's probably from an interaction with the owner on farcaster.
+**🏆 Prize-Enabled Gaming**
+- Token holders participate in daily [PoolTogether prize](https://pooltogether.com/) drawings
+- Acts like "branded PoolTogether tickets" with social meaning
+- Winners are determined by the underlying PoolTogether mechanics
 
-If you want to support the owner even more, fan tokens can be created for free by depositing pooltogether tickets.
+**💰 Always Redeemable**
+- Tokens can always be redeemed for the underlying PoolTogether vault tokens
+- Vault tokens are backed by valuable assets like ETH or USDC
+- No risk of tokens becoming worthless due to backing mechanism
 
-If you received some fan tokens and don't want to participate in the game, you can return them for the backing pooltogether tickets (which are themselves backed by valuable tokens like ETH or USDC).
+**⚙️ Configurable Economics**
+- Token creators set custom harvest fee percentages for owner and treasury
+- Only constraint: combined fees cannot exceed 100%
+- Prize winnings distributed among token holders with configurable splits
 
 ## Warning!
 
 - This is an experiment and a toy.
 - This is not audited.
 
-## Design
+## How It Works
 
-"Can't be evil" is a core principle for this smart contract development. That means contracts should be immutable and functions should not be restricted to privileged users. The contract should be maximally fair.
+**🏗️ Technical Architecture**
+- Built as ERC4626 vaults on Base network using Foundry framework
+- FanTokenFactory deploys customized FanToken contracts
+- Integration with Yearn-style dutch auctions for yield harvesting
+- Uniswap V4 hook integration via Generic4626Router for decentralized trading
 
-No pump and dump games here. Backing means we don't need to provide liquidity on an AMM. Backing makes it much less likely that people will lose any money from holding a fan token.
+**🛡️ "Can't Be Evil" Design Principles**
+- Contracts are immutable once deployed - no admin backdoors
+- Token settings (name, symbol, fees) cannot be changed after creation
+- Backing mechanism prevents "pump and dump" scenarios
+- All functions designed to be maximally fair to participants
 
-If something would be nice to change but could be abused, then make it impossible to change. For example, I would like to be able to change the name and symbol for my token. But that can be abused. So it's immutable for my contracts.
+**⏰ Safety Mechanisms**
+- 3-day deposit delays prevent unfair prize extraction after large wins
+- Dutch auction system ensures fair price discovery for yield distribution
+- Sponsor system allows fee-free token creation through PoolTogether deposits
 
 ## Problems Left To Fix
 
@@ -67,9 +90,9 @@ If you want to support me, holding my token is an easy way. If you don't care ab
 
 I can't decide if I should back the token with ETH or with USDC prize pools. The APY on the ETH pools is a lot smaller. But encouraging savings of ETH is probably better in the long term. The prizes are in ETH no matter what the prize pool takes for deposits.
 
-Deposit fees can be set between 0% and 20%. I'm going to start at 1%.
+Harvest fees can be configured by the token creator with the only constraint being that owner fees plus treasury fees cannot exceed 100%.
 
-Prizes and rewards will be distributed with [Empire Builder](https://farcaster.xyz/miniapps/x7DwM6UhLXps/empire-builder). The contract owner (flashprofits.eth) will get 50% of any prizes or rewards (this can be set between 0% and 90%). The top 100 holders of BRY will split the other 50%.
+Prizes and rewards are distributed with [Empire Builder](https://farcaster.xyz/miniapps/x7DwM6UhLXps/empire-builder). The contract owner gets a configurable percentage of any prizes or rewards, with the remainder distributed among token holders.
 
 A previous version was designed to not have any value. Whoever held the most could set a billboard. I think a dedicated "Billboard" contract makes more sense.
 
