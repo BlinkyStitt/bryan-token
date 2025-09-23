@@ -48,6 +48,8 @@ contract FanTokenTest is Test {
         factory = new FanTokenFactory(weth, uniswapV4Hook);
 
         vm.prank(address(factory));
+
+        // TODO: this is not good. this should use factory.create
         bryan = new FanToken(
             "ETH from Bryan",
             "BRY-ETH",
