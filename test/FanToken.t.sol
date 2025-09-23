@@ -2283,14 +2283,16 @@ contract FanTokenTest is Test {
         weth.deposit{value: rewardAmount}();
         require(weth.transfer(address(bryan), rewardAmount), "weth transfer failed");
 
-        uint256 ownerBalanceBefore = bryan.UNDERLYING().balanceOf(bryan.owner());
-        uint256 treasuryBalanceBefore = bryan.UNDERLYING().balanceOf(bryan.TREASURY());
+        // Fees are paid in asset tokens (PrizeVault), not underlying WETH
+        IERC20 assetToken = IERC20(bryan.asset());
+        uint256 ownerBalanceBefore = assetToken.balanceOf(bryan.owner());
+        uint256 treasuryBalanceBefore = assetToken.balanceOf(bryan.TREASURY());
         uint256 totalSupplyBefore = bryan.totalSupply();
 
         uint256 harvested = bryan.harvest();
 
-        uint256 ownerBalanceAfter = bryan.UNDERLYING().balanceOf(bryan.owner());
-        uint256 treasuryBalanceAfter = bryan.UNDERLYING().balanceOf(bryan.TREASURY());
+        uint256 ownerBalanceAfter = assetToken.balanceOf(bryan.owner());
+        uint256 treasuryBalanceAfter = assetToken.balanceOf(bryan.TREASURY());
         uint256 totalSupplyAfter = bryan.totalSupply();
 
         // Verify and use expected fee basis points
@@ -2304,9 +2306,14 @@ contract FanTokenTest is Test {
         // Should have harvested exact reward amount
         assertEq(harvested, rewardAmount, "should harvest exact reward amount");
 
-        // Verify fee amounts are correct based on actual fee settings
-        uint256 expectedOwnerFee = (harvested * ownerFeeBasisPoints) / 10000;
-        uint256 expectedTreasuryFee = (harvested * treasuryFeeBasisPoints) / 10000;
+        // Fees are calculated as percentage of assets deposited to vault, not underlying harvested
+        // The harvest() function does: assets = prizeVault.deposit(underlyingAssets, address(this))
+        // Then fees are: assets * feeBasisPoints / 10000
+        // We need to calculate what assets were received from the vault deposit
+        IERC4626 prizeVault = IERC4626(bryan.asset());
+        uint256 assetsFromDeposit = prizeVault.previewDeposit(rewardAmount);
+        uint256 expectedOwnerFee = (assetsFromDeposit * ownerFeeBasisPoints) / 10000;
+        uint256 expectedTreasuryFee = (assetsFromDeposit * treasuryFeeBasisPoints) / 10000;
 
         assertEq(ownerBalanceAfter - ownerBalanceBefore, expectedOwnerFee, "Owner fee amount incorrect");
         assertEq(treasuryBalanceAfter - treasuryBalanceBefore, expectedTreasuryFee, "Treasury fee amount incorrect");
