@@ -83,7 +83,7 @@ contract Generic4626RouterTest is Test {
         vm.stopPrank();
     }
 
-    function test_pool_details() public {
+    function test_v4_pools_are_properly_initialized() public {
         // Test that everything was set up correctly including V4 pools
         assertEq(WETH.balanceOf(trader), INITIAL_WETH, "Should have initial WETH");
         assertTrue(address(fanToken) != address(0), "Fan token should exist");
@@ -106,7 +106,7 @@ contract Generic4626RouterTest is Test {
         assertTrue(PoolId.unwrap(fanTokenPoolId) != bytes32(0), "Fan token pool ID should be non-zero");
     }
 
-    function test_withdrawing_using_the_hook() public {
+    function test_fan_token_pool_configuration() public {
         // Verify we can build the fan token pool key for potential trading
         PoolKey memory fanTokenPoolKey = _buildPoolKey(address(fanToken));
 
@@ -132,7 +132,7 @@ contract Generic4626RouterTest is Test {
         );
     }
 
-    function test_multihop_withdrawing_using_the_hook() public {
+    function test_multihop_trading_pools_configuration() public {
         // Verify we can build both pool keys for multihop trading path
         PoolKey memory fanTokenPoolKey = _buildPoolKey(address(fanToken));
         PoolKey memory vaultPoolKey = _buildPoolKey(address(PRIZE_VAULT));
@@ -172,7 +172,7 @@ contract Generic4626RouterTest is Test {
         );
     }
 
-    function test_depositing_using_the_hook() public {
+    function test_vault_pool_configuration() public {
         uint256 initialWETH = WETH.balanceOf(trader);
         uint256 initialVaultTokens = PRIZE_VAULT.balanceOf(trader);
         assertEq(initialWETH, INITIAL_WETH, "Should start with initial WETH");
