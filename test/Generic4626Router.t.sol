@@ -6,13 +6,27 @@ import {console} from "forge-std/console.sol";
 import {IERC20, IERC4626, IWETH9} from "../src/FanToken.sol";
 import {FanToken, FanTokenFactory} from "../src/FanTokenFactory.sol";
 import {IGeneric4626Router} from "../src/interfaces/IGeneric4626Router.sol";
-import {IUniversalRouter, Commands, Actions} from "../src/interfaces/IUniversalRouter.sol";
+import {IV4Router} from "v4-periphery/src/interfaces/IV4Router.sol";
+import {Actions} from "v4-periphery/src/libraries/Actions.sol";
+
+// For now, use interface since V4_SWAP doesn't exist in current Commands library
+interface IUniversalRouter {
+    function execute(bytes calldata commands, bytes[] calldata inputs, uint256 deadline) external payable;
+}
+
+import {Commands} from "@uniswap/universal-router/contracts/libraries/Commands.sol";
+
+interface IPermit2 {
+    function approve(address token, address spender, uint160 amount, uint48 expiration) external;
+}
 import {PoolIdLibrary, PoolId} from "v4-core/src/types/PoolId.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {Currency, CurrencyLibrary} from "v4-core/src/types/Currency.sol";
 import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
+import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
+import {SwapParams} from "v4-core/src/types/PoolOperation.sol";
 
 using PoolIdLibrary for PoolKey;
 
@@ -22,6 +36,7 @@ using PoolIdLibrary for PoolKey;
  * @dev This test verifies the Uniswap V4 integration without attempting actual swaps
  */
 contract Generic4626RouterTest is Test {
+    using StateLibrary for IPoolManager;
     // Core contracts
     IWETH9 constant WETH = IWETH9(0x4200000000000000000000000000000000000006);
     IERC4626 constant PRIZE_VAULT = IERC4626(0x4E42f783db2D0C5bDFf40fDc66FCAe8b1Cda4a43);
@@ -50,7 +65,7 @@ contract Generic4626RouterTest is Test {
         // Deploy factory with the Generic4626Router hook
         factory = new FanTokenFactory(WETH, GENERIC_ROUTER);
 
-        // Get the pool manager from the router
+        // Get the pool manager from the Generic4626Router
         poolManager = IPoolManager(GENERIC_ROUTER.poolManager());
 
         // Create a fan token for our prize vault - this sets up V4 pools
@@ -99,11 +114,14 @@ contract Generic4626RouterTest is Test {
         // Check that V4 pools were created for both vault and fan token
         PoolKey memory vaultPoolKey = _buildPoolKey(address(PRIZE_VAULT));
         PoolId vaultPoolId = vaultPoolKey.toId();
-        (bool vaultPoolInitialized,) = GENERIC_ROUTER.poolDetails(vaultPoolId);
+        // Actually check if pools were initialized using pool manager
+        (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(vaultPoolId);
+        bool vaultPoolInitialized = sqrtPriceX96 != 0;
 
         PoolKey memory fanTokenPoolKey = _buildPoolKey(address(fanToken));
         PoolId fanTokenPoolId = fanTokenPoolKey.toId();
-        (bool fanTokenPoolInitialized,) = GENERIC_ROUTER.poolDetails(fanTokenPoolId);
+        (uint160 sqrtPriceX96Fan,,,) = poolManager.getSlot0(fanTokenPoolId);
+        bool fanTokenPoolInitialized = sqrtPriceX96Fan != 0;
 
         assertTrue(vaultPoolInitialized, "Vault V4 pool should be initialized");
         assertTrue(fanTokenPoolInitialized, "Fan token V4 pool should be initialized");
@@ -117,46 +135,78 @@ contract Generic4626RouterTest is Test {
     }
 
     function test_withdrawing_using_the_hook() public {
-        // Setup should have given trader fan tokens
+        // Test swapping fan tokens for vault tokens through Universal Router
         uint256 initialFanTokens = fanToken.balanceOf(trader);
         uint256 initialVaultTokens = PRIZE_VAULT.balanceOf(trader);
+        uint128 swapAmount = uint128(initialFanTokens / 2);
 
         assertGt(initialFanTokens, 0, "Setup should have given trader fan tokens");
 
         vm.startPrank(trader);
 
-        // Approve Universal Router to spend fan tokens
-        fanToken.approve(address(UNIVERSAL_ROUTER), initialFanTokens / 2);
-
-        // Build the pool key for Fan Token <-> Prize Vault pool
-        PoolKey memory fanTokenPoolKey = _buildPoolKey(address(fanToken));
-
-        // Encode V4 swap command for Fan Tokens -> Prize Vault tokens
-        bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
-
-        // Prepare swap parameters
-        bool zeroForOne = address(fanToken) < address(PRIZE_VAULT);
-
-        bytes[] memory inputs = new bytes[](1);
-        inputs[0] = abi.encode(
-            fanTokenPoolKey,
-            zeroForOne,
-            -int256(initialFanTokens / 2), // exactAmountIn (negative for exact input)
-            zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1,
-            bytes("")
+        // Set up Permit2 approvals per official Universal Router docs
+        address permit2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+        fanToken.approve(permit2, type(uint256).max);
+        IPermit2(permit2).approve(
+            address(fanToken),
+            address(UNIVERSAL_ROUTER), 
+            uint160(swapAmount),
+            uint48(block.timestamp + 3600)
         );
 
-        // Execute swap via Universal Router
+        // Build the pool key
+        PoolKey memory poolKey = _buildPoolKey(address(fanToken));
+
+        // Use Universal Router with proper V4_SWAP command 
+        bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
+        
+        // Encode V4Router actions per official docs
+        bytes memory actions = abi.encodePacked(
+            uint8(Actions.SWAP_EXACT_IN_SINGLE),
+            uint8(Actions.SETTLE_ALL),
+            uint8(Actions.TAKE_ALL)
+        );
+
+        // Prepare parameters - three parameters for three actions
+        bytes[] memory params = new bytes[](3);
+        
+        // Action 1: SWAP_EXACT_IN_SINGLE parameters
+        params[0] = abi.encode(
+            IV4Router.ExactInputSingleParams({
+                poolKey: poolKey,
+                zeroForOne: address(fanToken) > address(PRIZE_VAULT),
+                amountIn: swapAmount,
+                amountOutMinimum: 0,
+                hookData: bytes("")
+            })
+        );
+        
+        // Action 2: SETTLE_ALL parameters 
+        params[1] = abi.encode(
+            address(fanToken), // currency to settle
+            swapAmount // max amount to settle
+        );
+        
+        // Action 3: TAKE_ALL parameters
+        params[2] = abi.encode(
+            address(PRIZE_VAULT), // currency to take
+            uint256(0) // minimum amount (0 = take all)
+        );
+
+        bytes[] memory inputs = new bytes[](1);
+        inputs[0] = abi.encode(actions, params);
+
+        // Execute via Universal Router
         UNIVERSAL_ROUTER.execute(commands, inputs, block.timestamp + 300);
 
-        // Verify the swap worked
+        vm.stopPrank();
+
+        // Verify the swap worked - assert actual traded values
         uint256 finalFanTokens = fanToken.balanceOf(trader);
         uint256 finalVaultTokens = PRIZE_VAULT.balanceOf(trader);
 
-        assertLt(finalFanTokens, initialFanTokens, "Should have spent fan tokens");
-        assertGt(finalVaultTokens, initialVaultTokens, "Should have received vault tokens");
-
-        vm.stopPrank();
+        assertEq(finalFanTokens, initialFanTokens - swapAmount, "Should have spent exact fan token amount");
+        assertGt(finalVaultTokens, initialVaultTokens, "Should have received vault tokens from hook conversion");
     }
 
     function test_multihop_withdrawing_using_the_hook() public {
@@ -222,22 +272,50 @@ contract Generic4626RouterTest is Test {
         WETH.approve(address(UNIVERSAL_ROUTER), TRADE_AMOUNT);
 
         // Build the pool key for WETH <-> Prize Vault pool
-        PoolKey memory vaultPoolKey = _buildPoolKey(address(PRIZE_VAULT));
+        PoolKey memory poolKey = _buildPoolKey(address(PRIZE_VAULT));
 
-        // Encode V4 swap command for WETH -> Prize Vault tokens
+        // Encode V4 swap command
         bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
 
-        // Prepare swap parameters
+        // Encode V4Router actions sequence
+        bytes memory actions = abi.encodePacked(
+            uint8(Actions.SWAP_EXACT_IN_SINGLE),
+            uint8(Actions.SETTLE_ALL),
+            uint8(Actions.TAKE_ALL)
+        );
+
+        // Determine swap direction (WETH -> Prize Vault)
         bool zeroForOne = address(WETH) < address(PRIZE_VAULT);
 
-        bytes[] memory inputs = new bytes[](1);
-        inputs[0] = abi.encode(
-            vaultPoolKey,
-            zeroForOne,
-            -int256(TRADE_AMOUNT), // exactAmountIn (negative for exact input)
-            zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1,
-            bytes("")
+        // Prepare parameters for each action
+        bytes[] memory params = new bytes[](3);
+        
+        // Action 1: SWAP_EXACT_IN_SINGLE parameters
+        params[0] = abi.encode(
+            IV4Router.ExactInputSingleParams({
+                poolKey: poolKey,
+                zeroForOne: zeroForOne,
+                amountIn: uint128(TRADE_AMOUNT),
+                amountOutMinimum: 0, // Accept any amount for testing
+                hookData: bytes("")
+            })
         );
+        
+        // Action 2: SETTLE_ALL parameters
+        params[1] = abi.encode(
+            zeroForOne ? poolKey.currency0 : poolKey.currency1,
+            uint128(TRADE_AMOUNT)
+        );
+        
+        // Action 3: TAKE_ALL parameters
+        params[2] = abi.encode(
+            zeroForOne ? poolKey.currency1 : poolKey.currency0,
+            uint128(0)
+        );
+
+        // Combine actions and params into inputs
+        bytes[] memory inputs = new bytes[](1);
+        inputs[0] = abi.encode(actions, params);
 
         // Execute swap via Universal Router
         UNIVERSAL_ROUTER.execute(commands, inputs, block.timestamp + 300);
