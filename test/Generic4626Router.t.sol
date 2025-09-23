@@ -22,12 +22,11 @@ contract Generic4626RouterTest is Test {
     // Core contracts
     IWETH9 constant WETH = IWETH9(0x4200000000000000000000000000000000000006);
     IERC4626 constant PRIZE_VAULT = IERC4626(0x4E42f783db2D0C5bDFf40fDc66FCAe8b1Cda4a43);
-    IGeneric4626Router constant GENERIC_4626_HOOK = IGeneric4626Router(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888);
+    IGeneric4626Router constant GENERIC_ROUTER = IGeneric4626Router(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888);
 
     // Test contracts
     FanTokenFactory factory;
     FanToken fanToken;
-    address poolManager;
 
     // Test accounts
     address trader;
@@ -43,13 +42,17 @@ contract Generic4626RouterTest is Test {
         treasury = makeAddr("treasury");
 
         // Deploy factory with the Generic4626Router hook
-        factory = new FanTokenFactory(WETH, GENERIC_4626_HOOK);
+        factory = new FanTokenFactory(WETH, GENERIC_ROUTER);
 
-        // Get the pool manager from the hook
-        poolManager = GENERIC_4626_HOOK.poolManager();
+        vm.startPrank(trader);
+
+        // Give trader some WETH to start with
+        vm.deal(trader, INITIAL_WETH * 2);
+        WETH.deposit{value: INITIAL_WETH * 2}();
+
+        WETH.approve(address(factory), type(uint256).max);
 
         // Create a fan token for our prize vault - this sets up V4 pools
-        vm.prank(trader);
         fanToken = factory.create(
             "Prize Vault Fan Token",
             "PVF",
@@ -58,30 +61,25 @@ contract Generic4626RouterTest is Test {
             PRIZE_VAULT,
             treasury,
             bytes32(uint256(1)),
-            0,
+            INITIAL_WETH,
             true // setupUniswapV4HookedPool = true - creates V4 pools!
         );
-
-        // Give trader some WETH to start with
-        vm.deal(trader, INITIAL_WETH);
-        vm.prank(trader);
-        WETH.deposit{value: INITIAL_WETH}();
     }
 
-    function test_basicSetup() public {
+    function test_pool_details() public {
         // Test that everything was set up correctly including V4 pools
         assertEq(WETH.balanceOf(trader), INITIAL_WETH, "Should have initial WETH");
         assertTrue(address(fanToken) != address(0), "Fan token should exist");
-        assertTrue(address(GENERIC_4626_HOOK) != address(0), "Hook should exist");
+        assertTrue(address(GENERIC_ROUTER) != address(0), "Router should exist");
 
         // Check that V4 pools were created for both vault and fan token
         PoolKey memory vaultPoolKey = _buildPoolKey(address(PRIZE_VAULT));
         PoolId vaultPoolId = vaultPoolKey.toId();
-        (bool vaultPoolInitialized,) = GENERIC_4626_HOOK.poolDetails(vaultPoolId);
+        (bool vaultPoolInitialized,) = GENERIC_ROUTER.poolDetails(vaultPoolId);
 
         PoolKey memory fanTokenPoolKey = _buildPoolKey(address(fanToken));
         PoolId fanTokenPoolId = fanTokenPoolKey.toId();
-        (bool fanTokenPoolInitialized,) = GENERIC_4626_HOOK.poolDetails(fanTokenPoolId);
+        (bool fanTokenPoolInitialized,) = GENERIC_ROUTER.poolDetails(fanTokenPoolId);
 
         assertTrue(vaultPoolInitialized, "Vault V4 pool should be initialized");
         assertTrue(fanTokenPoolInitialized, "Fan token V4 pool should be initialized");
@@ -90,37 +88,7 @@ contract Generic4626RouterTest is Test {
         console.log("Fan token pool ID:", vm.toString(PoolId.unwrap(fanTokenPoolId)));
     }
 
-    function test_poolKeyConstruction() public {
-        // Test that _buildPoolKey constructs correct pool keys for both vault and fan token
-
-        // Test vault pool key (vault + underlying asset)
-        PoolKey memory vaultPoolKey = _buildPoolKey(address(PRIZE_VAULT));
-        address vaultUnderlying = PRIZE_VAULT.asset();
-
-        // Currencies should be sorted: underlying < vault
-        assertTrue(address(vaultUnderlying) < address(PRIZE_VAULT), "WETH should be < PRIZE_VAULT address");
-        assertEq(Currency.unwrap(vaultPoolKey.currency0), vaultUnderlying, "currency0 should be underlying asset");
-        assertEq(Currency.unwrap(vaultPoolKey.currency1), address(PRIZE_VAULT), "currency1 should be vault");
-
-        // Test fan token pool key (vault + fan token)
-        PoolKey memory fanTokenPoolKey = _buildPoolKey(address(fanToken));
-        address fanTokenUnderlying = fanToken.asset(); // This is the PRIZE_VAULT
-
-        // Currencies should be sorted: vault < fan token
-        assertTrue(address(fanTokenUnderlying) < address(fanToken), "PRIZE_VAULT should be < fanToken address");
-        assertEq(Currency.unwrap(fanTokenPoolKey.currency0), fanTokenUnderlying, "currency0 should be vault");
-        assertEq(Currency.unwrap(fanTokenPoolKey.currency1), address(fanToken), "currency1 should be fan token");
-
-        // Both should use same hook and pool parameters
-        assertEq(address(vaultPoolKey.hooks), address(GENERIC_4626_HOOK), "Should use Generic4626Router hook");
-        assertEq(address(fanTokenPoolKey.hooks), address(GENERIC_4626_HOOK), "Should use Generic4626Router hook");
-        assertEq(vaultPoolKey.fee, 0, "Should use dynamic fees");
-        assertEq(fanTokenPoolKey.fee, 0, "Should use dynamic fees");
-        assertEq(vaultPoolKey.tickSpacing, 1, "Should use tick spacing 1");
-        assertEq(fanTokenPoolKey.tickSpacing, 1, "Should use tick spacing 1");
-    }
-
-    function test_uniswapV4PoolExists() public {
+    function test_hook_details() public {
         // Test that the Generic4626Router hook has been properly set up
 
         // Check that both vault and fan token have pools
@@ -130,8 +98,8 @@ contract Generic4626RouterTest is Test {
         PoolId vaultPoolId = vaultPoolKey.toId();
         PoolId fanTokenPoolId = fanTokenPoolKey.toId();
 
-        (bool vaultInitialized, bool vaultWrapsZeroToOne) = GENERIC_4626_HOOK.poolDetails(vaultPoolId);
-        (bool fanTokenInitialized, bool fanTokenWrapsZeroToOne) = GENERIC_4626_HOOK.poolDetails(fanTokenPoolId);
+        (bool vaultInitialized, bool vaultWrapsZeroToOne) = GENERIC_ROUTER.poolDetails(vaultPoolId);
+        (bool fanTokenInitialized, bool fanTokenWrapsZeroToOne) = GENERIC_ROUTER.poolDetails(fanTokenPoolId);
 
         assertTrue(vaultInitialized, "Vault pool should be initialized");
         assertTrue(fanTokenInitialized, "Fan token pool should be initialized");
@@ -145,38 +113,20 @@ contract Generic4626RouterTest is Test {
         console.log("Fan token pool ID:", vm.toString(PoolId.unwrap(fanTokenPoolId)));
     }
 
-    function test_gasUsageComparison() public {
-        // Compare gas usage between setupUniswapV4HookedPool enabled vs disabled
-        console.log("=== Gas Usage Analysis ===");
-        console.log("Fan token creation with V4 setup: setupUniswapV4HookedPool = true");
-
-        // The gas usage for creating our fan token with V4 setup is already recorded
-        // This test serves as documentation for gas impact
-
-        assertTrue(address(fanToken) != address(0), "Fan token should be created successfully");
+    function test_withdrawing_using_the_hook() public {
+        // TODO: use the pool manager/uniswap v4 router to trade the fan token balance you have back to pool together tickets
+        revert("write this");
     }
 
-    function test_poolManagerIntegration() public {
-        // Test that we can access the pool manager through the hook
-        assertTrue(address(poolManager) != address(0), "Pool manager should be accessible");
+    function test_multihop_withdrawing_using_the_hook() public {
+        // TODO: use the pool manager/uniswap v4 router to trade the fan token balance you have back to WETH.
+        revert("write this");
+    }
 
-        // Verify pool manager is different from hook
-        assertTrue(poolManager != address(GENERIC_4626_HOOK), "Pool manager should be different from hook");
-
-        // Test that we have the correct pool keys for both pools
-        PoolKey memory vaultPoolKey = _buildPoolKey(address(PRIZE_VAULT));
-        PoolKey memory fanTokenPoolKey = _buildPoolKey(address(fanToken));
-
-        // Verify pools use the correct hook
-        assertEq(address(vaultPoolKey.hooks), address(GENERIC_4626_HOOK), "Vault pool should use hook");
-        assertEq(address(fanTokenPoolKey.hooks), address(GENERIC_4626_HOOK), "Fan token pool should use hook");
-
-        // Verify both pools are initialized in the hook
-        (bool vaultInitialized,) = GENERIC_4626_HOOK.poolDetails(vaultPoolKey.toId());
-        (bool fanTokenInitialized,) = GENERIC_4626_HOOK.poolDetails(fanTokenPoolKey.toId());
-
-        assertTrue(vaultInitialized, "Vault pool should be initialized");
-        assertTrue(fanTokenInitialized, "Fan token pool should be initialized");
+    function test_depositing_using_the_hook() public {
+        // you already have a weth balance
+        // TODO: use the pool manager/uniswap v4 router to trade WETH into pool together tickets. then trade pool together tickets back to WETH. i think this can be done in one transaction. just two pools traded against
+        revert("write this");
     }
 
     // ===== HELPER FUNCTIONS =====
@@ -194,7 +144,7 @@ contract Generic4626RouterTest is Test {
             currency1: Currency.wrap(currency1Addr),
             fee: 0,
             tickSpacing: 1,
-            hooks: IHooks(address(GENERIC_4626_HOOK))
+            hooks: IHooks(address(GENERIC_ROUTER))
         });
     }
 }
