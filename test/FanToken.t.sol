@@ -963,7 +963,6 @@ contract FanTokenTest is Test {
             vm.warp(aliceWhen);
         }
         bryan.deposit(depositAmount, alice);
-        vm.stopPrank();
 
         vm.startPrank(bob);
         asset.approve(address(bryan), type(uint256).max);
@@ -972,7 +971,6 @@ contract FanTokenTest is Test {
             vm.warp(bobWhen);
         }
         bryan.deposit(depositAmount, bob);
-        vm.stopPrank();
 
         // Sponsor deposits
         vm.startPrank(sponsor);
@@ -1092,7 +1090,6 @@ contract FanTokenTest is Test {
             vm.warp(sponsorWhen);
             bryan.deposit(depositAmount, sponsor);
         }
-        vm.stopPrank();
 
         // Record initial state
         uint256 initialSponsorAssets = bryan.balanceOfSponsor(sponsor);
@@ -1144,7 +1141,6 @@ contract FanTokenTest is Test {
             vm.warp(aliceWhen);
             bryan.deposit(depositAmount, alice);
         }
-        vm.stopPrank();
 
         // First sponsor deposits with proper timing
         vm.startPrank(sponsor1);
@@ -1155,7 +1151,6 @@ contract FanTokenTest is Test {
             vm.warp(sponsor1When);
             bryan.deposit(depositAmount, sponsor1);
         }
-        vm.stopPrank();
 
         // Second sponsor deposits with proper timing
         vm.startPrank(sponsor2);
@@ -1166,7 +1161,6 @@ contract FanTokenTest is Test {
             vm.warp(sponsor2When);
             bryan.deposit(depositAmount, sponsor2);
         }
-        vm.stopPrank();
 
         uint256 initialAliceUnderlying;
         uint256 initialSponsor1Assets;
@@ -1253,7 +1247,6 @@ contract FanTokenTest is Test {
         assertGt(transferAmount, 0, "transfer amount should be positive");
 
         // Make recipient a sponsor for the transfer to work
-        vm.stopPrank();
         vm.prank(recipient);
         bryan.setSponsorship(true);
 
@@ -1261,7 +1254,6 @@ contract FanTokenTest is Test {
         vm.expectEmit(true, true, false, true);
         emit IERC20.Transfer(sponsor, recipient, transferAmount);
         bryan.sponsorTransfer(recipient, transferAmount);
-        vm.stopPrank();
 
         // Verify transfer
         uint256 finalSponsorAssets = bryan.balanceOfSponsor(sponsor);
@@ -1363,7 +1355,6 @@ contract FanTokenTest is Test {
             assertLe(sponsorSharesAfter, sponsorShares, "sponsor shares should not increase after withdrawal");
             assertEq(withdrawn, withdrawAmount, "should receive withdrawn assets");
         }
-        vm.stopPrank();
         // Total sponsored shares are tracked by the contract
         assertGt(bryan.totalSponsoredShares(), 0);
         assertGt(bryan.totalSponsoredAssets(), 0);
@@ -1386,7 +1377,6 @@ contract FanTokenTest is Test {
             vm.warp(when);
             bryan.deposit(assets, sponsor1);
         }
-        vm.stopPrank();
 
         vm.prank(sponsor2);
         bryan.setSponsorship(true);
@@ -1432,7 +1422,6 @@ contract FanTokenTest is Test {
             vm.warp(when);
             bryan.deposit(assets, sponsor1);
         }
-        vm.stopPrank();
 
         vm.prank(sponsor2);
         bryan.setSponsorship(true);
@@ -1467,7 +1456,6 @@ contract FanTokenTest is Test {
             vm.warp(when1);
             bryan.deposit(assets1, sponsor1);
         }
-        vm.stopPrank();
 
         vm.startPrank(sponsor2);
         bryan.setSponsorship(true);
@@ -1485,7 +1473,6 @@ contract FanTokenTest is Test {
             vm.warp(when2);
             bryan.deposit(assets2, sponsor2);
         }
-        vm.stopPrank();
 
         // After both sponsors deposit, all shares should be in the contract
         uint256 totalContractShares = bryan.totalSponsoredShares();
@@ -1595,7 +1582,6 @@ contract FanTokenTest is Test {
         vm.startPrank(alice);
         asset.approve(address(bryan), type(uint256).max);
         bryan.deposit(depositAmount, alice);
-        vm.stopPrank();
 
         // Sponsor becomes sponsor and deposits
         vm.startPrank(sponsor);
@@ -1659,8 +1645,6 @@ contract FanTokenTest is Test {
         assertEq(bryan.balanceOf(alice), 0, "alice should have no shares");
         assertEq(bryan.totalSupply(), 0, "total supply should be zero");
 
-        vm.stopPrank();
-
         // TODO: have a similar test that harvests some prizes here!
 
         // Bob deposits after total supply went to zero (should be instant like first deposit)
@@ -1690,6 +1674,8 @@ contract FanTokenTest is Test {
         if (when > 0) {
             vm.warp(when);
             bryan.deposit(assets, sponsor);
+        } else {
+            revert("when should be nonzero");
         }
 
         uint256 sponsorAssets = bryan.balanceOfSponsor(sponsor);
@@ -1704,12 +1690,11 @@ contract FanTokenTest is Test {
         assertEq(bryan.balanceOf(nonSponsor), 0, "non-sponsor should start with zero balance");
 
         // Transfer from sponsor to non-sponsor
-        // Note: This currently fails due to a bug in _sponsorTransfer implementation
-        // The function doesn't properly manage sponsor balance accounting in the fromIsSponsor branch
-        vm.expectRevert(); // ERC20InsufficientBalance - the sponsor has 0 balance when trying to transfer
         bryan.sponsorTransfer(nonSponsor, transferAmount);
 
-        vm.stopPrank();
+        // TODO: this doesn't feel right
+        assertEq(bryan.balanceOfSponsor(sponsor), transferAmount, "sponsor should have half the underlying");
+        assertEq(bryan.balanceOfUnderlying(nonSponsor), transferAmount, "non sponsor should have half the underlying");
     }
 
     function test_sponsorTransfer_from_nonsponsor_to_sponsor() public {
@@ -1739,8 +1724,6 @@ contract FanTokenTest is Test {
 
         assertGt(nonSponsorShares, 0, "non-sponsor should have shares");
         assertEq(bryan.balanceOfSponsor(sponsor), 0, "sponsor should start with zero sponsor assets");
-
-        vm.stopPrank();
 
         // Set sponsor status for recipient
         vm.prank(sponsor);
@@ -1792,8 +1775,6 @@ contract FanTokenTest is Test {
         // This should revert with AtLeastOneSideMustBeSponsor
         vm.expectRevert(AtLeastOneSideMustBeSponsor.selector);
         bryan.sponsorTransfer(nonSponsor2, transferAmount);
-
-        vm.stopPrank();
     }
 
     function test_harvestSponsorship_public_function() public {
@@ -1840,8 +1821,6 @@ contract FanTokenTest is Test {
         console.log("  Approved shares:", sharesToApprove);
         console.log("  Allowance:", bryan.allowance(sponsor, withdrawer));
 
-        vm.stopPrank();
-
         // Withdrawer tries to withdraw sponsor's tokens
         vm.startPrank(withdrawer);
 
@@ -1856,8 +1835,6 @@ contract FanTokenTest is Test {
 
         assertEq(withdrawn, withdrawAmount, "should withdraw the requested amount");
         assertEq(bryan.balanceOfSponsor(sponsor), sponsorAssets - withdrawAmount, "sponsor assets should decrease");
-
-        vm.stopPrank();
     }
 
     function test_sponsor_withdraw_without_approval_should_fail() public {
@@ -1881,8 +1858,6 @@ contract FanTokenTest is Test {
         uint256 sponsorAssets = bryan.balanceOfSponsor(sponsor);
         uint256 withdrawAmount = sponsorAssets / 2;
 
-        vm.stopPrank();
-
         // Withdrawer tries to withdraw sponsor's tokens WITHOUT approval
         vm.startPrank(withdrawer);
 
@@ -1890,8 +1865,6 @@ contract FanTokenTest is Test {
         // This should fail with insufficient allowance
         vm.expectRevert(); // Should revert with ERC20InsufficientAllowance
         bryan.withdraw(withdrawAmount, withdrawer, sponsor);
-
-        vm.stopPrank();
     }
 
     function test_withdraw_non_sponsor() public {
@@ -1926,8 +1899,6 @@ contract FanTokenTest is Test {
 
         assertEq(withdrawn, withdrawAmount, "should withdraw the requested amount");
         assertLt(bryan.balanceOf(user), userShares, "user shares should decrease");
-
-        vm.stopPrank();
     }
 
     function test_sponsor_self_withdraw() public {
@@ -1965,8 +1936,6 @@ contract FanTokenTest is Test {
         assertEq(withdrawn, withdrawAmount, "should withdraw the requested amount");
         assertEq(bryan.balanceOfSponsor(sponsor), sponsorAssets - withdrawAmount, "sponsor assets should decrease");
         assertEq(bryan.totalSponsorAssets(), sponsorAssets - withdrawAmount, "total sponsor assets should decrease");
-
-        vm.stopPrank();
     }
 
     function test_sponsor_withdraw_insufficient_balance() public {
@@ -2007,8 +1976,6 @@ contract FanTokenTest is Test {
             )
         );
         bryan.withdraw(excessiveAmount, sponsor, sponsor);
-
-        vm.stopPrank();
     }
 
     function test_redeem_sponsor() public {
@@ -2047,8 +2014,6 @@ contract FanTokenTest is Test {
         // redeem now properly updates sponsor accounting
         uint256 redeemedAssets = bryan.previewRedeem(sharesToRedeem);
         assertEq(bryan.balanceOfSponsor(sponsor), sponsorAssets - redeemedAssets, "sponsor assets should decrease");
-
-        vm.stopPrank();
     }
 
     function test_redeem_non_sponsor() public {
@@ -2084,8 +2049,6 @@ contract FanTokenTest is Test {
 
         assertEq(redeemed, sharesToRedeem, "should redeem the calculated shares amount");
         assertEq(bryan.balanceOf(user), userShares - sharesToRedeem, "user shares should decrease");
-
-        vm.stopPrank();
     }
 
     function test_redeem_sponsor_insufficient_balance() public {
@@ -2128,8 +2091,6 @@ contract FanTokenTest is Test {
             )
         );
         bryan.redeem(excessiveShares, sponsor, sponsor);
-
-        vm.stopPrank();
     }
 
     function test_withdraw_with_allowance() public {
@@ -2156,8 +2117,6 @@ contract FanTokenTest is Test {
         // Approve withdrawer
         bryan.approve(withdrawer, sharesToApprove);
 
-        vm.stopPrank();
-
         // Withdrawer withdraws user's tokens
         vm.startPrank(withdrawer);
 
@@ -2166,8 +2125,6 @@ contract FanTokenTest is Test {
         assertEq(withdrawn, withdrawAmount, "should withdraw the requested amount");
         assertEq(bryan.balanceOf(user), userShares - sharesToApprove, "user shares should decrease");
         assertEq(bryan.allowance(user, withdrawer), 0, "allowance should be consumed");
-
-        vm.stopPrank();
     }
 
     // ============ INVARIANT TESTS ============
@@ -2202,7 +2159,6 @@ contract FanTokenTest is Test {
                 vm.warp(when);
                 bryan.finishDeposit(sponsors[i], sponsors[i]);
             }
-            vm.stopPrank();
         }
 
         // Check invariant: totalSponsorAssets = sum of individual balances
@@ -2257,8 +2213,6 @@ contract FanTokenTest is Test {
         uint256 remainingShares = bryan.balanceOf(user);
         uint256 remainingAssets = bryan.convertToAssets(remainingShares);
         assertApproxEqAbs(remainingAssets, assets / 2, 1, "Remaining balance inconsistent");
-
-        vm.stopPrank();
     }
 
     function test_sponsor_withdrawal_boundaries() public {
@@ -2305,8 +2259,6 @@ contract FanTokenTest is Test {
             )
         );
         bryan.withdraw(excessiveAmount, sponsor, sponsor);
-
-        vm.stopPrank();
     }
 
     function test_fee_distribution_precision() public {
@@ -2316,7 +2268,6 @@ contract FanTokenTest is Test {
         vm.startPrank(user);
         asset.approve(address(bryan), type(uint256).max);
         bryan.deposit(initialAssets, user);
-        vm.stopPrank();
 
         // Add some rewards to harvest by dealing to the vault
         _dealAsset(10 ether, address(bryan));
@@ -2365,7 +2316,6 @@ contract FanTokenTest is Test {
         // First deposit should be immediate (already processed by startDeposit)
         uint256 shares1 = bryan.balanceOf(user1);
         assertEq(shares1, assets1, "Should receive shares equal to deposited assets for first deposit");
-        vm.stopPrank();
 
         // Second deposit should have delay (totalSupply > 0)
         vm.startPrank(user2);
@@ -2385,8 +2335,6 @@ contract FanTokenTest is Test {
         vm.warp(startTime + expectedDelay);
         uint256 shares2 = bryan.finishDeposit(user2, user2);
         assertEq(shares2, assets2, "Should receive shares equal to deposited assets after delay");
-
-        vm.stopPrank();
     }
 
     function test_sponsorship_transfer_edge_cases() public {
@@ -2406,7 +2354,6 @@ contract FanTokenTest is Test {
             vm.warp(when1);
             bryan.finishDeposit(sponsor1, sponsor1);
         }
-        vm.stopPrank();
 
         // Setup nonSponsor (must wait for delay since sponsor1 already deposited)
         vm.startPrank(nonSponsor);
@@ -2416,7 +2363,6 @@ contract FanTokenTest is Test {
             vm.warp(when2);
             bryan.finishDeposit(nonSponsor, nonSponsor);
         }
-        vm.stopPrank();
 
         // Setup sponsor2 (empty initially)
         vm.prank(sponsor2);
