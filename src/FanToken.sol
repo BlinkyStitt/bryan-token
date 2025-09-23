@@ -513,6 +513,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             // since from is a sponsor, the shares are held by this contract
             // move them to the from. then do the normal transfer flow
             // we could maybe _update(address(this, to)), but i think events are confusing that way
+            balanceOfSponsor[from] -= assets;
             super._update(address(this), from, shares);
 
             super._update(from, to, shares);
