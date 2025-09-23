@@ -42,7 +42,7 @@ else
 fi
 
 # Support different modes: test, coverage, snapshot
-mode="test"  # default to coverage
+mode="test"
 if [ $# -gt 0 ]; then
     case "$1" in
         test|coverage|snapshot)
@@ -77,9 +77,12 @@ case "$mode" in
         fi
         ;;
     snapshot)
-        exec forge snapshot \
+        forge snapshot \
             --fork-block-number "$block_number" \
             --fork-url "$fork_url" \
             "$@"
+        
+        # TODO: is there a way to make it not group lines so that its easy to see the remove and adds together?
+        git diff
         ;;
 esac

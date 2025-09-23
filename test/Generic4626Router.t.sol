@@ -12,8 +12,6 @@ import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {Currency, CurrencyLibrary} from "v4-core/src/types/Currency.sol";
 import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
-import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
-import {SwapParams} from "v4-core/src/types/PoolOperation.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 
 using PoolIdLibrary for PoolKey;
@@ -61,7 +59,6 @@ contract Generic4626RouterTest is Test {
         WETH.deposit{value: INITIAL_WETH * 2}();
 
         WETH.approve(address(factory), type(uint256).max);
-        WETH.approve(address(UNIVERSAL_ROUTER), type(uint256).max);
 
         // Create a fan token for our prize vault - this sets up V4 pools
         fanToken = factory.create(
@@ -79,6 +76,9 @@ contract Generic4626RouterTest is Test {
         // Approve tokens for Universal Router
         PRIZE_VAULT.approve(address(UNIVERSAL_ROUTER), type(uint256).max);
         fanToken.approve(address(UNIVERSAL_ROUTER), type(uint256).max);
+
+        // NOTE: fanToken.deposit() CAN get fan tokens (that works), but factory creation already gives us fan tokens
+        // We're testing the hook trading functionality, not the deposit flow
 
         vm.stopPrank();
     }
@@ -104,104 +104,145 @@ contract Generic4626RouterTest is Test {
         // Verify pool IDs are non-zero (valid)
         assertTrue(PoolId.unwrap(vaultPoolId) != bytes32(0), "Vault pool ID should be non-zero");
         assertTrue(PoolId.unwrap(fanTokenPoolId) != bytes32(0), "Fan token pool ID should be non-zero");
+
+        // Factory creation with INITIAL_WETH should have given trader fan tokens
+        assertGt(fanToken.balanceOf(trader), 0, "Setup should have given trader fan tokens");
     }
 
-    function test_fan_token_pool_configuration() public {
-        // Verify we can build the fan token pool key for potential trading
+    function test_withdrawing_using_the_hook() public {
+        // Setup should have given trader fan tokens
+        uint256 initialFanTokens = fanToken.balanceOf(trader);
+        uint256 initialVaultTokens = PRIZE_VAULT.balanceOf(trader);
+
+        assertGt(initialFanTokens, 0, "Setup should have given trader fan tokens");
+
+        vm.startPrank(trader);
+
+        // Approve Universal Router to spend fan tokens
+        fanToken.approve(address(UNIVERSAL_ROUTER), initialFanTokens / 2);
+
+        // Build the pool key for Fan Token <-> Prize Vault pool
         PoolKey memory fanTokenPoolKey = _buildPoolKey(address(fanToken));
 
-        // Verify the pool is properly initialized
-        PoolId fanTokenPoolId = fanTokenPoolKey.toId();
-        (bool fanTokenPoolInitialized,) = GENERIC_ROUTER.poolDetails(fanTokenPoolId);
-        assertTrue(fanTokenPoolInitialized, "Fan token pool should be initialized");
+        // Encode V4 swap command for Fan Tokens -> Prize Vault tokens
+        bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
 
-        // Verify pool key is correctly configured
-        assertTrue(address(fanTokenPoolKey.hooks) == address(GENERIC_ROUTER), "Hook should be Generic4626Router");
-        assertTrue(
-            Currency.unwrap(fanTokenPoolKey.currency0) != Currency.unwrap(fanTokenPoolKey.currency1),
-            "Currencies should be different"
+        // Prepare swap parameters
+        bool zeroForOne = address(fanToken) < address(PRIZE_VAULT);
+
+        bytes[] memory inputs = new bytes[](1);
+        inputs[0] = abi.encode(
+            fanTokenPoolKey,
+            zeroForOne,
+            -int256(initialFanTokens / 2), // exactAmountIn (negative for exact input)
+            zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1,
+            bytes("")
         );
 
-        // Verify currencies are fan token and prize vault
-        address currency0 = Currency.unwrap(fanTokenPoolKey.currency0);
-        address currency1 = Currency.unwrap(fanTokenPoolKey.currency1);
-        assertTrue(
-            (currency0 == address(fanToken) && currency1 == address(PRIZE_VAULT))
-                || (currency0 == address(PRIZE_VAULT) && currency1 == address(fanToken)),
-            "Pool should be between fan token and prize vault"
-        );
+        // Execute swap via Universal Router
+        UNIVERSAL_ROUTER.execute(commands, inputs, block.timestamp + 300);
+
+        // Verify the swap worked
+        uint256 finalFanTokens = fanToken.balanceOf(trader);
+        uint256 finalVaultTokens = PRIZE_VAULT.balanceOf(trader);
+
+        assertLt(finalFanTokens, initialFanTokens, "Should have spent fan tokens");
+        assertGt(finalVaultTokens, initialVaultTokens, "Should have received vault tokens");
+
+        vm.stopPrank();
     }
 
-    function test_multihop_trading_pools_configuration() public {
-        // Verify we can build both pool keys for multihop trading path
+    function test_multihop_withdrawing_using_the_hook() public {
+        // Setup should have given trader fan tokens
+        uint256 initialFanTokens = fanToken.balanceOf(trader);
+        uint256 initialWETH = WETH.balanceOf(trader);
+
+        assertGt(initialFanTokens, 0, "Setup should have given trader fan tokens");
+
+        vm.startPrank(trader);
+
+        // Approve Universal Router to spend fan tokens
+        fanToken.approve(address(UNIVERSAL_ROUTER), initialFanTokens / 2);
+
+        // Multihop swap: fan tokens -> prize vault tokens -> WETH via Universal Router
         PoolKey memory fanTokenPoolKey = _buildPoolKey(address(fanToken));
         PoolKey memory vaultPoolKey = _buildPoolKey(address(PRIZE_VAULT));
 
-        // Verify both pools are initialized
-        PoolId fanTokenPoolId = fanTokenPoolKey.toId();
-        PoolId vaultPoolId = vaultPoolKey.toId();
+        // Encode two V4 swap commands for multihop
+        bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP), uint8(Commands.V4_SWAP));
 
-        (bool fanTokenPoolInitialized,) = GENERIC_ROUTER.poolDetails(fanTokenPoolId);
-        (bool vaultPoolInitialized,) = GENERIC_ROUTER.poolDetails(vaultPoolId);
+        // First hop: fan tokens -> prize vault tokens
+        bool fanZeroForOne = address(fanToken) < address(PRIZE_VAULT);
+        // Second hop: prize vault tokens -> WETH
+        bool vaultZeroForOne = address(WETH) < address(PRIZE_VAULT);
 
-        assertTrue(fanTokenPoolInitialized, "Fan token pool should be initialized");
-        assertTrue(vaultPoolInitialized, "Vault pool should be initialized");
-
-        // Verify hooks are correctly configured
-        assertTrue(
-            address(fanTokenPoolKey.hooks) == address(GENERIC_ROUTER), "Fan token hook should be Generic4626Router"
+        bytes[] memory inputs = new bytes[](2);
+        inputs[0] = abi.encode(
+            fanTokenPoolKey,
+            fanZeroForOne,
+            -int256(initialFanTokens / 2), // exactAmountIn for first hop
+            fanZeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1,
+            bytes("")
         );
-        assertTrue(address(vaultPoolKey.hooks) == address(GENERIC_ROUTER), "Vault hook should be Generic4626Router");
-
-        // Verify fan token pool currencies
-        address fanCurrency0 = Currency.unwrap(fanTokenPoolKey.currency0);
-        address fanCurrency1 = Currency.unwrap(fanTokenPoolKey.currency1);
-        assertTrue(
-            (fanCurrency0 == address(fanToken) && fanCurrency1 == address(PRIZE_VAULT))
-                || (fanCurrency0 == address(PRIZE_VAULT) && fanCurrency1 == address(fanToken)),
-            "Fan token pool should be between fan token and prize vault"
+        inputs[1] = abi.encode(
+            vaultPoolKey,
+            vaultZeroForOne,
+            int256(0), // exactAmountOut - use all from previous hop
+            vaultZeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1,
+            bytes("")
         );
 
-        // Verify vault pool currencies
-        address vaultCurrency0 = Currency.unwrap(vaultPoolKey.currency0);
-        address vaultCurrency1 = Currency.unwrap(vaultPoolKey.currency1);
-        assertTrue(
-            (vaultCurrency0 == address(WETH) && vaultCurrency1 == address(PRIZE_VAULT))
-                || (vaultCurrency0 == address(PRIZE_VAULT) && vaultCurrency1 == address(WETH)),
-            "Vault pool should be between WETH and prize vault"
-        );
+        // Execute multihop swap via Universal Router
+        UNIVERSAL_ROUTER.execute(commands, inputs, block.timestamp + 300);
+
+        // Verify the multihop swap worked
+        uint256 finalFanTokens = fanToken.balanceOf(trader);
+        uint256 finalWETH = WETH.balanceOf(trader);
+
+        assertLt(finalFanTokens, initialFanTokens, "Should have spent fan tokens");
+        assertGt(finalWETH, initialWETH, "Should have received WETH");
+
+        vm.stopPrank();
     }
 
-    function test_vault_pool_configuration() public {
+    function test_depositing_using_the_hook() public {
         uint256 initialWETH = WETH.balanceOf(trader);
         uint256 initialVaultTokens = PRIZE_VAULT.balanceOf(trader);
-        assertEq(initialWETH, INITIAL_WETH, "Should start with initial WETH");
-        assertEq(initialVaultTokens, 0, "Should start with no vault tokens");
 
-        // Verify vault pool setup for WETH to vault token trading
+        vm.startPrank(trader);
+
+        // Approve Universal Router to spend WETH
+        WETH.approve(address(UNIVERSAL_ROUTER), TRADE_AMOUNT);
+
+        // Build the pool key for WETH <-> Prize Vault pool
         PoolKey memory vaultPoolKey = _buildPoolKey(address(PRIZE_VAULT));
-        PoolId vaultPoolId = vaultPoolKey.toId();
-        (bool vaultPoolInitialized,) = GENERIC_ROUTER.poolDetails(vaultPoolId);
 
-        assertTrue(vaultPoolInitialized, "Vault pool should be initialized");
-        assertTrue(address(vaultPoolKey.hooks) == address(GENERIC_ROUTER), "Hook should be Generic4626Router");
-        assertTrue(
-            Currency.unwrap(vaultPoolKey.currency0) != Currency.unwrap(vaultPoolKey.currency1),
-            "Currencies should be different"
+        // Encode V4 swap command for WETH -> Prize Vault tokens
+        bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
+
+        // Prepare swap parameters
+        bool zeroForOne = address(WETH) < address(PRIZE_VAULT);
+
+        bytes[] memory inputs = new bytes[](1);
+        inputs[0] = abi.encode(
+            vaultPoolKey,
+            zeroForOne,
+            -int256(TRADE_AMOUNT), // exactAmountIn (negative for exact input)
+            zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1,
+            bytes("")
         );
 
-        // Verify pool is between WETH and prize vault
-        address currency0 = Currency.unwrap(vaultPoolKey.currency0);
-        address currency1 = Currency.unwrap(vaultPoolKey.currency1);
-        assertTrue(
-            (currency0 == address(WETH) && currency1 == address(PRIZE_VAULT))
-                || (currency0 == address(PRIZE_VAULT) && currency1 == address(WETH)),
-            "Pool should be between WETH and prize vault"
-        );
+        // Execute swap via Universal Router
+        UNIVERSAL_ROUTER.execute(commands, inputs, block.timestamp + 300);
 
-        // Verify fee and tick spacing are set correctly
-        assertEq(vaultPoolKey.fee, 0, "Pool fee should be 0");
-        assertEq(vaultPoolKey.tickSpacing, 1, "Pool tick spacing should be 1");
+        vm.stopPrank();
+
+        // Verify the swap worked
+        uint256 finalWETH = WETH.balanceOf(trader);
+        uint256 finalVaultTokens = PRIZE_VAULT.balanceOf(trader);
+
+        assertLt(finalWETH, initialWETH, "Should have spent WETH");
+        assertGt(finalVaultTokens, initialVaultTokens, "Should have received vault tokens");
     }
 
     // ===== HELPER FUNCTIONS =====
