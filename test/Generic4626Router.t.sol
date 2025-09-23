@@ -83,7 +83,7 @@ contract Generic4626RouterTest is Test {
         vm.stopPrank();
     }
 
-    function test_v4_pools_are_properly_initialized() public {
+    function test_v4_pools_are_properly_initialized() public view {
         // Test that everything was set up correctly including V4 pools
         assertEq(WETH.balanceOf(trader), INITIAL_WETH, "Should have initial WETH");
         assertTrue(address(fanToken) != address(0), "Fan token should exist");

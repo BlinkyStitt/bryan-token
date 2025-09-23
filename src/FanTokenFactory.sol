@@ -43,8 +43,6 @@ contract FanTokenFactory {
         uint256 _initialDeposit,
         bool setupUniswapV4HookedPool
     ) public payable returns (FanToken fanToken) {
-        address underlying = address(_prizeVault.asset());
-
         // TODO: if salt is 0, should we generate one? msg.sender is already part of the args
 
         // TODO: use fancy cloning code
