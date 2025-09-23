@@ -2306,14 +2306,12 @@ contract FanTokenTest is Test {
         // Should have harvested exact reward amount
         assertEq(harvested, rewardAmount, "should harvest exact reward amount");
 
-        // Fees are calculated as percentage of assets deposited to vault, not underlying harvested
-        // The harvest() function does: assets = prizeVault.deposit(underlyingAssets, address(this))
-        // Then fees are: assets * feeBasisPoints / 10000
-        // We need to calculate what assets were received from the vault deposit
+        // Fees are calculated as percentage of underlying assets, then converted to vault shares
         IERC4626 prizeVault = IERC4626(bryan.asset());
-        uint256 assetsFromDeposit = prizeVault.previewDeposit(rewardAmount);
-        uint256 expectedOwnerFee = (assetsFromDeposit * ownerFeeBasisPoints) / 10000;
-        uint256 expectedTreasuryFee = (assetsFromDeposit * treasuryFeeBasisPoints) / 10000;
+        uint256 ownerFeeAssets = (rewardAmount * ownerFeeBasisPoints) / 10000;
+        uint256 treasuryFeeAssets = (rewardAmount * treasuryFeeBasisPoints) / 10000;
+        uint256 expectedOwnerFee = prizeVault.previewDeposit(ownerFeeAssets);
+        uint256 expectedTreasuryFee = prizeVault.previewDeposit(treasuryFeeAssets);
 
         assertEq(ownerBalanceAfter - ownerBalanceBefore, expectedOwnerFee, "Owner fee amount incorrect");
         assertEq(treasuryBalanceAfter - treasuryBalanceBefore, expectedTreasuryFee, "Treasury fee amount incorrect");

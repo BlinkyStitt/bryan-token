@@ -298,32 +298,29 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         // uint256 expectedAssets = prizeVault.previewDeposit(underlyingAssets);
         // uint256 equivalentShares = previewDeposit(expectedAssets);
 
-        uint256 assets = prizeVault.deposit(underlyingAssets, address(this));
+        prizeVault.deposit(underlyingAssets, address(this));
 
         // optionally split some to a "treasury" address
         address treasuryAddress = TREASURY;
         if (treasuryAddress != address(0)) {
             uint256 treasuryFeeAssets =
-                assets.mulDiv(harvestTreasuryFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);
+                underlyingAssets.mulDiv(harvestTreasuryFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);
             if (treasuryFeeAssets > 0) {
-                // _mint(treasuryAddress, treasuryFeeShares);
-                // set sponsorship status to ensure proper accounting
-                // _setSponsorship(treasuryAddress, isSponsor[treasuryAddress]);
-
-                // TODO: i'd prefer to mint fan tokens for these and keep them in this contract, but i can't get the math right
-                IERC20(address(prizeVault)).safeTransfer(treasuryAddress, treasuryFeeAssets);
-
-                // TODO: maybe if theres an allowance, we call _deposit? seems silly to be transferring around extra
+                // Convert fee from underlying assets to vault shares for transfer
+                uint256 treasuryFeeShares = prizeVault.previewDeposit(treasuryFeeAssets);
+                IERC20(address(prizeVault)).safeTransfer(treasuryAddress, treasuryFeeShares);
             }
         }
 
         // optionally split some to an "owner" address
-        // TODO: DRY. this is the same as the treasury code above
         address ownerAddress = owner();
         if (ownerAddress != address(0)) {
-            uint256 ownerFeeAssets = assets.mulDiv(harvestOwnerFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);
+            uint256 ownerFeeAssets =
+                underlyingAssets.mulDiv(harvestOwnerFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);
             if (ownerFeeAssets > 0) {
-                IERC20(address(prizeVault)).safeTransfer(ownerAddress, ownerFeeAssets);
+                // Convert fee from underlying assets to vault shares for transfer
+                uint256 ownerFeeShares = prizeVault.previewDeposit(ownerFeeAssets);
+                IERC20(address(prizeVault)).safeTransfer(ownerAddress, ownerFeeShares);
             }
         }
 
