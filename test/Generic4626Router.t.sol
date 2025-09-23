@@ -41,10 +41,11 @@ contract Generic4626RouterTest is Test {
     uint256 constant INITIAL_WETH = 1 ether;
     uint256 constant TRADE_AMOUNT = 0.1 ether;
 
+    /// @notice create a fan token and give the trader some of it
     function setUp() public {
         // Create test accounts
         trader = makeAddr("trader");
-        treasury = makeAddr("treasury");
+        treasury = address(0);
 
         // Deploy factory with the Generic4626Router hook
         factory = new FanTokenFactory(WETH, GENERIC_ROUTER);
@@ -52,42 +53,48 @@ contract Generic4626RouterTest is Test {
         // Get the pool manager from the router
         poolManager = IPoolManager(GENERIC_ROUTER.poolManager());
 
-        vm.startPrank(trader);
-
-        // Give trader some WETH to start with
-        vm.deal(trader, INITIAL_WETH * 2);
-        WETH.deposit{value: INITIAL_WETH * 2}();
-
-        WETH.approve(address(factory), type(uint256).max);
-
         // Create a fan token for our prize vault - this sets up V4 pools
-        fanToken = factory.create(
+        // this must be done as the contract because we do NOT want the trader to be the owner
+        fanToken = factory.create{value: INITIAL_WETH}(
             "Prize Vault Fan Token",
             "PVF",
-            500, // 5% owner fee
-            250, // 2.5% treasury fee
+            0,
+            0,
             PRIZE_VAULT,
             treasury,
-            bytes32(uint256(1)),
+            bytes32(0),
             INITIAL_WETH,
             true // setupUniswapV4HookedPool = true - creates V4 pools!
         );
 
+        console.log("sponsor balance", fanToken.balanceOfSponsor(address(this)));
+
+        fanToken.sponsorTransfer(trader, INITIAL_WETH);
+
+        hoax(trader, INITIAL_WETH * 2);
+
+        // Give trader some WETH to start with
+        WETH.deposit{value: INITIAL_WETH}();
+
         // Approve tokens for Universal Router
+        // TODO: we need to read more about how WETH/ETH work on the universal router
         PRIZE_VAULT.approve(address(UNIVERSAL_ROUTER), type(uint256).max);
         fanToken.approve(address(UNIVERSAL_ROUTER), type(uint256).max);
+    }
 
-        // NOTE: fanToken.deposit() CAN get fan tokens (that works), but factory creation already gives us fan tokens
-        // We're testing the hook trading functionality, not the deposit flow
+    function test_constants() public view {
+        assertTrue(address(fanToken) != address(0), "Fan token should exist");
+        assertTrue(address(GENERIC_ROUTER) != address(0), "Router should exist");
+    }
 
-        vm.stopPrank();
+    function test_setup_gave_fan_tokens() public view {
+        assertEq(WETH.balanceOf(trader), INITIAL_WETH, "Should have initial WETH");
+        assertGt(fanToken.balanceOf(trader), 0, "Should have a nonzero balance");
+        assertEq(fanToken.balanceOfUnderlying(trader), INITIAL_WETH, "Should have the right underlying value");
     }
 
     function test_v4_pools_are_properly_initialized() public view {
         // Test that everything was set up correctly including V4 pools
-        assertEq(WETH.balanceOf(trader), INITIAL_WETH, "Should have initial WETH");
-        assertTrue(address(fanToken) != address(0), "Fan token should exist");
-        assertTrue(address(GENERIC_ROUTER) != address(0), "Router should exist");
 
         // Check that V4 pools were created for both vault and fan token
         PoolKey memory vaultPoolKey = _buildPoolKey(address(PRIZE_VAULT));

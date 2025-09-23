@@ -513,15 +513,15 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
             // since from is a sponsor, the shares are held by this contract
             // move them to the from. then do the normal transfer flow
             // we could maybe _update(address(this, to)), but i think events are confusing that way
-            _update(address(this), from, shares);
+            super._update(address(this), from, shares);
 
-            _update(from, to, shares);
+            super._update(from, to, shares);
 
             // update sponsorship accounting. this is probably overkill, but i think its safest
             _setSponsorship(from, true);
         } else if (toIsSponsor) {
             // from already holds shares.
-            _update(from, to, shares);
+            super._update(from, to, shares);
 
             // this will move the shares to this contract and update sponsorhip accounting
             _setSponsorship(to, true);

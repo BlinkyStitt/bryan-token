@@ -85,12 +85,13 @@ contract FanTokenFactory {
         - Manages vault authorization
         */
 
-        // TODO: gas golf this. better to try, or should we have our own check if its already been deployed?
+        // TODO: gas golf this. is it better to try, or should we have our own check if its already been deployed?
+        // TODO: public helper function for getting pool keys?
 
         try UNISWAP_V4_ERC4626_HOOK.initializePool(vault) {
             // Pool created successfully by hook
         } catch {
-            // Hook rejected the vault (not authorized or already exists)
+            // Hook rejected the vault (already exists)
             // This is expected for some vaults
         }
     }
