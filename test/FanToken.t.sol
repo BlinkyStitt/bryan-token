@@ -959,17 +959,16 @@ contract FanTokenTest is Test {
         vm.startPrank(alice);
         asset.approve(address(bryan), type(uint256).max);
         uint256 aliceWhen = bryan.startDeposit(depositAmount, alice);
-        if (aliceWhen > 0) {
-            vm.warp(aliceWhen);
-        }
+        // First deposit should be immediate
+        assertEq(aliceWhen, 0, "first deposit should be immediate");
         bryan.deposit(depositAmount, alice);
 
         vm.startPrank(bob);
         asset.approve(address(bryan), type(uint256).max);
         uint256 bobWhen = bryan.startDeposit(depositAmount, bob);
-        if (bobWhen > 0) {
-            vm.warp(bobWhen);
-        }
+        // Second deposit should be delayed
+        assertGt(bobWhen, 0, "second deposit should be delayed");
+        vm.warp(bobWhen);
         bryan.deposit(depositAmount, bob);
 
         // Sponsor deposits
@@ -977,9 +976,9 @@ contract FanTokenTest is Test {
         bryan.setSponsorship(true);
         asset.approve(address(bryan), type(uint256).max);
         uint256 sponsorWhen = bryan.startDeposit(depositAmount * 2, sponsor);
-        if (sponsorWhen > 0) {
-            vm.warp(sponsorWhen);
-        }
+        // Sponsor deposit should also be delayed since there are already deposits
+        assertGt(sponsorWhen, 0, "sponsor deposit should be delayed");
+        vm.warp(sponsorWhen);
         bryan.deposit(depositAmount * 2, sponsor);
 
         // Record initial balances
@@ -1230,10 +1229,9 @@ contract FanTokenTest is Test {
         bryan.setSponsorship(true);
         asset.approve(address(bryan), type(uint256).max);
         uint256 when = bryan.startDeposit(assets, sponsor);
-        if (when > 0) {
-            vm.warp(when);
-            bryan.deposit(assets, sponsor);
-        }
+        // This should be the first deposit, so it should be immediate
+        assertEq(when, 0, "first deposit should be immediate");
+        bryan.deposit(assets, sponsor);
 
         // Get sponsor's actual asset balance and transfer half
         uint256 sponsorAssets = bryan.balanceOfSponsor(sponsor);
@@ -1347,15 +1345,14 @@ contract FanTokenTest is Test {
 
         uint256 sponsorShares = bryan.balanceOf(sponsor);
 
-        // If sponsor has shares, test withdrawal
-        if (sponsorShares > 0) {
-            uint256 withdrawAmount = bryan.convertToAssets(sponsorShares / 2); // withdraw half
-            uint256 withdrawn = bryan.withdraw(withdrawAmount, sponsor, sponsor);
+        // Test withdrawal - sponsor should have shares after deposit
+        assertGt(sponsorShares, 0, "sponsor should have shares after deposit");
+        uint256 withdrawAmount = bryan.convertToAssets(sponsorShares / 2); // withdraw half
+        uint256 withdrawn = bryan.withdraw(withdrawAmount, sponsor, sponsor);
 
-            uint256 sponsorSharesAfter = bryan.balanceOf(sponsor);
-            assertLe(sponsorSharesAfter, sponsorShares, "sponsor shares should not increase after withdrawal");
-            assertEq(withdrawn, withdrawAmount, "should receive withdrawn assets");
-        }
+        uint256 sponsorSharesAfter = bryan.balanceOf(sponsor);
+        assertLe(sponsorSharesAfter, sponsorShares, "sponsor shares should not increase after withdrawal");
+        assertEq(withdrawn, withdrawAmount, "should receive withdrawn assets");
         // Total sponsored shares are tracked by the contract
         assertGt(bryan.totalSponsoredShares(), 0);
         assertGt(bryan.totalSponsoredAssets(), 0);
@@ -2295,19 +2292,18 @@ contract FanTokenTest is Test {
         uint256 ownerFeeBasisPoints = bryan.harvestOwnerFeeBasisPoints();
         uint256 treasuryFeeBasisPoints = bryan.harvestTreasuryFeeBasisPoints();
 
-        if (harvested > 0) {
-            // Verify fee amounts are correct based on actual fee settings
-            uint256 expectedOwnerFee = (harvested * ownerFeeBasisPoints) / 10000;
-            uint256 expectedTreasuryFee = (harvested * treasuryFeeBasisPoints) / 10000;
+        // Should have harvested some rewards
+        assertGt(harvested, 0, "should have harvested some rewards");
 
-            assertEq(ownerBalanceAfter - ownerBalanceBefore, expectedOwnerFee, "Owner fee amount incorrect");
-            assertEq(treasuryBalanceAfter - treasuryBalanceBefore, expectedTreasuryFee, "Treasury fee amount incorrect");
+        // Verify fee amounts are correct based on actual fee settings
+        uint256 expectedOwnerFee = (harvested * ownerFeeBasisPoints) / 10000;
+        uint256 expectedTreasuryFee = (harvested * treasuryFeeBasisPoints) / 10000;
 
-            // Remaining should inflate token value
+        assertEq(ownerBalanceAfter - ownerBalanceBefore, expectedOwnerFee, "Owner fee amount incorrect");
+        assertEq(treasuryBalanceAfter - treasuryBalanceBefore, expectedTreasuryFee, "Treasury fee amount incorrect");
 
-            // Total supply shouldn't change (rewards inflate existing shares)
-            assertEq(totalSupplyAfter, totalSupplyBefore, "Total supply should not change from harvest");
-        }
+        // Total supply shouldn't change (rewards inflate existing shares)
+        assertEq(totalSupplyAfter, totalSupplyBefore, "Total supply should not change from harvest");
     }
 
     function test_deposit_delay_timing() public {
