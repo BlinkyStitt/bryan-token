@@ -6,6 +6,7 @@ import {AuctionSwapper, IAuction} from "./forks/AuctionSwapper.sol";
 import {ERC20, ERC4626, IERC20, IERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IWETH9} from "v4-periphery/src/interfaces/external/IWETH9.sol";
 
@@ -27,7 +28,7 @@ interface IFanTokenFactory {
 
 /// @title FanToken.
 /// @notice Play pool together as a group of fans.
-contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
+contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTransient {
     using Math for uint256;
     using SafeERC20 for IERC20;
 
@@ -262,14 +263,28 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
         from.forceApprove(auction, type(uint256).max);
     }
 
+    /**
+     * @dev See {IERC4626-deposit}.
+     */
+    function deposit(uint256 assets, address receiver) public override nonReentrant returns (uint256) {
+        return super.deposit(assets, receiver);
+    }
+
+    /**
+     * @dev See {IERC4626-mint}.
+     */
+    function mint(uint256 shares, address receiver) public override nonReentrant returns (uint256) {
+        return super.mint(shares, receiver);
+    }
+
     /// @notice finish a deposit that was started by another caller
-    function finishDeposit(address originalCaller, address receiver) public returns (uint256 shares) {
+    function finishDeposit(address originalCaller, address receiver) public nonReentrant returns (uint256 shares) {
         shares = _finishDeposit(originalCaller, receiver, 0, 0);
     }
 
     /// @notice compound any underlying tokens. Fees may be sent to the owner or the treasury.
     /// @dev you probably want to kick an auction of POOL and maybe other tokens before calling this
-    function harvest() public payable returns (uint256 underlyingAssets) {
+    function harvest() public payable nonReentrant returns (uint256 underlyingAssets) {
         IERC4626 prizeVault = IERC4626(asset());
         IERC20 underlyingToken = UNDERLYING;
 
@@ -382,7 +397,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /**
      * @dev See {IERC4626-redeem}.
      */
-    function redeem(uint256 shares, address receiver, address owner) public override returns (uint256) {
+    function redeem(uint256 shares, address receiver, address owner) public override nonReentrant returns (uint256) {
         if (isSponsor[owner]) {
             uint256 ownerSponsorAssets = balanceOfSponsor[owner];
             uint256 assets = previewRedeem(shares);
@@ -402,20 +417,21 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     }
 
     /// @notice begin a deposit. This takes `assets()`, not `underlying()`.
-    function startDeposit(uint256 assets) public returns (uint256 claimWhen) {
+    function startDeposit(uint256 assets) public nonReentrant returns (uint256 claimWhen) {
         return _startDeposit(msg.sender, assets, msg.sender);
     }
 
     /// @notice begin a deposit for a different account. This takes `assets()`, not `underlying()`
     /// @dev the first deposit does not have any delay
     /// @dev the delay is necessary to protect against large deposits around the time of a large win
-    function startDeposit(uint256 assets, address receiver) public returns (uint256 claimWhen) {
+    function startDeposit(uint256 assets, address receiver) public nonReentrant returns (uint256 claimWhen) {
         return _startDeposit(msg.sender, assets, receiver);
     }
 
     /// @notice the factory is allowed to start deposits for a trusted `caller`
     function _factoryStartDeposit(address caller, uint256 assets, address receiver)
         public
+        nonReentrant
         returns (uint256 claimWhen)
     {
         require(msg.sender == address(FACTORY), FactoryOnly());
@@ -425,7 +441,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /// @notice sponsored tokens contribute to prizes, but do not earn any prizes themselves.
     /// todo: what return value?
     /// TODO: time lock on this? i think its kind of pointless since people could just make a new address and send
-    function setSponsorship(bool state) public {
+    function setSponsorship(bool state) public nonReentrant {
         harvestSponsorship();
 
         _setSponsorship(msg.sender, state);
@@ -481,7 +497,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     }
 
     /// @notice burn your sponsored tokens and credit them to all the other fan token holders
-    function sponsorBurn(uint256 assets) public {
+    function sponsorBurn(uint256 assets) public nonReentrant {
         uint256 senderSponsorAssets = balanceOfSponsor[msg.sender];
         if (assets > senderSponsorAssets) {
             revert ERC20InsufficientBalance(msg.sender, senderSponsorAssets, assets);
@@ -529,7 +545,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     }
 
     /// @dev i wanted to override `transfer` to work transparently, but that got too complicated quickly
-    function sponsorTransfer(address to, uint256 assets) public returns (bool) {
+    function sponsorTransfer(address to, uint256 assets) public nonReentrant returns (bool) {
         _sponsorTransfer(msg.sender, to, assets);
         return true;
     }
@@ -549,7 +565,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step {
     /**
      * @dev See {IERC4626-withdraw}.
      */
-    function withdraw(uint256 assets, address receiver, address owner) public override returns (uint256) {
+    function withdraw(uint256 assets, address receiver, address owner) public override nonReentrant returns (uint256) {
         if (isSponsor[owner]) {
             uint256 ownerSponsorAssets = balanceOfSponsor[owner];
             uint256 shares = previewWithdraw(assets);

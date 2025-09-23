@@ -6,12 +6,13 @@ pragma solidity ^0.8.20;
 import {FanToken, SafeERC20, IERC20, IERC4626, IWETH9} from "./FanToken.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {IGeneric4626Router} from "./interfaces/IGeneric4626Router.sol";
+import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 
 error InvalidFanToken();
 error IncorrectUnderlying(address underlying);
 error NoUnderlyingAssets();
 
-contract FanTokenFactory {
+contract FanTokenFactory is ReentrancyGuardTransient {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -99,6 +100,7 @@ contract FanTokenFactory {
     function startDeposit(FanToken fanToken, uint256 underlyingAssets, address receiver)
         public
         payable
+        nonReentrant
         returns (uint256)
     {
         // only allow depositing to a fan token that we deployed
@@ -133,7 +135,7 @@ contract FanTokenFactory {
         return fanToken._factoryStartDeposit(msg.sender, vaultShares, receiver);
     }
 
-    function redeem(FanToken fanToken, uint256 shares, address receiver) public returns (uint256) {
+    function redeem(FanToken fanToken, uint256 shares, address receiver) public nonReentrant returns (uint256) {
         require(_deployedTokens.contains(address(fanToken)), InvalidFanToken());
 
         IERC4626 prizeVault = IERC4626(fanToken.asset());
