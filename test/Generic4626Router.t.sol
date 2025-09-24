@@ -5,17 +5,27 @@ import {Test} from "forge-std/Test.sol";
 import {console} from "forge-std/console.sol";
 import {IERC4626, IWETH9} from "../src/FanToken.sol";
 import {FanToken, FanTokenFactory} from "../src/FanTokenFactory.sol";
-import {IGeneric4626Router} from "../src/interfaces/IGeneric4626Router.sol";
-import {PoolIdLibrary, PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
-import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
-import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
-import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
-import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
-import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
-import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
+import {Generic4626Router} from "../src/interfaces/Generic4626Router.sol";
+import {PoolManager} from "../src/interfaces/PoolManager.sol";
 
-using PoolIdLibrary for PoolKey;
+// import {PoolIdLibrary, PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
+// import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+// import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+// import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+// import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+// import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
+// import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
+// import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
+// import { UniversalRouter } from "@uniswap/universal-router/contracts/UniversalRouter.sol";
+// import { Commands } from "@uniswap/universal-router/contracts/libraries/Commands.sol";
+// import { IPoolManager } from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+// import { IV4Router } from "@uniswap/v4-periphery/src/interfaces/IV4Router.sol";
+// import { Actions } from "@uniswap/v4-periphery/src/libraries/Actions.sol";
+// import { IPermit2 } from "@uniswap/permit2/src/interfaces/IPermit2.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+// import { StateLibrary } from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
+
+// using PoolIdLibrary for PoolKey;
 
 /**
  * @title Generic4626Router Integration Test
@@ -23,13 +33,16 @@ using PoolIdLibrary for PoolKey;
  * @dev This test verifies the Uniswap V4 integration without attempting actual swaps
  */
 contract Generic4626RouterTest is Test {
-    using StateLibrary for IPoolManager;
-    // Core contracts
+    // using StateLibrary for IPoolManager;
 
-    IWETH9 constant WETH = IWETH9(0x4200000000000000000000000000000000000006);
+    // Core contracts
+    IWETH9 constant WETH = IWETH9(payable(0x4200000000000000000000000000000000000006));
     IERC4626 constant PRIZE_VAULT = IERC4626(0x4E42f783db2D0C5bDFf40fDc66FCAe8b1Cda4a43);
-    IGeneric4626Router constant GENERIC_ROUTER = IGeneric4626Router(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888);
-    IPoolManager poolManager;
+    Generic4626Router constant GENERIC_4626_ROUTER = Generic4626Router(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888);
+
+    // TODO: we need to fetch the interface. don't get it out of uniswap/universal-router because that is bringing in WAY too many dependencies and we just need the interface
+
+    PoolManager poolManager;
 
     // Test contracts
     FanTokenFactory factory;
@@ -50,10 +63,10 @@ contract Generic4626RouterTest is Test {
         treasury = address(0);
 
         // Deploy factory with the Generic4626Router hook
-        factory = new FanTokenFactory(WETH, GENERIC_ROUTER);
+        factory = new FanTokenFactory(WETH, GENERIC_4626_ROUTER);
 
         // Get the pool manager from the Generic4626Router
-        poolManager = IPoolManager(GENERIC_ROUTER.poolManager());
+        poolManager = PoolManager(GENERIC_4626_ROUTER.poolManager());
 
         // Create a fan token for our prize vault - this sets up V4 pools
         // this must be done as the contract because we do NOT want the trader to be the owner
@@ -86,7 +99,7 @@ contract Generic4626RouterTest is Test {
 
     function test_constants() public view {
         assertTrue(address(fanToken) != address(0), "Fan token should exist");
-        assertTrue(address(GENERIC_ROUTER) != address(0), "Router should exist");
+        assertTrue(address(GENERIC_4626_ROUTER) != address(0), "Router should exist");
     }
 
     function test_setup_gave_fan_tokens() public view {
@@ -97,21 +110,21 @@ contract Generic4626RouterTest is Test {
 
     /// @dev Test that V4 pools with the 4626 hook are set up
     function test_v4_pools_are_properly_initialized() public view {
-        PoolKey memory vaultPoolKey = _buildPoolKey(address(PRIZE_VAULT));
-        PoolId vaultPoolId = vaultPoolKey.toId();
+        PoolManager.PoolKey memory vaultPoolKey = _buildPoolKey(address(PRIZE_VAULT));
+        PoolManager.PoolId vaultPoolId = vaultPoolKey.toId();
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(vaultPoolId);
         bool vaultPoolInitialized = sqrtPriceX96 != 0;
 
         assertTrue(vaultPoolInitialized, "Vault V4 pool should be initialized");
-        assertTrue(PoolId.unwrap(vaultPoolId) != bytes32(0), "Vault pool ID should be non-zero");
+        assertTrue(PoolManager.PoolId.unwrap(vaultPoolId) != bytes32(0), "Vault pool ID should be non-zero");
 
-        PoolKey memory fanTokenPoolKey = _buildPoolKey(address(fanToken));
-        PoolId fanTokenPoolId = fanTokenPoolKey.toId();
+        PoolManager.PoolKey memory fanTokenPoolKey = _buildPoolKey(address(fanToken));
+        PoolManager.PoolId fanTokenPoolId = fanTokenPoolKey.toId();
         (uint160 sqrtPriceX96Fan,,,) = poolManager.getSlot0(fanTokenPoolId);
         bool fanTokenPoolInitialized = sqrtPriceX96Fan != 0;
 
         assertTrue(fanTokenPoolInitialized, "Fan token V4 pool should be initialized");
-        assertTrue(PoolId.unwrap(fanTokenPoolId) != bytes32(0), "Fan token pool ID should be non-zero");
+        assertTrue(PoolManager.PoolId.unwrap(fanTokenPoolId) != bytes32(0), "Fan token pool ID should be non-zero");
     }
 
     function test_withdrawing_using_the_hook() public {
@@ -124,16 +137,16 @@ contract Generic4626RouterTest is Test {
 
         vm.startPrank(trader);
 
-        PoolKey memory fanTokenKey = _buildPoolKey(address(fanToken));
+        PoolManager.PoolKey memory fanTokenKey = _buildPoolKey(address(fanToken));
 
         // TODO: what should zeroForOne be?
         bool zeroForOne = address(fanToken) > address(PRIZE_VAULT);
         bytes memory hookData = bytes("");
 
         // TODO: why is this revering with "ManagerLocked"?
-        BalanceDelta swapDelta = poolManager.swap(
+        PoolManager.BalanceDelta swapDelta = poolManager.swap(
             fanTokenKey,
-            SwapParams(
+            PoolManager.SwapParams(
                 zeroForOne,
                 /// The desired input amount if negative (exactIn), or the desired output amount if positive (exactOut)
                 swapAmount,
@@ -280,7 +293,7 @@ contract Generic4626RouterTest is Test {
 
     // ===== HELPER FUNCTIONS =====
 
-    function _buildPoolKey(address vault) internal view returns (PoolKey memory) {
+    function _buildPoolKey(address vault) internal view returns (PoolManager.PoolKey memory) {
         // The Generic4626Router creates pools between a vault and its underlying asset
         address underlying = IERC4626(vault).asset();
 
@@ -288,12 +301,12 @@ contract Generic4626RouterTest is Test {
         address currency0Addr = underlying < vault ? underlying : vault;
         address currency1Addr = underlying < vault ? vault : underlying;
 
-        return PoolKey({
-            currency0: Currency.wrap(currency0Addr),
-            currency1: Currency.wrap(currency1Addr),
+        return PoolManager.PoolKey({
+            currency0: PoolManager.Currency.wrap(currency0Addr),
+            currency1: PoolManager.Currency.wrap(currency1Addr),
             fee: 0,
             tickSpacing: 1,
-            hooks: IHooks(address(GENERIC_ROUTER))
+            hooks: address(GENERIC_4626_ROUTER)
         });
     }
 }

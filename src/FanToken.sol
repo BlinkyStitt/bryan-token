@@ -8,7 +8,8 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IWETH9} from "v4-periphery/src/interfaces/external/IWETH9.sol";
+import {IWETH9} from "./interfaces/IWETH9.sol";
+import {IFanTokenFactory} from "./interfaces/IFanToken.sol";
 
 error InvalidAuctionToken();
 error FeesTooLarge();
@@ -21,10 +22,6 @@ error AtLeastOneSideMustBeSponsor();
 error InsufficientSponsorBalance(
     address owner, uint256 availableAssets, uint256 availableShares, uint256 requestedAssets, uint256 requestedShares
 );
-
-interface IFanTokenFactory {
-    function version() external returns (string memory);
-}
 
 /// @title FanToken.
 /// @notice Play pool together as a group of fans.

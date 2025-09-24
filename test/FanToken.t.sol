@@ -13,7 +13,7 @@ import {
     IWETH9
 } from "../src/FanToken.sol";
 import {FanTokenFactory} from "../src/FanTokenFactory.sol";
-import {IGeneric4626Router} from "../src/interfaces/IGeneric4626Router.sol";
+import {Generic4626Router} from "../src/interfaces/Generic4626Router.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IAuction} from "../src/interfaces/IAuction.sol";
 import {console} from "forge-std/console.sol";
@@ -21,19 +21,19 @@ import {console} from "forge-std/console.sol";
 contract FanTokenTest is Test {
     using SafeERC20 for IERC20;
 
+    IERC4626 prizeVault = IERC4626(0x4E42f783db2D0C5bDFf40fDc66FCAe8b1Cda4a43);
+    IWETH9 constant WETH9 = IWETH9(payable(0x4200000000000000000000000000000000000006));
+    Generic4626Router constant UNISWAP_V4_4626_HOOK = Generic4626Router(address(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888));
+
+    FanTokenFactory factory;
     FanToken public bryan;
     address treasury;
-    IWETH9 weth;
     IERC20 underlying;
     address owner;
-    FanTokenFactory factory;
 
     function setUp() public {
         // TODO: use flags on the test command instead of forcing a fork here?
         owner = makeAddr("bryan owner");
-
-        IERC4626 prizeVault = IERC4626(0x4E42f783db2D0C5bDFf40fDc66FCAe8b1Cda4a43);
-        weth = IWETH9(address(0x4200000000000000000000000000000000000006));
 
         // TODO: the entry fee isn't what i want. i want it to be in fanTokens, not in underlying!
 
@@ -43,13 +43,12 @@ contract FanTokenTest is Test {
         treasury = makeAddr("treasury");
 
         // Generic4626Router hook that works with erc4626 vaults
-        IGeneric4626Router uniswapV4Hook = IGeneric4626Router(address(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888));
 
-        factory = new FanTokenFactory(weth, uniswapV4Hook);
+        factory = new FanTokenFactory(WETH9, UNISWAP_V4_4626_HOOK);
 
         vm.prank(address(factory));
 
-        // TODO: this is not good. this should use factory.create
+        // TODO: this is not good. this should use factory.create, not new.
         bryan = new FanToken(
             "ETH from Bryan",
             "BRY-ETH",
@@ -441,15 +440,7 @@ contract FanTokenTest is Test {
 
         uint256 depositDelay = bryan.DEPOSIT_DELAY();
 
-        // set up approvals
         asset.approve(address(bryan), type(uint256).max);
-
-        // TODO: test startDeposit!
-        // time travel to start and complete a deposit
-        // TODO: check the logs
-        // bryan.startDeposit(assets, address(this));
-        // assertEq(assets, bryan.pendingBalanceOf(address(this)), "wrong pending balance");
-        // assertEq(assets, bryan.totalPendingDeposits(), "wrong total pending balance");
 
         uint256 shares = bryan.deposit(assets / 2, address(this));
         console.log(shares, "shares for", assets / 2, "assets");
@@ -466,27 +457,10 @@ contract FanTokenTest is Test {
         // Total supply should not increase until deposit is finalized
         assertEq(bryan.totalSupply(), shares, "supply should stay same until deposit finalized");
 
-        /*
-        // switch sponsoring on while a deposit is pending. i think this is broken
-        console.log("enabling sponsorship");
-        bryan.setSponsorship(true);
-
-        // TODO: assert some things about balances
-        assassertApproxEqAbsertEq(bryan.balanceOfSponsor(address(this)), assets / 2, 1, "first sponsor balance is wrong");
-        */
-
         vm.warp(block.timestamp + depositDelay);
         // TODO: test depositing from another address. anyone should be able to finalize a deposit
         uint256 newShares = bryan.deposit(assets / 2, address(this));
         console.log("shares from second deposit:", newShares);
-
-        /*
-        assertApproxEqAbs(bryan.balanceOfSponsor(address(this)), assets, 1, "second sponsor balance is wrong");
-
-        // switch sponsoring off
-        console.log("disabling sponsorship");
-        bryan.setSponsorship(false);
-        */
 
         assertEq(bryan.balanceOfPending(address(this)), 0, "finishing deposit failed");
 
@@ -534,9 +508,6 @@ contract FanTokenTest is Test {
     }
 
     function test_enableAuction_pool_succeeds() public {
-        IERC20 prizeVault = IERC20(bryan.asset());
-        console.log("prizeVault:", address(prizeVault));
-
         IERC20 from = IERC20(0xd652C5425aea2Afd5fb142e120FeCf79e18fafc3); // POOL
 
         bryan.enableAuction(from);
@@ -801,12 +772,12 @@ contract FanTokenTest is Test {
         uint256 expectedTreasuryFee;
         {
             // Calculate expected fee correctly: get prize vault assets, then fan token shares, then fee shares, then convert back to assets
-            IERC4626 prizeVault = IERC4626(feeToken.asset());
             uint256 prizeVaultAssets = prizeVault.previewDeposit(rewardAmount);
             uint256 fanTokenShares = feeToken.previewDeposit(prizeVaultAssets);
             uint256 expectedFeeShares = (fanTokenShares * treasuryFeeBasisPoints) / 10000;
             expectedTreasuryFee = feeToken.previewRedeem(expectedFeeShares);
 
+            // TODO: these console logs are worthless. you need to actually assert things! i thought we went over all of this already
             console.log("Treasury fee calculation debug:");
             console.log("  Reward amount:", rewardAmount);
             console.log("  Prize vault assets:", prizeVaultAssets);
@@ -939,88 +910,6 @@ contract FanTokenTest is Test {
             assertLt(finalContractShares, initialContractShares, "contract shares should decrease from burn");
         }
     }
-
-    /*
-    function test_sponsor_burn_with_beneficiaries() public {
-        // Set up multiple users: one sponsor and two regular users
-        address sponsor = makeAddr("sponsor");
-        address alice = makeAddr("alice");
-        address bob = makeAddr("bob");
-
-        uint256 depositAmount = 1 ether;
-        (IERC4626 asset, uint256 totalAssets) = _dealAsset(depositAmount * 4, address(this));
-
-        // Distribute assets
-        asset.transfer(sponsor, totalAssets);
-        require(asset.transfer(alice, depositAmount), "asset transfer failed");
-        asset.transfer(bob, depositAmount);
-
-        // Regular users deposit first
-        vm.startPrank(alice);
-        asset.approve(address(bryan), type(uint256).max);
-        uint256 aliceWhen = bryan.startDeposit(depositAmount, alice);
-        // Alice should be the first deposit, so immediate
-        assertEq(aliceWhen, 0, "alice first deposit should be immediate");
-
-        vm.startPrank(bob);
-        asset.approve(address(bryan), type(uint256).max);
-        uint256 bobWhen = bryan.startDeposit(depositAmount, bob);
-        // Bob's deposit should be delayed since Alice already deposited
-        assertGt(bobWhen, 0, "bob second deposit should be delayed");
-        vm.warp(bobWhen);
-        bryan.finishDeposit(bob, bob);
-
-        // Sponsor deposits
-        vm.startPrank(sponsor);
-        bryan.setSponsorship(true);
-        asset.approve(address(bryan), type(uint256).max);
-        uint256 sponsorWhen = bryan.startDeposit(depositAmount * 2, sponsor);
-        // Sponsor deposit should be delayed since others already deposited
-        assertGt(sponsorWhen, 0, "sponsor deposit should be delayed");
-        vm.warp(sponsorWhen);
-        bryan.finishDeposit(sponsor, sponsor);
-
-        // Record initial balances
-        uint256 initialAliceBalance = bryan.balanceOf(alice);
-        uint256 initialBobBalance = bryan.balanceOf(bob);
-        uint256 initialSponsorAssets = bryan.balanceOfSponsor(sponsor);
-        uint256 initialAliceUnderlying = bryan.balanceOfUnderlying(alice);
-        uint256 initialBobUnderlying = bryan.balanceOfUnderlying(bob);
-
-        console.log("Initial state:");
-        console.log("  Alice balance:", initialAliceBalance);
-        console.log("  Alice underlying:", initialAliceUnderlying);
-        console.log("  Bob balance:", initialBobBalance);
-        console.log("  Bob underlying:", initialBobUnderlying);
-        console.log("  Sponsor assets:", initialSponsorAssets);
-
-        // Sponsor burns half their assets to benefit others (not all to avoid TwabController constraints)
-        uint256 burnAmount = initialSponsorAssets / 2;
-        console.log("Sponsor burning half", burnAmount, "assets");
-
-        bryan.sponsorBurn(burnAmount);
-
-        // Sponsor should have remaining assets
-        uint256 expectedSponsorAssets = initialSponsorAssets - burnAmount;
-        assertEq(bryan.balanceOfSponsor(sponsor), expectedSponsorAssets, "sponsor should have remaining assets after burning half");
-
-        // Alice and Bob should have same share balances but more underlying value
-        assertEq(bryan.balanceOf(alice), initialAliceBalance, "alice shares shouldn't change");
-        assertEq(bryan.balanceOf(bob), initialBobBalance, "bob shares shouldn't change");
-
-        // But their underlying value should increase due to burned shares reducing total supply
-        assertGt(bryan.balanceOfUnderlying(alice), initialAliceUnderlying, "alice underlying should increase");
-        assertGt(bryan.balanceOfUnderlying(bob), initialBobUnderlying, "bob underlying should increase");
-
-        // Both should gain the same amount (equal shares)
-        uint256 aliceGain = bryan.balanceOfUnderlying(alice) - initialAliceUnderlying;
-        uint256 bobGain = bryan.balanceOfUnderlying(bob) - initialBobUnderlying;
-
-        assertApproxEqAbs(aliceGain, bobGain, 1, "alice and bob should gain similar amounts");
-        assertGt(aliceGain, 0, "alice should gain from sponsor burn");
-        assertGt(bobGain, 0, "bob should gain from sponsor burn");
-    }
-    */
 
     function test_sponsor_burn_insufficient_balance() public {
         address sponsor = makeAddr("sponsor");
@@ -2307,7 +2196,6 @@ contract FanTokenTest is Test {
         assertEq(harvested, rewardAmount, "should harvest exact reward amount");
 
         // Fees are calculated as percentage of underlying assets, then converted to vault shares
-        IERC4626 prizeVault = IERC4626(bryan.asset());
         uint256 ownerFeeAssets = (rewardAmount * ownerFeeBasisPoints) / 10000;
         uint256 treasuryFeeAssets = (rewardAmount * treasuryFeeBasisPoints) / 10000;
         uint256 expectedOwnerFee = prizeVault.previewDeposit(ownerFeeAssets);

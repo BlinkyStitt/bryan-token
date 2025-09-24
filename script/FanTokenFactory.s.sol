@@ -4,27 +4,24 @@ pragma solidity ^0.8.13;
 import {LibString} from "solady/utils/LibString.sol";
 import {Script} from "forge-std/Script.sol";
 import {FanTokenFactory, IWETH9} from "../src/FanTokenFactory.sol";
-import {IGeneric4626Router} from "../src/interfaces/IGeneric4626Router.sol";
+import {Generic4626Router} from "../src/interfaces/Generic4626Router.sol";
 
 contract FanTokenFactoryScript is Script {
     using LibString for uint256;
+
+    IWETH9 constant WETH9 = IWETH9(payable(0x4200000000000000000000000000000000000006));
+    Generic4626Router constant GENERIC_4626_ROUTER = Generic4626Router(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888);
 
     FanTokenFactory public fanTokenFactory;
 
     function setUp() public {}
 
     function run() public {
-        // constructor arguments
-        IWETH9 weth = IWETH9(address(0x4200000000000000000000000000000000000006));
-
-        // Generic4626Router hook contract address
-        IGeneric4626Router uniswapV4Hook = IGeneric4626Router(address(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888));
-
         string memory addressPrefix = "0x00FA00";
 
         // prepare creation code
         bytes memory creationCode =
-            abi.encodePacked(type(FanTokenFactory).creationCode, abi.encode(weth, uniswapV4Hook));
+            abi.encodePacked(type(FanTokenFactory).creationCode, abi.encode(WETH9, GENERIC_4626_ROUTER));
 
         bytes32 creationCodeHash = keccak256(creationCode);
 
@@ -41,7 +38,7 @@ contract FanTokenFactoryScript is Script {
 
         // deploy the contract with our found salt
         vm.startBroadcast();
-        fanTokenFactory = new FanTokenFactory{salt: salt}(weth, uniswapV4Hook);
+        fanTokenFactory = new FanTokenFactory{salt: salt}(WETH9, GENERIC_4626_ROUTER);
 
         // TODO: make sure the address for the deployed contract matches the address prefix
 

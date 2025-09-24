@@ -1,30 +1,18 @@
-@uniswap/universal-router/=lib/universal-router/
-@uniswap/v4-core/=lib/v4-periphery/lib/v4-core/
-@uniswap/v4-periphery/=lib/v4-periphery/
-permit2/=lib/universal-router/lib/permit2/
-universal-router/=lib/universal-router/
-v4-core/=lib/v4-periphery/lib/v4-core/
-v4-periphery/=lib/v4-periphery/
-
-@ensdomains/=lib/v4-core/node_modules/@ensdomains/
-
-ds-test/=lib/v4-core/lib/forge-std/lib/ds-test/src/
-forge-gas-snapshot/=lib/v4-periphery/lib/permit2/lib/forge-gas-snapshot/src/
 forge-std/=lib/forge-std/src/
-halmos-cheatcodes/=lib/openzeppelin-contracts/lib/halmos-cheatcodes/src/
-hardhat/=lib/v4-core/node_modules/hardhat/
 
 @openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
-erc4626-tests/=lib/openzeppelin-contracts/lib/erc4626-tests/
 openzeppelin-contracts/=lib/openzeppelin-contracts/
-openzeppelin/=lib/openzeppelin-contracts/contracts/
 
 solady/=lib/solady/src/
 
-solmate/=lib/universal-router/lib/v4-core/lib/solmate/
+solmate/=lib/solmate/
 
 @tokenized-strategy/=lib/tokenized-strategy-periphery/lib/tokenized-strategy/src/
 @yearn-vaults/=lib/tokenized-strategy-periphery/lib/yearn-vaults-v3/contracts/
 tokenized-strategy-periphery/=lib/tokenized-strategy-periphery/
 tokenized-strategy/=lib/tokenized-strategy-periphery/lib/tokenized-strategy/
 yearn-vaults-v3/=lib/tokenized-strategy-periphery/lib/yearn-vaults-v3/
+
+ds-test/=lib/solmate/lib/ds-test/src/
+erc4626-tests/=lib/openzeppelin-contracts/lib/erc4626-tests/
+halmos-cheatcodes/=lib/openzeppelin-contracts/lib/halmos-cheatcodes/src/

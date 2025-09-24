@@ -5,7 +5,7 @@ pragma solidity ^0.8.20;
 
 import {FanToken, SafeERC20, IERC20, IERC4626, IWETH9} from "./FanToken.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import {IGeneric4626Router} from "./interfaces/IGeneric4626Router.sol";
+import {Generic4626Router} from "./interfaces/Generic4626Router.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 
 error InvalidFanToken();
@@ -20,7 +20,7 @@ contract FanTokenFactory is ReentrancyGuardTransient {
     IWETH9 public immutable WETH;
 
     /// @notice The Generic4626Router hook contract for handling ERC4626 pools
-    IGeneric4626Router public immutable UNISWAP_V4_ERC4626_HOOK;
+    Generic4626Router public immutable UNISWAP_V4_ERC4626_HOOK;
 
     /// @notice enumerable set of all deployed fan tokens
     EnumerableSet.AddressSet private _deployedTokens;
@@ -28,7 +28,7 @@ contract FanTokenFactory is ReentrancyGuardTransient {
     // TODO: how should we do indexes on this?
     event Created(address indexed _owner, address indexed _prizeVault, address indexed _treasury, address _token);
 
-    constructor(IWETH9 _weth, IGeneric4626Router _uniswapV4Hook) {
+    constructor(IWETH9 _weth, Generic4626Router _uniswapV4Hook) {
         WETH = _weth;
         UNISWAP_V4_ERC4626_HOOK = _uniswapV4Hook;
     }

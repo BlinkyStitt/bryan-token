@@ -3,32 +3,27 @@ pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 import {FanToken, FanTokenFactory, IERC20, IERC4626, IWETH9} from "../src/FanTokenFactory.sol";
-import {IGeneric4626Router} from "../src/interfaces/IGeneric4626Router.sol";
+import {Generic4626Router} from "../src/interfaces/Generic4626Router.sol";
 
 contract FanTokenFactoryTest is Test {
-    IERC4626 prizeVault;
+    IERC4626 prizeVault = IERC4626(0x4E42f783db2D0C5bDFf40fDc66FCAe8b1Cda4a43);
     FanToken public bryan;
     FanTokenFactory public fanTokenFactory;
 
+    IWETH9 weth = IWETH9(payable(0x4200000000000000000000000000000000000006));
+    Generic4626Router uniswapV4Hook = Generic4626Router(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888);
+
     address treasury;
-    IWETH9 weth;
 
     function setUp() public {
-        weth = IWETH9(address(0x4200000000000000000000000000000000000006));
-
-        // Use the Generic4626Router hook contract
-        IGeneric4626Router uniswapV4Hook = IGeneric4626Router(address(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888));
-
         fanTokenFactory = new FanTokenFactory(weth, uniswapV4Hook);
 
-        // TODO: use flags on the test command instead of forcing a fork here?
         address owner = makeAddr("bryan owner");
-
-        prizeVault = IERC4626(0x4E42f783db2D0C5bDFf40fDc66FCAe8b1Cda4a43);
 
         // TODO: need tests that have fees!
         uint256 harvestOwnerFeeBasisPoints = 0;
         uint256 harvestTreasuryFeeBasisPoints = 0;
+
         treasury = makeAddr("treasury");
         uint256 initialDeposit = 0 ether;
 

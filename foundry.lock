@@ -17,13 +17,10 @@
       "rev": "acd959aa4bd04720d640bf4e6a5c71037510cc4b"
     }
   },
+  "lib/solmate": {
+    "rev": "89365b880c4f3c786bdd453d4b8e8fe410344a69"
+  },
   "lib/tokenized-strategy-periphery": {
     "rev": "0f0c380a32342772fb17709dea9b7cc3a8a0162f"
-  },
-  "lib/universal-router": {
-    "rev": "3663f6db6e2fe121753cd2d899699c2dc75dca86"
-  },
-  "lib/v4-periphery": {
-    "rev": "60cd93803ac2b7fa65fd6cd351fd5fd4cc8c9db5"
   }
 }

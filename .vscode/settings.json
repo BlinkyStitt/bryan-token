@@ -3,19 +3,19 @@
   "solidity.packageDefaultDependenciesContractsDirectory": "src",
   "solidity.packageDefaultDependenciesDirectory": "lib",
   "solidity.remappings": [
-    "@uniswap/v4-core/=lib/uniswap-hooks/lib/v4-core/",
-    "@uniswap/v4-periphery/=lib/uniswap-hooks/lib/v4-periphery/",
-    "@uniswap/universal-router/=lib/universal-router/",
-    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
-    "@tokenized-strategy/=lib/tokenized-strategy-periphery/lib/tokenized-strategy/src/",
-    "@yearn-vaults/=lib/tokenized-strategy-periphery/lib/yearn-vaults-v3/contracts/",
     "forge-std/=lib/forge-std/src/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
     "openzeppelin-contracts/=lib/openzeppelin-contracts/",
     "solady/=lib/solady/src/",
+    "solmate/=lib/solmate/",
+    "@tokenized-strategy/=lib/tokenized-strategy-periphery/lib/tokenized-strategy/src/",
+    "@yearn-vaults/=lib/tokenized-strategy-periphery/lib/yearn-vaults-v3/contracts/",
     "tokenized-strategy-periphery/=lib/tokenized-strategy-periphery/",
-    "uniswap-hooks/=lib/uniswap-hooks/src/",
-    "v4-core/=lib/uniswap-hooks/lib/v4-periphery/lib/v4-core/",
-    "v4-periphery/=lib/uniswap-hooks/lib/v4-periphery/"
+    "tokenized-strategy/=lib/tokenized-strategy-periphery/lib/tokenized-strategy/",
+    "yearn-vaults-v3/=lib/tokenized-strategy-periphery/lib/yearn-vaults-v3/",
+    "ds-test/=lib/solmate/lib/ds-test/src/",
+    "erc4626-tests/=lib/openzeppelin-contracts/lib/erc4626-tests/",
+    "halmos-cheatcodes/=lib/openzeppelin-contracts/lib/halmos-cheatcodes/src/"
   ],
   "editor.formatOnSave": false,
   "[solidity]": {

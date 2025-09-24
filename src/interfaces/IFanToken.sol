@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.20;
 
-import {IWETH9, IERC20} from "v4-periphery/src/interfaces/external/IWETH9.sol";
-import {IERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
+import {IWETH9} from "./IWETH9.sol";
+import {IERC20, IERC4626} from "@openzeppelin/contracts/token/ERC20/extensions/ERC4626.sol";
 
 interface IFanTokenFactory {
     function version() external returns (string memory);

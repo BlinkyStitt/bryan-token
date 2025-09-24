@@ -14,10 +14,4 @@ optimizer = true
 optimizer_runs = 2000
 via_ir = true
 
-remappings = [
-    "@uniswap/v4-core/=lib/uniswap-hooks/lib/v4-core/",
-    "@uniswap/v4-periphery/=lib/uniswap-hooks/lib/v4-periphery/",
-    "@uniswap/universal-router/=lib/universal-router/"
-]
-
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
