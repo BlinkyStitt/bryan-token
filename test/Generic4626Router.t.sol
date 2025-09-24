@@ -15,7 +15,6 @@ import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 
-
 using PoolIdLibrary for PoolKey;
 
 /**
@@ -26,6 +25,7 @@ using PoolIdLibrary for PoolKey;
 contract Generic4626RouterTest is Test {
     using StateLibrary for IPoolManager;
     // Core contracts
+
     IWETH9 constant WETH = IWETH9(0x4200000000000000000000000000000000000006);
     IERC4626 constant PRIZE_VAULT = IERC4626(0x4E42f783db2D0C5bDFf40fDc66FCAe8b1Cda4a43);
     IGeneric4626Router constant GENERIC_ROUTER = IGeneric4626Router(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888);

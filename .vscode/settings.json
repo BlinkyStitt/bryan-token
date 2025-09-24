@@ -2,6 +2,21 @@
   "solidity.compileUsingRemoteVersion": "v0.8.30",
   "solidity.packageDefaultDependenciesContractsDirectory": "src",
   "solidity.packageDefaultDependenciesDirectory": "lib",
+  "solidity.remappings": [
+    "@uniswap/v4-core/=lib/uniswap-hooks/lib/v4-core/",
+    "@uniswap/v4-periphery/=lib/uniswap-hooks/lib/v4-periphery/",
+    "@uniswap/universal-router/=lib/universal-router/",
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "@tokenized-strategy/=lib/tokenized-strategy-periphery/lib/tokenized-strategy/src/",
+    "@yearn-vaults/=lib/tokenized-strategy-periphery/lib/yearn-vaults-v3/contracts/",
+    "forge-std/=lib/forge-std/src/",
+    "openzeppelin-contracts/=lib/openzeppelin-contracts/",
+    "solady/=lib/solady/src/",
+    "tokenized-strategy-periphery/=lib/tokenized-strategy-periphery/",
+    "uniswap-hooks/=lib/uniswap-hooks/src/",
+    "v4-core/=lib/uniswap-hooks/lib/v4-periphery/lib/v4-core/",
+    "v4-periphery/=lib/uniswap-hooks/lib/v4-periphery/"
+  ],
   "editor.formatOnSave": false,
   "[solidity]": {
     "editor.defaultFormatter": "JuanBlanco.solidity"
