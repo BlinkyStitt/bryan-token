@@ -8,17 +8,6 @@ import {FanToken, FanTokenFactory} from "../src/FanTokenFactory.sol";
 import {IGeneric4626Router} from "../src/interfaces/IGeneric4626Router.sol";
 import {IV4Router} from "@uniswap/v4-periphery/src/interfaces/IV4Router.sol";
 import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
-
-// For now, use interface since V4_SWAP doesn't exist in current Commands library
-interface IUniversalRouter {
-    function execute(bytes calldata commands, bytes[] calldata inputs, uint256 deadline) external payable;
-}
-
-import {Commands} from "@uniswap/universal-router/contracts/libraries/Commands.sol";
-
-interface IPermit2 {
-    function approve(address token, address spender, uint160 amount, uint48 expiration) external;
-}
 import {PoolIdLibrary, PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Currency, CurrencyLibrary} from "@uniswap/v4-core/src/types/Currency.sol";
@@ -27,6 +16,7 @@ import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
+
 
 using PoolIdLibrary for PoolKey;
 
@@ -91,10 +81,10 @@ contract Generic4626RouterTest is Test {
         // Give trader some WETH to start with
         WETH.deposit{value: INITIAL_WETH}();
 
-        // Approve tokens for Universal Router
-        // TODO: we need to read more about how WETH/ETH work on the universal router
-        PRIZE_VAULT.approve(address(UNIVERSAL_ROUTER), type(uint256).max);
-        fanToken.approve(address(UNIVERSAL_ROUTER), type(uint256).max);
+        // Approve tokens for trading
+        WETH.approve(address(poolManager), type(uint256).max);
+        PRIZE_VAULT.approve(address(poolManager), type(uint256).max);
+        fanToken.approve(address(poolManager), type(uint256).max);
     }
 
     function test_constants() public view {
@@ -108,30 +98,23 @@ contract Generic4626RouterTest is Test {
         assertEq(fanToken.balanceOfUnderlying(trader), INITIAL_WETH, "Should have the right underlying value");
     }
 
+    /// @dev Test that V4 pools with the 4626 hook are set up
     function test_v4_pools_are_properly_initialized() public view {
-        // Test that everything was set up correctly including V4 pools
-
-        // Check that V4 pools were created for both vault and fan token
         PoolKey memory vaultPoolKey = _buildPoolKey(address(PRIZE_VAULT));
         PoolId vaultPoolId = vaultPoolKey.toId();
-        // Actually check if pools were initialized using pool manager
         (uint160 sqrtPriceX96,,,) = poolManager.getSlot0(vaultPoolId);
         bool vaultPoolInitialized = sqrtPriceX96 != 0;
+
+        assertTrue(vaultPoolInitialized, "Vault V4 pool should be initialized");
+        assertTrue(PoolId.unwrap(vaultPoolId) != bytes32(0), "Vault pool ID should be non-zero");
 
         PoolKey memory fanTokenPoolKey = _buildPoolKey(address(fanToken));
         PoolId fanTokenPoolId = fanTokenPoolKey.toId();
         (uint160 sqrtPriceX96Fan,,,) = poolManager.getSlot0(fanTokenPoolId);
         bool fanTokenPoolInitialized = sqrtPriceX96Fan != 0;
 
-        assertTrue(vaultPoolInitialized, "Vault V4 pool should be initialized");
         assertTrue(fanTokenPoolInitialized, "Fan token V4 pool should be initialized");
-
-        // Verify pool IDs are non-zero (valid)
-        assertTrue(PoolId.unwrap(vaultPoolId) != bytes32(0), "Vault pool ID should be non-zero");
         assertTrue(PoolId.unwrap(fanTokenPoolId) != bytes32(0), "Fan token pool ID should be non-zero");
-
-        // Factory creation with INITIAL_WETH should have given trader fan tokens
-        assertGt(fanToken.balanceOf(trader), 0, "Setup should have given trader fan tokens");
     }
 
     function test_withdrawing_using_the_hook() public {
@@ -144,69 +127,32 @@ contract Generic4626RouterTest is Test {
 
         vm.startPrank(trader);
 
-        // Set up Permit2 approvals per official Universal Router docs
-        address permit2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
-        fanToken.approve(permit2, type(uint256).max);
-        IPermit2(permit2).approve(
-            address(fanToken),
-            address(UNIVERSAL_ROUTER), 
-            uint160(swapAmount),
-            uint48(block.timestamp + 3600)
+        PoolKey memory fanTokenKey = _buildPoolKey(address(fanToken));
+
+        // TODO: what should zeroForOne be?
+        bool zeroForOne = address(fanToken) > address(PRIZE_VAULT);
+        bytes hookData = bytes("");
+
+        BalanceDelta swapDelta = poolManager.swap(
+            fanTokenKey,
+            SwapParams {
+                zeroForOne: zeroForOne,
+                /// The desired input amount if negative (exactIn), or the desired output amount if positive (exactOut)
+                amountSpecified: -swapAmount,
+                /// The sqrt price at which, if reached, the swap will stop executing
+                /// TODO: what should this be? how should this be calculated?
+                sqrtPriceLimitX96: type(uint160).max
+            },
+            hookData
         );
 
-        // Build the pool key
-        PoolKey memory poolKey = _buildPoolKey(address(fanToken));
-
-        // Use Universal Router with proper V4_SWAP command 
-        bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
-        
-        // Encode V4Router actions per official docs
-        bytes memory actions = abi.encodePacked(
-            uint8(Actions.SWAP_EXACT_IN_SINGLE),
-            uint8(Actions.SETTLE_ALL),
-            uint8(Actions.TAKE_ALL)
-        );
-
-        // Prepare parameters - three parameters for three actions
-        bytes[] memory params = new bytes[](3);
-        
-        // Action 1: SWAP_EXACT_IN_SINGLE parameters
-        params[0] = abi.encode(
-            IV4Router.ExactInputSingleParams({
-                poolKey: poolKey,
-                zeroForOne: address(fanToken) > address(PRIZE_VAULT),
-                amountIn: swapAmount,
-                amountOutMinimum: 0,
-                hookData: bytes("")
-            })
-        );
-        
-        // Action 2: SETTLE_ALL parameters 
-        params[1] = abi.encode(
-            address(fanToken), // currency to settle
-            swapAmount // max amount to settle
-        );
-        
-        // Action 3: TAKE_ALL parameters
-        params[2] = abi.encode(
-            address(PRIZE_VAULT), // currency to take
-            uint256(0) // minimum amount (0 = take all)
-        );
-
-        bytes[] memory inputs = new bytes[](1);
-        inputs[0] = abi.encode(actions, params);
-
-        // Execute via Universal Router
-        UNIVERSAL_ROUTER.execute(commands, inputs, block.timestamp + 300);
-
-        vm.stopPrank();
+        revert("todo: assert the swapDelta is correct");
 
         // Verify the swap worked - assert actual traded values
         uint256 finalFanTokens = fanToken.balanceOf(trader);
         uint256 finalVaultTokens = PRIZE_VAULT.balanceOf(trader);
 
-        assertEq(finalFanTokens, initialFanTokens - swapAmount, "Should have spent exact fan token amount");
-        assertGt(finalVaultTokens, initialVaultTokens, "Should have received vault tokens from hook conversion");
+        revert("todo: assert the balances are correct");
     }
 
     function test_multihop_withdrawing_using_the_hook() public {

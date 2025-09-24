@@ -11,9 +11,6 @@
       "rev": "c64a1edb67b6e3f4a15cca8909c9482ad33a02b0"
     }
   },
-  "lib/permit2": {
-    "rev": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219"
-  },
   "lib/solady": {
     "tag": {
       "name": "v0.1.26",
@@ -21,42 +18,12 @@
     }
   },
   "lib/tokenized-strategy-periphery": {
-    "tag": {
-      "name": "v3.0.2",
-      "rev": "d732e918b208a9b2c33c71ea0ea9e8eb880cfc6e"
-    }
+    "rev": "0f0c380a32342772fb17709dea9b7cc3a8a0162f"
   },
   "lib/uniswap-hooks": {
     "tag": {
       "name": "v1.1.0",
       "rev": "e59fe72c110c3862eec9b332530dce49ca506bbb"
     }
-  },
-  "lib/universal-router": {
-    "branch": {
-      "name": "main",
-      "rev": "3663f6db6e2fe121753cd2d899699c2dc75dca86"
-    }
-  },
-  "lib/v2-core": {
-    "tag": {
-      "name": "v1.0.1",
-      "rev": "4dd59067c76dea4a0e8e4bfdda41877a6b16dedc"
-    }
-  },
-  "lib/v3-core": {
-    "tag": {
-      "name": "v1.0.0",
-      "rev": "e3589b192d0be27e100cd0daaf6c97204fdb1899"
-    }
-  },
-  "lib/v4-core": {
-    "tag": {
-      "name": "v4.0.0",
-      "rev": "e50237c43811bd9b526eff40f26772152a42daba"
-    }
-  },
-  "lib/v4-periphery": {
-    "rev": "60cd93803ac2b7fa65fd6cd351fd5fd4cc8c9db5"
   }
 }
