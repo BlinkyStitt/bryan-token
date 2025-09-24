@@ -20,10 +20,13 @@
   "lib/tokenized-strategy-periphery": {
     "rev": "0f0c380a32342772fb17709dea9b7cc3a8a0162f"
   },
-  "lib/uniswap-hooks": {
+  "lib/universal-router": {
     "tag": {
-      "name": "v1.1.0",
-      "rev": "e59fe72c110c3862eec9b332530dce49ca506bbb"
+      "name": "v1.6.0",
+      "rev": "41183d6eb154f0ab0e74a0e911a5ef9ea51fc4bd"
     }
+  },
+  "lib/v4-periphery": {
+    "rev": "60cd93803ac2b7fa65fd6cd351fd5fd4cc8c9db5"
   }
 }

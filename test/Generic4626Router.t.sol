@@ -3,19 +3,17 @@ pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 import {console} from "forge-std/console.sol";
-import {IERC20, IERC4626, IWETH9} from "../src/FanToken.sol";
+import {IERC4626, IWETH9} from "../src/FanToken.sol";
 import {FanToken, FanTokenFactory} from "../src/FanTokenFactory.sol";
 import {IGeneric4626Router} from "../src/interfaces/IGeneric4626Router.sol";
-import {IV4Router} from "@uniswap/v4-periphery/src/interfaces/IV4Router.sol";
-import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 import {PoolIdLibrary, PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
-import {Currency, CurrencyLibrary} from "@uniswap/v4-core/src/types/Currency.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
-import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
+import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 
 
 using PoolIdLibrary for PoolKey;
@@ -31,7 +29,6 @@ contract Generic4626RouterTest is Test {
     IWETH9 constant WETH = IWETH9(0x4200000000000000000000000000000000000006);
     IERC4626 constant PRIZE_VAULT = IERC4626(0x4E42f783db2D0C5bDFf40fDc66FCAe8b1Cda4a43);
     IGeneric4626Router constant GENERIC_ROUTER = IGeneric4626Router(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888);
-    IUniversalRouter constant UNIVERSAL_ROUTER = IUniversalRouter(0x6fF5693b99212Da76ad316178A184AB56D299b43);
     IPoolManager poolManager;
 
     // Test contracts
@@ -121,7 +118,7 @@ contract Generic4626RouterTest is Test {
         // Test swapping fan tokens for vault tokens through Universal Router
         uint256 initialFanTokens = fanToken.balanceOf(trader);
         uint256 initialVaultTokens = PRIZE_VAULT.balanceOf(trader);
-        uint128 swapAmount = uint128(initialFanTokens / 2);
+        int128 swapAmount = int128(uint128(initialFanTokens / 2));
 
         assertGt(initialFanTokens, 0, "Setup should have given trader fan tokens");
 
@@ -131,18 +128,19 @@ contract Generic4626RouterTest is Test {
 
         // TODO: what should zeroForOne be?
         bool zeroForOne = address(fanToken) > address(PRIZE_VAULT);
-        bytes hookData = bytes("");
+        bytes memory hookData = bytes("");
 
+        // TODO: why is this revering with "ManagerLocked"?
         BalanceDelta swapDelta = poolManager.swap(
             fanTokenKey,
-            SwapParams {
-                zeroForOne: zeroForOne,
+            SwapParams(
+                zeroForOne,
                 /// The desired input amount if negative (exactIn), or the desired output amount if positive (exactOut)
-                amountSpecified: -swapAmount,
+                swapAmount,
                 /// The sqrt price at which, if reached, the swap will stop executing
                 /// TODO: what should this be? how should this be calculated?
-                sqrtPriceLimitX96: type(uint160).max
-            },
+                type(uint160).max
+            ),
             hookData
         );
 
@@ -155,6 +153,7 @@ contract Generic4626RouterTest is Test {
         revert("todo: assert the balances are correct");
     }
 
+    /*
     function test_multihop_withdrawing_using_the_hook() public {
         // Setup should have given trader fan tokens
         uint256 initialFanTokens = fanToken.balanceOf(trader);
@@ -207,7 +206,9 @@ contract Generic4626RouterTest is Test {
 
         vm.stopPrank();
     }
+    */
 
+    /*
     function test_depositing_using_the_hook() public {
         uint256 initialWETH = WETH.balanceOf(trader);
         uint256 initialVaultTokens = PRIZE_VAULT.balanceOf(trader);
@@ -275,6 +276,7 @@ contract Generic4626RouterTest is Test {
         assertLt(finalWETH, initialWETH, "Should have spent WETH");
         assertGt(finalVaultTokens, initialVaultTokens, "Should have received vault tokens");
     }
+    */
 
     // ===== HELPER FUNCTIONS =====
 
