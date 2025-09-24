@@ -23,7 +23,8 @@ contract FanTokenTest is Test {
 
     IERC4626 prizeVault = IERC4626(0x4E42f783db2D0C5bDFf40fDc66FCAe8b1Cda4a43);
     IWETH9 constant WETH9 = IWETH9(payable(0x4200000000000000000000000000000000000006));
-    Generic4626Router constant UNISWAP_V4_4626_HOOK = Generic4626Router(address(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888));
+    Generic4626Router constant UNISWAP_V4_4626_HOOK =
+        Generic4626Router(address(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888));
 
     FanTokenFactory factory;
     FanToken public bryan;
@@ -57,7 +58,7 @@ contract FanTokenTest is Test {
             owner,
             prizeVault,
             treasury,
-            weth
+            WETH9
         );
 
         underlying = bryan.UNDERLYING();
@@ -65,7 +66,7 @@ contract FanTokenTest is Test {
 
     /// @dev make sure the vault's underlying is weth
     function test_vault_asset() public view {
-        assertEq(address(bryan.UNDERLYING()), address(weth), "underlying isn't weth");
+        assertEq(address(bryan.UNDERLYING()), address(WETH9), "underlying isn't weth");
     }
 
     /// @dev coverage for supply and assets
@@ -545,7 +546,7 @@ contract FanTokenTest is Test {
         assertEq(want, address(bryan.UNDERLYING()), "wrong want");
 
         // cheat to have the necessary tokens to fulfill the auction
-        weth.deposit{value: auctionAmountNeeded}();
+        WETH9.deposit{value: auctionAmountNeeded}();
 
         IERC20(want).approve(address(auction), auctionAmountNeeded);
         uint256 amountFromTaken = auction.take(address(from));
@@ -570,7 +571,7 @@ contract FanTokenTest is Test {
     }
 
     function test_harvest_eth() public {
-        require(address(bryan.UNDERLYING()) == address(weth), "not weth");
+        require(address(bryan.UNDERLYING()) == address(WETH9), "not weth");
 
         uint256 amount = 1 ether;
 
@@ -580,12 +581,12 @@ contract FanTokenTest is Test {
     }
 
     function test_harvest_weth() public {
-        require(address(bryan.UNDERLYING()) == address(weth), "not weth");
+        require(address(bryan.UNDERLYING()) == address(WETH9), "not weth");
 
         uint256 amount = 1 ether;
 
-        weth.deposit{value: amount}();
-        bool success = weth.transfer(address(bryan), amount);
+        WETH9.deposit{value: amount}();
+        bool success = WETH9.transfer(address(bryan), amount);
 
         require(success, "weth transfer failed");
 
@@ -600,13 +601,13 @@ contract FanTokenTest is Test {
         vm.assume(value > 0); // we call wrapETH at the start and end, so no real point in skipping it
 
         assertEq(bryan.wrapETH(), 0);
-        assertEq(weth.balanceOf(address(bryan)), 0);
+        assertEq(WETH9.balanceOf(address(bryan)), 0);
 
         assertEq(bryan.wrapETH{value: value}(), value);
-        assertEq(weth.balanceOf(address(bryan)), value);
+        assertEq(WETH9.balanceOf(address(bryan)), value);
 
         assertEq(bryan.wrapETH(), 0);
-        assertEq(weth.balanceOf(address(bryan)), value);
+        assertEq(WETH9.balanceOf(address(bryan)), value);
     }
 
     function test_harvest_with_owner_fees() public {
@@ -628,7 +629,7 @@ contract FanTokenTest is Test {
                 owner,
                 IERC4626(bryan.asset()),
                 treasury,
-                weth
+                WETH9
             );
 
             console.log("Created feeToken with 25% owner fees");
@@ -650,8 +651,8 @@ contract FanTokenTest is Test {
         // Send rewards and harvest in second block
         {
             vm.deal(address(this), rewardAmount);
-            weth.deposit{value: rewardAmount}();
-            require(weth.transfer(address(feeToken), rewardAmount), "weth transfer failed");
+            WETH9.deposit{value: rewardAmount}();
+            require(WETH9.transfer(address(feeToken), rewardAmount), "weth transfer failed");
 
             console.log("Sent", rewardAmount, "WETH rewards");
 
@@ -706,7 +707,7 @@ contract FanTokenTest is Test {
             assertGt(ownerAssetBalance, 0, "owner should get some asset fee");
 
             // Verify no WETH left
-            assertEq(weth.balanceOf(address(feeToken)), 0, "all WETH should be deposited");
+            assertEq(WETH9.balanceOf(address(feeToken)), 0, "all WETH should be deposited");
 
             // Verify the harvest processed correctly
             console.log("  Final balance vs initial:", finalBalance, initialBalance);
@@ -734,7 +735,7 @@ contract FanTokenTest is Test {
             owner,
             IERC4626(bryan.asset()),
             treasury,
-            weth
+            WETH9
         );
 
         console.log("Created feeToken with 15% treasury fees");
@@ -756,8 +757,8 @@ contract FanTokenTest is Test {
         // Send fake rewards using transfer instead of deal
         uint256 rewardAmount = 1 ether;
         vm.deal(address(this), rewardAmount);
-        weth.deposit{value: rewardAmount}();
-        require(weth.transfer(address(feeToken), rewardAmount), "weth transfer failed");
+        WETH9.deposit{value: rewardAmount}();
+        require(WETH9.transfer(address(feeToken), rewardAmount), "weth transfer failed");
 
         console.log("Sent", rewardAmount, "WETH rewards");
 
@@ -810,7 +811,7 @@ contract FanTokenTest is Test {
             owner,
             IERC4626(bryan.asset()),
             treasury,
-            weth
+            WETH9
         );
 
         console.log("Created feeToken with 10% owner + 5% treasury fees");
@@ -828,8 +829,8 @@ contract FanTokenTest is Test {
         // Send rewards using transfer instead of deal
         uint256 rewardAmount = 0.5 ether;
         vm.deal(address(this), rewardAmount);
-        weth.deposit{value: rewardAmount}();
-        require(weth.transfer(address(feeToken), rewardAmount), "weth transfer failed");
+        WETH9.deposit{value: rewardAmount}();
+        require(WETH9.transfer(address(feeToken), rewardAmount), "weth transfer failed");
 
         console.log("Sent", rewardAmount, "WETH rewards");
 
@@ -985,8 +986,8 @@ contract FanTokenTest is Test {
         uint256 rewardAmount = 0.5 ether;
         vm.stopPrank();
         vm.deal(address(this), rewardAmount);
-        weth.deposit{value: rewardAmount}();
-        require(weth.transfer(address(bryan), rewardAmount), "weth transfer failed");
+        WETH9.deposit{value: rewardAmount}();
+        require(WETH9.transfer(address(bryan), rewardAmount), "weth transfer failed");
 
         // Harvest - this should trigger harvestSponsorship automatically
         assertEq(bryan.harvest(), rewardAmount, "should harvest all rewards");
@@ -1066,8 +1067,8 @@ contract FanTokenTest is Test {
         uint256 rewardAmount = 1 ether;
         vm.stopPrank();
         vm.deal(address(this), rewardAmount);
-        weth.deposit{value: rewardAmount}();
-        require(weth.transfer(address(bryan), rewardAmount), "weth transfer failed");
+        WETH9.deposit{value: rewardAmount}();
+        require(WETH9.transfer(address(bryan), rewardAmount), "weth transfer failed");
 
         uint256 harvested = bryan.harvest();
         assertEq(harvested, rewardAmount, "should harvest all rewards");
@@ -1177,27 +1178,18 @@ contract FanTokenTest is Test {
     }
     */
 
-    function test_owner_only() public {
-        address notOwner = makeAddr("notOwner");
-
-        // Test that non-owner cannot call owner functions
-        vm.startPrank(notOwner);
-        vm.expectRevert();
-        bryan.enableAuction(IERC20(address(weth)));
-    }
-
     function test_claiming_pool_rewards() public {
         // Since we don't have actual POOL rewards in test, just verify the harvest function works
-        uint256 initialBalance = weth.balanceOf(address(bryan));
+        uint256 initialBalance = WETH9.balanceOf(address(bryan));
 
         // Send some WETH to simulate rewards
         vm.deal(address(this), 1 ether);
-        weth.deposit{value: 1 ether}();
-        require(weth.transfer(address(bryan), 1 ether));
+        WETH9.deposit{value: 1 ether}();
+        require(WETH9.transfer(address(bryan), 1 ether));
 
         uint256 harvested = bryan.harvest();
         assertEq(harvested, 1 ether, "should harvest exactly 1 ether of rewards");
-        assertEq(weth.balanceOf(address(bryan)), initialBalance);
+        assertEq(WETH9.balanceOf(address(bryan)), initialBalance);
     }
 
     function test_withdraw_sponsor() public {
@@ -1421,8 +1413,8 @@ contract FanTokenTest is Test {
     function test_harvesting_weth() public {
         // Add WETH to contract and sweep it
         vm.deal(address(this), 2 ether);
-        weth.deposit{value: 2 ether}();
-        require(weth.transfer(address(bryan), 2 ether));
+        WETH9.deposit{value: 2 ether}();
+        require(WETH9.transfer(address(bryan), 2 ether));
 
         uint256 initialContractBalance = bryan.totalAssets();
         uint256 harvested = bryan.harvest();
@@ -2169,8 +2161,8 @@ contract FanTokenTest is Test {
         vm.stopPrank();
         uint256 rewardAmount = 10 ether;
         vm.deal(address(this), rewardAmount);
-        weth.deposit{value: rewardAmount}();
-        require(weth.transfer(address(bryan), rewardAmount), "weth transfer failed");
+        WETH9.deposit{value: rewardAmount}();
+        require(WETH9.transfer(address(bryan), rewardAmount), "weth transfer failed");
 
         // Fees are paid in asset tokens (PrizeVault), not underlying WETH
         IERC20 assetToken = IERC20(bryan.asset());

@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {LibString} from "solady/utils/LibString.sol";
 import {Script} from "forge-std/Script.sol";
-import {FanToken, FanTokenFactory, IERC4626, IWETH9} from "../src/FanTokenFactory.sol";
+import {FanToken, FanTokenFactory, IERC4626} from "../src/FanTokenFactory.sol";
 
 // TODO: rewrite this to prompt the user for inputs instead of having everything hard coded
 contract BryanScript is Script {

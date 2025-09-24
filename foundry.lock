@@ -22,5 +22,11 @@
   },
   "lib/tokenized-strategy-periphery": {
     "rev": "0f0c380a32342772fb17709dea9b7cc3a8a0162f"
+  },
+  "lib/v4-core": {
+    "tag": {
+      "name": "v4.0.0",
+      "rev": "e50237c43811bd9b526eff40f26772152a42daba"
+    }
   }
 }
