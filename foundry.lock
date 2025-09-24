@@ -23,6 +23,9 @@
   "lib/tokenized-strategy-periphery": {
     "rev": "0f0c380a32342772fb17709dea9b7cc3a8a0162f"
   },
+  "lib/universal-router": {
+    "rev": "3663f6db6e2fe121753cd2d899699c2dc75dca86"
+  },
   "lib/v4-core": {
     "tag": {
       "name": "v4.0.0",

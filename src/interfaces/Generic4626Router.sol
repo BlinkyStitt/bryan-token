@@ -6,7 +6,6 @@ import {BeforeSwapDelta} from "@uniswap/v4-core/src/types/BeforeSwapDelta.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 
 interface Generic4626Router {
-
     error Generic4626Router__InvalidPoolFee();
     error Generic4626Router__NotAllowed();
     error HookNotImplemented();
@@ -59,9 +58,12 @@ interface Generic4626Router {
         IPoolManager.ModifyLiquidityParams memory params,
         bytes memory hookData
     ) external returns (bytes4);
-    function beforeSwap(address sender, PoolKey memory key, IPoolManager.SwapParams memory params, bytes memory hookData)
-        external
-        returns (bytes4, BeforeSwapDelta, uint24);
+    function beforeSwap(
+        address sender,
+        PoolKey memory key,
+        IPoolManager.SwapParams memory params,
+        bytes memory hookData
+    ) external returns (bytes4, BeforeSwapDelta, uint24);
     function getHookPermissions() external pure returns (Hooks.Permissions memory);
     function initializePool(address vault) external returns (PoolKey memory poolKey, PoolId poolId);
     function poolDetails(PoolId poolId) external view returns (bool isInitialized, bool wrapsZeroToOne);

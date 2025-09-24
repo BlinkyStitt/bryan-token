@@ -14,12 +14,14 @@ import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 // import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 // import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
 // import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
-// import { UniversalRouter } from "@uniswap/universal-router/contracts/UniversalRouter.sol";
-// import { Commands } from "@uniswap/universal-router/contracts/libraries/Commands.sol";
-// import { IV4Router } from "@uniswap/v4-periphery/src/interfaces/IV4Router.sol";
-// import { Actions } from "@uniswap/v4-periphery/src/libraries/Actions.sol";
-// import { IPermit2 } from "@uniswap/permit2/src/interfaces/IPermit2.sol";
-// import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IUniversalRouter} from "@uniswap/universal-router/contracts/interfaces/IUniversalRouter.sol";
+import {Commands} from "@uniswap/universal-router/contracts/libraries/Commands.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+import {IV4Router} from "@uniswap/v4-periphery/src/interfaces/IV4Router.sol";
+import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
+import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 
 // using PoolIdLibrary for PoolKey;
 
@@ -36,8 +38,8 @@ contract Generic4626RouterTest is Test {
     IWETH9 constant WETH = IWETH9(payable(0x4200000000000000000000000000000000000006));
     IERC4626 constant PRIZE_VAULT = IERC4626(0x4E42f783db2D0C5bDFf40fDc66FCAe8b1Cda4a43);
     Generic4626Router constant GENERIC_4626_ROUTER = Generic4626Router(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888);
-
-    // TODO: we need to fetch the interface. don't get it out of uniswap/universal-router because that is bringing in WAY too many dependencies and we just need the interface
+    IUniversalRouter constant UNIVERSAL_ROUTER = IUniversalRouter(payable(0x6fF5693b99212Da76ad316178A184AB56D299b43));
+    IPermit2 constant PERMIT2 = IPermit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
 
     IPoolManager poolManager;
 
@@ -88,10 +90,15 @@ contract Generic4626RouterTest is Test {
         // Give trader some WETH to start with
         WETH.deposit{value: INITIAL_WETH}();
 
-        // Approve tokens for trading
-        WETH.approve(address(poolManager), type(uint256).max);
-        PRIZE_VAULT.approve(address(poolManager), type(uint256).max);
-        fanToken.approve(address(poolManager), type(uint256).max);
+        // Approve tokens for Universal Router using Permit2 pattern from official docs
+        WETH.approve(address(PERMIT2), type(uint256).max);
+        PERMIT2.approve(address(WETH), address(UNIVERSAL_ROUTER), type(uint160).max, type(uint48).max);
+        
+        PRIZE_VAULT.approve(address(PERMIT2), type(uint256).max);
+        PERMIT2.approve(address(PRIZE_VAULT), address(UNIVERSAL_ROUTER), type(uint160).max, type(uint48).max);
+        
+        fanToken.approve(address(PERMIT2), type(uint256).max);
+        PERMIT2.approve(address(fanToken), address(UNIVERSAL_ROUTER), type(uint160).max, type(uint48).max);
     }
 
     function test_constants() public view {
@@ -128,47 +135,69 @@ contract Generic4626RouterTest is Test {
         assertTrue(fanTokenPoolInitialized, "Fan token V4 pool should be initialized");
     }
 
+    /// @notice Test swapping fan tokens for vault tokens through Universal Router
+    /// @dev [Docs for swapping](https://docs.uniswap.org/contracts/v4/guides/swap-routing)
     function test_withdrawing_using_the_hook() public {
-        // // Test swapping fan tokens for vault tokens through Universal Router
-        // uint256 initialFanTokens = fanToken.balanceOf(trader);
-        // uint256 initialVaultTokens = PRIZE_VAULT.balanceOf(trader);
-        // int128 swapAmount = int128(uint128(initialFanTokens / 2));
+        uint256 initialFanTokens = fanToken.balanceOf(trader);
+        uint256 initialVaultTokens = PRIZE_VAULT.balanceOf(trader);
+        int128 swapAmount = int128(uint128(initialFanTokens / 2));
 
-        // assertGt(initialFanTokens, 0, "Setup should have given trader fan tokens");
+        assertGt(initialFanTokens, 0, "Setup should have given trader fan tokens");
 
-        // vm.startPrank(trader);
+        vm.startPrank(trader);
 
-        // PoolKey memory fanTokenKey = _buildPoolKey(address(fanToken));
+        PoolKey memory fanTokenKey = _buildPoolKey(address(fanToken));
 
-        // // TODO: what should zeroForOne be?
-        // bool zeroForOne = address(fanToken) > address(PRIZE_VAULT);
-        // bytes memory hookData = bytes("");
+        // Determine swap direction: fan tokens -> vault tokens
+        bool zeroForOne = address(fanToken) < address(PRIZE_VAULT);
 
-        revert("finish writing this test. use an interface for the universal router");
+        // Following official docs exactly - encode the Universal Router command
+        bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
+        bytes[] memory inputs = new bytes[](1);
 
-        /*
-        // TODO: why is this revering with "ManagerLocked"?
-        BalanceDelta swapDelta = poolManager.swap(
-            fanTokenKey,
-            IPoolManager.SwapParams(
-                zeroForOne,
-                /// The desired input amount if negative (exactIn), or the desired output amount if positive (exactOut)
-                swapAmount,
-                /// The sqrt price at which, if reached, the swap will stop executing
-                /// TODO: what should this be? how should this be calculated?
-                type(uint160).max
-            ),
-            hookData
+        // Encode V4Router actions exactly as in docs
+        bytes memory actions =
+            abi.encodePacked(uint8(Actions.SWAP_EXACT_IN_SINGLE), uint8(Actions.SETTLE_ALL), uint8(Actions.TAKE_ALL));
+
+        // Prepare parameters for each action exactly as in docs
+        bytes[] memory params = new bytes[](3);
+        params[0] = abi.encode(
+            IV4Router.ExactInputSingleParams({
+                poolKey: fanTokenKey,
+                zeroForOne: zeroForOne,
+                amountIn: uint128(swapAmount),
+                amountOutMinimum: uint128(0),
+                hookData: bytes("")
+            })
+        );
+        params[1] = abi.encode(
+            zeroForOne ? fanTokenKey.currency0 : fanTokenKey.currency1, // input currency
+            uint128(swapAmount) // amountIn
+        );
+        params[2] = abi.encode(
+            zeroForOne ? fanTokenKey.currency1 : fanTokenKey.currency0, // output currency
+            uint128(0) // minAmountOut
         );
 
-        revert("todo: assert the swapDelta is correct");
+        // Combine actions and params into inputs exactly as in docs
+        inputs[0] = abi.encode(actions, params);
 
-        // Verify the swap worked - assert actual traded values
+        // Execute swap via Universal Router
+        UNIVERSAL_ROUTER.execute(commands, inputs, block.timestamp + 300);
+
+        // Verify the swap worked
         uint256 finalFanTokens = fanToken.balanceOf(trader);
         uint256 finalVaultTokens = PRIZE_VAULT.balanceOf(trader);
 
-        revert("todo: assert the balances are correct");
-        */
+        assertLt(finalFanTokens, initialFanTokens, "Should have spent fan tokens");
+        assertGt(finalVaultTokens, initialVaultTokens, "Should have received vault tokens");
+
+        // TODO: be more specific about these asserts instead of logs
+        console.log("Initial fan tokens:", initialFanTokens);
+        console.log("Final fan tokens:", finalFanTokens);
+        console.log("Initial vault tokens:", initialVaultTokens);
+        console.log("Final vault tokens:", finalVaultTokens);
+        console.log("Swap amount:", uint256(uint128(swapAmount)));
     }
 
     /*
