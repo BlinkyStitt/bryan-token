@@ -58,6 +58,7 @@ contract FanTokenFactory is ReentrancyGuardTransient {
             WETH
         );
 
+        // TODO: should we save uniswap pool info?
         _deployedTokens.add(address(fanToken));
 
         emit Created(msg.sender, address(_prizeVault), _treasury, address(fanToken));

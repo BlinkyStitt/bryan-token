@@ -8,7 +8,7 @@ import {FanToken, FanTokenFactory} from "../src/FanTokenFactory.sol";
 import {Generic4626Router} from "../src/interfaces/Generic4626Router.sol";
 import {PoolIdLibrary, PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
-import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {Currency, CurrencyLibrary} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 // import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
@@ -24,6 +24,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 
 // using PoolIdLibrary for PoolKey;
+using CurrencyLibrary for Currency;
+
 
 /**
  * @title Generic4626Router Integration Test
@@ -53,7 +55,7 @@ contract Generic4626RouterTest is Test {
 
     // Trade amounts
     uint256 constant INITIAL_WETH = 1 ether;
-    uint256 constant TRADE_AMOUNT = 0.1 ether;
+    uint256 constant TRADE_AMOUNT = 0.5 ether;
 
     /// @notice create a fan token and give the trader some of it
     function setUp() public {
@@ -146,10 +148,23 @@ contract Generic4626RouterTest is Test {
 
         vm.startPrank(trader);
 
-        PoolKey memory fanTokenKey = _buildPoolKey(address(fanToken));
+        PoolKey memory fanTokenPoolKey = _buildPoolKey(address(fanToken));
+
+        console.log("currency0", Currency.unwrap(fanTokenPoolKey.currency0));
+        console.log("currency1", Currency.unwrap(fanTokenPoolKey.currency1));
+
+        PoolId fanTokenPoolId = fanTokenPoolKey.toId();
 
         // Determine swap direction: fan tokens -> vault tokens
-        bool zeroForOne = address(fanToken) < address(PRIZE_VAULT);
+        (bool fanTokenPoolInitialized, bool wrapZeroForOne) = GENERIC_4626_ROUTER.poolDetails(fanTokenPoolId);
+
+        bool zeroForOne;
+        if (Currency.unwrap(fanTokenPoolKey.currency0) == address(fanToken)) {
+            zeroForOne = true;
+        } else {
+            zeroForOne = false;
+        }
+        console.log("zeroForOne", zeroForOne);
 
         // Following official docs exactly - encode the Universal Router command
         bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
@@ -163,7 +178,7 @@ contract Generic4626RouterTest is Test {
         bytes[] memory params = new bytes[](3);
         params[0] = abi.encode(
             IV4Router.ExactInputSingleParams({
-                poolKey: fanTokenKey,
+                poolKey: fanTokenPoolKey,
                 zeroForOne: zeroForOne,
                 amountIn: uint128(swapAmount),
                 amountOutMinimum: uint128(0),
@@ -171,11 +186,11 @@ contract Generic4626RouterTest is Test {
             })
         );
         params[1] = abi.encode(
-            zeroForOne ? fanTokenKey.currency0 : fanTokenKey.currency1, // input currency
+            zeroForOne ? fanTokenPoolKey.currency0 : fanTokenPoolKey.currency1, // input currency
             uint128(swapAmount) // amountIn
         );
         params[2] = abi.encode(
-            zeroForOne ? fanTokenKey.currency1 : fanTokenKey.currency0, // output currency
+            zeroForOne ? fanTokenPoolKey.currency1 : fanTokenPoolKey.currency0, // output currency
             uint128(0) // minAmountOut
         );
 
@@ -262,30 +277,37 @@ contract Generic4626RouterTest is Test {
 
         vm.startPrank(trader);
 
-        // Approve Universal Router to spend WETH
-        WETH.approve(address(UNIVERSAL_ROUTER), TRADE_AMOUNT);
+        // Approve Universal Router to spend fan tokens
+        fanToken.approve(address(UNIVERSAL_ROUTER), TRADE_AMOUNT);
 
-        // Build the pool key for WETH <-> Prize Vault pool
-        PoolKey memory poolKey = _buildPoolKey(address(PRIZE_VAULT));
+        // Build the pool key for Fan Token <-> Prize Vault pool  
+        PoolKey memory poolKey = _buildPoolKey(address(fanToken));
 
         // Encode V4 swap command
         bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
 
-        // Encode V4Router actions sequence
+        // Encode V4Router actions sequence - SETTLE fan tokens first, then swap
         bytes memory actions = abi.encodePacked(
+            uint8(Actions.SETTLE),
             uint8(Actions.SWAP_EXACT_IN_SINGLE),
-            uint8(Actions.SETTLE_ALL),
             uint8(Actions.TAKE_ALL)
         );
 
-        // Determine swap direction (WETH -> Prize Vault)
-        bool zeroForOne = address(WETH) < address(PRIZE_VAULT);
+        // Determine swap direction (Fan Token -> Prize Vault)
+        bool zeroForOne = address(fanToken) < address(PRIZE_VAULT);
 
-        // Prepare parameters for each action
+        // Prepare parameters for each action  
         bytes[] memory params = new bytes[](3);
         
-        // Action 1: SWAP_EXACT_IN_SINGLE parameters
+        // Action 1: SETTLE fan tokens to Pool Manager
         params[0] = abi.encode(
+            Currency.wrap(address(fanToken)),
+            uint128(TRADE_AMOUNT),
+            false // payerIsUser = false (Universal Router pays via Permit2)
+        );
+        
+        // Action 2: SWAP_EXACT_IN_SINGLE parameters
+        params[1] = abi.encode(
             IV4Router.ExactInputSingleParams({
                 poolKey: poolKey,
                 zeroForOne: zeroForOne,
@@ -295,16 +317,10 @@ contract Generic4626RouterTest is Test {
             })
         );
         
-        // Action 2: SETTLE_ALL parameters
-        params[1] = abi.encode(
-            zeroForOne ? poolKey.currency0 : poolKey.currency1,
-            uint128(TRADE_AMOUNT)
-        );
-        
-        // Action 3: TAKE_ALL parameters
+        // Action 3: TAKE_ALL vault shares to user
         params[2] = abi.encode(
-            zeroForOne ? poolKey.currency1 : poolKey.currency0,
-            uint128(0)
+            zeroForOne ? poolKey.currency0 : poolKey.currency1, // vault shares (output)
+            uint128(0) // take all available
         );
 
         // Combine actions and params into inputs
