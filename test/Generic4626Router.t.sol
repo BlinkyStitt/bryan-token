@@ -20,8 +20,8 @@ import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IV4Router} from "@uniswap/v4-periphery/src/interfaces/IV4Router.sol";
 import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
+// import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+// import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 
 // using PoolIdLibrary for PoolKey;
 using CurrencyLibrary for Currency;
@@ -139,6 +139,7 @@ contract Generic4626RouterTest is Test {
 
     /// @notice Test swapping fan tokens for vault tokens through Universal Router
     /// @dev [Docs for swapping](https://docs.uniswap.org/contracts/v4/guides/swap-routing)
+    /// @dev [Minimal Router instead of Universal Router](https://github.com/uniswapfoundation/foundational-hooks/blob/main/test/utils/MinimalRouter.sol)
     function test_withdrawing_using_the_hook() public {
         uint256 initialFanTokens = fanToken.balanceOf(trader);
         uint256 initialVaultTokens = PRIZE_VAULT.balanceOf(trader);
@@ -156,7 +157,7 @@ contract Generic4626RouterTest is Test {
         PoolId fanTokenPoolId = fanTokenPoolKey.toId();
 
         // Determine swap direction: fan tokens -> vault tokens
-        (bool fanTokenPoolInitialized, bool wrapZeroForOne) = GENERIC_4626_ROUTER.poolDetails(fanTokenPoolId);
+        // (bool fanTokenPoolInitialized, bool wrapZeroForOne) = GENERIC_4626_ROUTER.poolDetails(fanTokenPoolId);
 
         bool zeroForOne;
         if (Currency.unwrap(fanTokenPoolKey.currency0) == address(fanToken)) {
@@ -166,17 +167,21 @@ contract Generic4626RouterTest is Test {
         }
         console.log("zeroForOne", zeroForOne);
 
-        // Following official docs exactly - encode the Universal Router command
+        // Following official docs exactly - encode the Universal Router uniswap v4 swap command
         bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
         bytes[] memory inputs = new bytes[](1);
 
-        // Encode V4Router actions exactly as in docs
+        // like the official docs, except we send the input first to avoid PoolManager token balance issues
         bytes memory actions =
-            abi.encodePacked(uint8(Actions.SWAP_EXACT_IN_SINGLE), uint8(Actions.SETTLE_ALL), uint8(Actions.TAKE_ALL));
+            abi.encodePacked(uint8(Actions.SETTLE_ALL), uint8(Actions.SWAP_EXACT_IN_SINGLE), uint8(Actions.TAKE_ALL));
 
-        // Prepare parameters for each action exactly as in docs
+        // Prepare parameters for each action exactly as in docs (except the settle is now first)
         bytes[] memory params = new bytes[](3);
         params[0] = abi.encode(
+            zeroForOne ? fanTokenPoolKey.currency0 : fanTokenPoolKey.currency1, // input currency
+            uint128(swapAmount) // amountIn
+        );
+        params[1] = abi.encode(
             IV4Router.ExactInputSingleParams({
                 poolKey: fanTokenPoolKey,
                 zeroForOne: zeroForOne,
@@ -184,10 +189,6 @@ contract Generic4626RouterTest is Test {
                 amountOutMinimum: uint128(0),
                 hookData: bytes("")
             })
-        );
-        params[1] = abi.encode(
-            zeroForOne ? fanTokenPoolKey.currency0 : fanTokenPoolKey.currency1, // input currency
-            uint128(swapAmount) // amountIn
         );
         params[2] = abi.encode(
             zeroForOne ? fanTokenPoolKey.currency1 : fanTokenPoolKey.currency0, // output currency

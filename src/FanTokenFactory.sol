@@ -7,6 +7,8 @@ import {FanToken, SafeERC20, IERC20, IERC4626, IWETH9} from "./FanToken.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {Generic4626Router} from "./interfaces/Generic4626Router.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
+import {PoolKey, IHooks} from "@uniswap/v4-core/src/types/PoolKey.sol";
+
 
 error InvalidFanToken();
 error IncorrectUnderlying(address underlying);
@@ -24,6 +26,9 @@ contract FanTokenFactory is ReentrancyGuardTransient {
 
     /// @notice enumerable set of all deployed fan tokens
     EnumerableSet.AddressSet private _deployedTokens;
+
+    /// todo: should this be enumerable?
+    mapping(address vault => PoolKey) public _deployedUniswapV4Pools;
 
     // TODO: how should we do indexes on this?
     event Created(address indexed _owner, address indexed _prizeVault, address indexed _treasury, address _token);
@@ -90,12 +95,14 @@ contract FanTokenFactory is ReentrancyGuardTransient {
         // TODO: gas golf this. is it better to try, or should we have our own check if its already been deployed?
         // TODO: public helper function for getting pool keys?
 
-        try UNISWAP_V4_ERC4626_HOOK.initializePool(vault) {
-            // Pool created successfully by hook
-        } catch {
-            // Hook rejected the vault (already exists)
-            // This is expected for some vaults
+        if (_deployedUniswapV4Pools[vault].hooks == IHooks(address(UNISWAP_V4_ERC4626_HOOK))) {
+            // its already been deployed
+            return;
         }
+
+        (PoolKey memory poolKey, /*PoolId poolId*/) = UNISWAP_V4_ERC4626_HOOK.initializePool(vault);
+
+        _deployedUniswapV4Pools[vault] = poolKey;
     }
 
     function startDeposit(FanToken fanToken, uint256 underlyingAssets, address receiver)
