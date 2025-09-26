@@ -224,8 +224,8 @@ contract Generic4626RouterTest is Test {
         uint256 finalFanTokens = fanToken.balanceOf(trader);
         uint256 finalVaultTokens = PRIZE_VAULT.balanceOf(trader);
 
-        assertEq(finalFanTokens, initialFanTokens - TRADE_AMOUNT, "fan token balance should decrease by trade amount");
-        assertEq(finalVaultTokens, initialVaultTokens + TRADE_AMOUNT, "vault token balance should increase by trade amount");
+        assertEq(finalFanTokens + TRADE_AMOUNT, initialFanTokens, "fan token balance mismatch");
+        assertEq(finalVaultTokens, initialVaultTokens + TRADE_AMOUNT, "vault balance mismatch");
     }
 
     /*
