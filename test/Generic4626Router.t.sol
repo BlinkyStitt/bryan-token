@@ -22,6 +22,7 @@ import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
 // import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 // import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 
 // using PoolIdLibrary for PoolKey;
 using CurrencyLibrary for Currency;
@@ -35,6 +36,7 @@ using CurrencyLibrary for Currency;
 contract Generic4626RouterTest is Test {
     // using StateLibrary for IPoolManager;
     using PoolIdLibrary for PoolKey;
+    using SafeCast for uint256;
 
     // Core contracts
     IWETH9 constant WETH = IWETH9(payable(0x4200000000000000000000000000000000000006));
@@ -83,11 +85,17 @@ contract Generic4626RouterTest is Test {
             true // setupUniswapV4HookedPool = true - creates V4 pools!
         );
 
-        console.log("sponsor balance", fanToken.balanceOfSponsor(address(this)));
+        assertEq(
+            fanToken.balanceOfSponsor(address(this)),
+            INITIAL_WETH,
+            "creator should receive sponsor assets from initial deposit"
+        );
 
         fanToken.sponsorTransfer(trader, INITIAL_WETH);
 
-        hoax(trader, INITIAL_WETH * 2);
+        assertEq(fanToken.balanceOfSponsor(address(this)), 0, "creator sponsorship should transfer to trader");
+
+        startHoax(trader, INITIAL_WETH * 2);
 
         // Give trader some WETH to start with
         WETH.deposit{value: INITIAL_WETH}();
@@ -95,10 +103,10 @@ contract Generic4626RouterTest is Test {
         // Approve tokens for Universal Router using Permit2 pattern from official docs
         WETH.approve(address(PERMIT2), type(uint256).max);
         PERMIT2.approve(address(WETH), address(UNIVERSAL_ROUTER), type(uint160).max, type(uint48).max);
-        
+
         PRIZE_VAULT.approve(address(PERMIT2), type(uint256).max);
         PERMIT2.approve(address(PRIZE_VAULT), address(UNIVERSAL_ROUTER), type(uint160).max, type(uint48).max);
-        
+
         fanToken.approve(address(PERMIT2), type(uint256).max);
         PERMIT2.approve(address(fanToken), address(UNIVERSAL_ROUTER), type(uint160).max, type(uint48).max);
     }
@@ -141,31 +149,34 @@ contract Generic4626RouterTest is Test {
     /// @dev [Docs for swapping](https://docs.uniswap.org/contracts/v4/guides/swap-routing)
     /// @dev [Minimal Router instead of Universal Router](https://github.com/uniswapfoundation/foundational-hooks/blob/main/test/utils/MinimalRouter.sol)
     function test_withdrawing_using_the_hook() public {
+        vm.startPrank(trader);
+
         uint256 initialFanTokens = fanToken.balanceOf(trader);
         uint256 initialVaultTokens = PRIZE_VAULT.balanceOf(trader);
-        int128 swapAmount = int128(uint128(initialFanTokens / 2));
 
         assertGt(initialFanTokens, 0, "Setup should have given trader fan tokens");
-
-        vm.startPrank(trader);
+        assertGe(initialFanTokens, TRADE_AMOUNT * 2, "initial balance should cover configured trade size");
 
         PoolKey memory fanTokenPoolKey = _buildPoolKey(address(fanToken));
 
-        console.log("currency0", Currency.unwrap(fanTokenPoolKey.currency0));
-        console.log("currency1", Currency.unwrap(fanTokenPoolKey.currency1));
+        address currency0 = Currency.unwrap(fanTokenPoolKey.currency0);
+        address currency1 = Currency.unwrap(fanTokenPoolKey.currency1);
 
-        PoolId fanTokenPoolId = fanTokenPoolKey.toId();
+        assertEq(currency0, address(PRIZE_VAULT), "currency0 should be the prize vault");
+        assertEq(currency1, address(fanToken), "currency1 should be the fan token");
+
+        // PoolId fanTokenPoolId = fanTokenPoolKey.toId();
 
         // Determine swap direction: fan tokens -> vault tokens
         // (bool fanTokenPoolInitialized, bool wrapZeroForOne) = GENERIC_4626_ROUTER.poolDetails(fanTokenPoolId);
 
         bool zeroForOne;
-        if (Currency.unwrap(fanTokenPoolKey.currency0) == address(fanToken)) {
+        if (currency0 == address(fanToken)) {
             zeroForOne = true;
         } else {
             zeroForOne = false;
         }
-        console.log("zeroForOne", zeroForOne);
+        assertFalse(zeroForOne, "fan token should be currency1 for this pool");
 
         // Following official docs exactly - encode the Universal Router uniswap v4 swap command
         bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
@@ -173,26 +184,28 @@ contract Generic4626RouterTest is Test {
 
         // like the official docs, except we send the input first to avoid PoolManager token balance issues
         bytes memory actions =
-            abi.encodePacked(uint8(Actions.SETTLE_ALL), uint8(Actions.SWAP_EXACT_IN_SINGLE), uint8(Actions.TAKE_ALL));
+            abi.encodePacked(uint8(Actions.SETTLE), uint8(Actions.SWAP_EXACT_IN_SINGLE), uint8(Actions.TAKE_ALL));
 
         // Prepare parameters for each action exactly as in docs (except the settle is now first)
         bytes[] memory params = new bytes[](3);
+
         params[0] = abi.encode(
             zeroForOne ? fanTokenPoolKey.currency0 : fanTokenPoolKey.currency1, // input currency
-            uint128(swapAmount) // amountIn
+            TRADE_AMOUNT, // amountIn. some docs made me think this should be uint128, but V4Router.sol SETTLE looks different
+            true // payerIsUser (TODO: what is this?) if false, it uses the pool manager. if true, it uses msg.sender
         );
         params[1] = abi.encode(
             IV4Router.ExactInputSingleParams({
                 poolKey: fanTokenPoolKey,
                 zeroForOne: zeroForOne,
-                amountIn: uint128(swapAmount),
+                amountIn: TRADE_AMOUNT.toUint128(),
                 amountOutMinimum: uint128(0),
                 hookData: bytes("")
             })
         );
         params[2] = abi.encode(
             zeroForOne ? fanTokenPoolKey.currency1 : fanTokenPoolKey.currency0, // output currency
-            uint128(0) // minAmountOut
+            uint128(0) // minAmountOut. TODO: how should we calculate this in production?
         );
 
         // Combine actions and params into inputs exactly as in docs
@@ -205,15 +218,8 @@ contract Generic4626RouterTest is Test {
         uint256 finalFanTokens = fanToken.balanceOf(trader);
         uint256 finalVaultTokens = PRIZE_VAULT.balanceOf(trader);
 
-        assertLt(finalFanTokens, initialFanTokens, "Should have spent fan tokens");
-        assertGt(finalVaultTokens, initialVaultTokens, "Should have received vault tokens");
-
-        // TODO: be more specific about these asserts instead of logs
-        console.log("Initial fan tokens:", initialFanTokens);
-        console.log("Final fan tokens:", finalFanTokens);
-        console.log("Initial vault tokens:", initialVaultTokens);
-        console.log("Final vault tokens:", finalVaultTokens);
-        console.log("Swap amount:", uint256(uint128(swapAmount)));
+        assertEq(finalFanTokens, initialFanTokens - TRADE_AMOUNT, "fan token balance should decrease by trade amount");
+        assertEq(finalVaultTokens, initialVaultTokens + TRADE_AMOUNT, "vault token balance should increase by trade amount");
     }
 
     /*
@@ -278,8 +284,9 @@ contract Generic4626RouterTest is Test {
 
         vm.startPrank(trader);
 
-        // Approve Universal Router to spend fan tokens
-        fanToken.approve(address(UNIVERSAL_ROUTER), TRADE_AMOUNT);
+        // Set up Permit2 approvals for Universal Router
+        fanToken.approve(address(PERMIT2), type(uint256).max);
+        PERMIT2.approve(address(fanToken), address(UNIVERSAL_ROUTER), type(uint160).max, type(uint48).max);
 
         // Build the pool key for Fan Token <-> Prize Vault pool  
         PoolKey memory poolKey = _buildPoolKey(address(fanToken));
@@ -287,7 +294,7 @@ contract Generic4626RouterTest is Test {
         // Encode V4 swap command
         bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
 
-        // Encode V4Router actions sequence - SETTLE fan tokens first, then swap
+        // SETTLE → SWAP_EXACT_IN_SINGLE → TAKE_ALL sequence as requested
         bytes memory actions = abi.encodePacked(
             uint8(Actions.SETTLE),
             uint8(Actions.SWAP_EXACT_IN_SINGLE),
@@ -297,14 +304,14 @@ contract Generic4626RouterTest is Test {
         // Determine swap direction (Fan Token -> Prize Vault)
         bool zeroForOne = address(fanToken) < address(PRIZE_VAULT);
 
-        // Prepare parameters for each action  
+        // Prepare parameters for each action
         bytes[] memory params = new bytes[](3);
         
-        // Action 1: SETTLE fan tokens to Pool Manager
+        // Action 1: SETTLE - settle fan tokens into the pool manager  
         params[0] = abi.encode(
-            Currency.wrap(address(fanToken)),
-            uint128(TRADE_AMOUNT),
-            false // payerIsUser = false (Universal Router pays via Permit2)
+            address(fanToken),      // currency address
+            uint256(TRADE_AMOUNT),  // amount to settle
+            true                    // payerIsUser - user pays via Permit2
         );
         
         // Action 2: SWAP_EXACT_IN_SINGLE parameters
@@ -318,13 +325,13 @@ contract Generic4626RouterTest is Test {
             })
         );
         
-        // Action 3: TAKE_ALL vault shares to user
+        // Action 3: TAKE_ALL - take all output tokens to user
         params[2] = abi.encode(
-            zeroForOne ? poolKey.currency0 : poolKey.currency1, // vault shares (output)
-            uint128(0) // take all available
+            Currency.unwrap(zeroForOne ? poolKey.currency0 : poolKey.currency1),  // currency address 
+            uint256(type(uint256).max)  // amount (max = take all)
         );
 
-        // Combine actions and params into inputs
+        // Combine actions and params into inputs - V4_SWAP expects them encoded together
         bytes[] memory inputs = new bytes[](1);
         inputs[0] = abi.encode(actions, params);
 
