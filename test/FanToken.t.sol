@@ -68,8 +68,6 @@ contract FanTokenTest is Test {
     function test_vault_asset() public view {
         assertEq(address(bryan.UNDERLYING()), address(WETH9), "underlying isn't weth");
     }
-
-    /// @dev coverage for supply and assets
     function test_vault_starts_empty() public view {
         assertEq(bryan.totalSupply(), 0, "vault should start with zero total supply");
         assertEq(bryan.totalAssets(), 0, "vault should start with zero total assets");
@@ -1031,7 +1029,6 @@ contract FanTokenTest is Test {
         vm.startPrank(alice);
         asset.approve(address(bryan), type(uint256).max);
         uint256 aliceWhen = bryan.startDeposit(depositAmount, alice);
-        // Alice should be the first deposit, so immediate
         assertEq(aliceWhen, 0, "alice first deposit should be immediate");
 
         // First sponsor deposits with proper timing
@@ -1039,7 +1036,6 @@ contract FanTokenTest is Test {
         bryan.setSponsorship(true);
         asset.approve(address(bryan), type(uint256).max);
         uint256 sponsor1When = bryan.startDeposit(depositAmount, sponsor1);
-        // First sponsor deposit should be delayed since Alice already deposited
         assertGt(sponsor1When, 0, "first sponsor deposit should be delayed");
         vm.warp(sponsor1When);
         bryan.deposit(depositAmount, sponsor1);
@@ -1049,22 +1045,17 @@ contract FanTokenTest is Test {
         bryan.setSponsorship(true);
         asset.approve(address(bryan), type(uint256).max);
         uint256 sponsor2When = bryan.startDeposit(depositAmount, sponsor2);
-        // Second sponsor deposit should also be delayed
         assertGt(sponsor2When, 0, "second sponsor deposit should be delayed");
         vm.warp(sponsor2When);
         bryan.deposit(depositAmount, sponsor2);
 
-        uint256 initialAliceUnderlying;
-        uint256 initialSponsor1Assets;
-        uint256 initialSponsor2Assets;
+        uint256[3] memory preBalances;
+        preBalances[0] = bryan.balanceOfUnderlying(alice);
+        preBalances[1] = bryan.balanceOfSponsor(sponsor1);
+        preBalances[2] = bryan.balanceOfSponsor(sponsor2);
 
-        // Record state before harvest
-        initialAliceUnderlying = bryan.balanceOfUnderlying(alice);
-        initialSponsor1Assets = bryan.balanceOfSponsor(sponsor1);
-        initialSponsor2Assets = bryan.balanceOfSponsor(sponsor2);
-
-        // Send substantial rewards and harvest
         uint256 rewardAmount = 1 ether;
+
         vm.stopPrank();
         vm.deal(address(this), rewardAmount);
         WETH9.deposit{value: rewardAmount}();
@@ -1073,21 +1064,15 @@ contract FanTokenTest is Test {
         uint256 harvested = bryan.harvest();
         assertEq(harvested, rewardAmount, "should harvest all rewards");
 
-        // Check final state with precise calculations
-        uint256 finalAliceUnderlying = bryan.balanceOfUnderlying(alice);
-        uint256 finalSponsor1Assets = bryan.balanceOfSponsor(sponsor1);
-        uint256 finalSponsor2Assets = bryan.balanceOfSponsor(sponsor2);
+        uint256[3] memory postBalances;
+        postBalances[0] = bryan.balanceOfUnderlying(alice);
+        postBalances[1] = bryan.balanceOfSponsor(sponsor1);
+        postBalances[2] = bryan.balanceOfSponsor(sponsor2);
 
-        // Sponsors should maintain their exact asset values (rewards don't go to sponsors)
-        assertEq(finalSponsor1Assets, initialSponsor1Assets, "sponsor1 assets should remain constant");
-        assertEq(finalSponsor2Assets, initialSponsor2Assets, "sponsor2 assets should remain constant");
+        assertEq(postBalances[1], preBalances[1], "sponsor1 assets should remain constant");
+        assertEq(postBalances[2], preBalances[2], "sponsor2 assets should remain constant");
 
-        // Verify sponsor assets don't change when rewards are harvested
-
-        uint256 aliceGain = finalAliceUnderlying - initialAliceUnderlying;
-
-        // For now, just verify Alice gets some reasonable portion of rewards
-        // The exact calculation may need to account for sponsor mechanics
+        uint256 aliceGain = postBalances[0] - preBalances[0];
         assertGt(aliceGain, rewardAmount / 2, "alice should get substantial portion of rewards");
         assertLt(aliceGain, rewardAmount, "alice should not get more than total rewards");
     }

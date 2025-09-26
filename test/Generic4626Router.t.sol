@@ -162,8 +162,14 @@ contract Generic4626RouterTest is Test {
         address currency0 = Currency.unwrap(fanTokenPoolKey.currency0);
         address currency1 = Currency.unwrap(fanTokenPoolKey.currency1);
 
-        assertEq(currency0, address(PRIZE_VAULT), "currency0 should be the prize vault");
-        assertEq(currency1, address(fanToken), "currency1 should be the fan token");
+        address expectedCurrency0 = address(PRIZE_VAULT) < address(fanToken) ? address(PRIZE_VAULT) : address(fanToken);
+        address expectedCurrency1 = expectedCurrency0 == address(PRIZE_VAULT) ? address(fanToken) : address(PRIZE_VAULT);
+
+        console.log("currency0", currency0);
+        console.log("currency1", currency1);
+
+        assertEq(currency0, expectedCurrency0, "currency0 ordering mismatch");
+        assertEq(currency1, expectedCurrency1, "currency1 ordering mismatch");
 
         // PoolId fanTokenPoolId = fanTokenPoolKey.toId();
 
@@ -176,7 +182,7 @@ contract Generic4626RouterTest is Test {
         } else {
             zeroForOne = false;
         }
-        assertFalse(zeroForOne, "fan token should be currency1 for this pool");
+        assertEq(zeroForOne, currency0 == address(fanToken), "zeroForOne should reflect address ordering");
 
         // Following official docs exactly - encode the Universal Router uniswap v4 swap command
         bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
