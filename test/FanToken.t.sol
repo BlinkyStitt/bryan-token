@@ -43,7 +43,7 @@ contract FanTokenTest is Test {
 
     function setUp() public {
         deal(owner, 10 ether);
-        deal(address(this), 10 ether);
+        deal(address(this), 100_000 ether);
 
         // Use realistic fee values for thorough testing
         uint256 harvestOwnerFeeBasisPoints = 200; // 2%
@@ -580,6 +580,7 @@ contract FanTokenTest is Test {
 
         address want = auction.want();
         assertEq(want, address(bryanFanToken.UNDERLYING()), "wrong want");
+        assertEq(want, address(WETH9), "want isn't weth9");
 
         // prepare approvals
         IERC20(want).approve(address(auction), type(uint256).max);
@@ -588,6 +589,7 @@ contract FanTokenTest is Test {
         assertGt(auctionAmountNeeded, 0, "want amount should be nonzero");
 
         // cheat to have the necessary tokens to fulfill the auction
+        startHoax(address(this), auctionAmountNeeded);
         WETH9.deposit{value: auctionAmountNeeded}();
 
         // complete the auction
@@ -633,6 +635,8 @@ contract FanTokenTest is Test {
         // TODO: what is the actual max? something involving weth's totalSupply
         vm.assume(value < 100 ether);
         vm.assume(value > 0); // we call wrapETH at the start and end, so no real point in skipping it
+
+        vm.deal(address(this), value);
 
         assertEq(bryanFanToken.wrapETH(), 0);
         assertEq(WETH9.balanceOf(address(bryanFanToken)), 0);
@@ -688,8 +692,14 @@ contract FanTokenTest is Test {
 
         // Both owner and treasury should get fees in assets now
         // TODO: reward amount is in the underlying, but we need to convert this to shares
-        assertEq(prizeVault.balanceOf(owner), prizeVault.previewWithdraw(rewardAmount / 2), "owner should get asset fee");
-        assertEq(prizeVault.balanceOf(treasury), prizeVault.previewWithdraw(rewardAmount / 2), "treasury should get asset fee");
+        assertEq(
+            prizeVault.balanceOf(owner), prizeVault.previewWithdraw(rewardAmount / 2), "owner should get asset fee"
+        );
+        assertEq(
+            prizeVault.balanceOf(treasury),
+            prizeVault.previewWithdraw(rewardAmount / 2),
+            "treasury should get asset fee"
+        );
     }
 
     /// TODO: clean up this ai slop
