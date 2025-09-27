@@ -775,6 +775,8 @@ contract FanTokenTest is Test {
         vm.warp(sponsorWhen);
         bryanFanToken.deposit(depositAmount, sponsor);
 
+        vm.stopPrank();
+
         // Record initial state
         uint256 initialSponsorAssets = bryanFanToken.balanceOfSponsorAssets(sponsor);
         uint256 initialAliceUnderlying = bryanFanToken.balanceOfUnderlying(alice);
@@ -843,6 +845,8 @@ contract FanTokenTest is Test {
         assertGt(sponsor2When, 0, "second sponsor deposit should be delayed");
         vm.warp(sponsor2When);
         bryanFanToken.deposit(depositAmount, sponsor2);
+
+        vm.stopPrank();
 
         uint256[3] memory preBalances;
         preBalances[0] = bryanFanToken.balanceOfUnderlying(alice);
