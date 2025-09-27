@@ -261,10 +261,15 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
     }
 
     /**
-     * @dev See {IERC4626-deposit}.
+     * @dev See {IERC4626-deposit} with non reentrancy because I'm paranoid.
      */
     function deposit(uint256 assets, address receiver) public override nonReentrant returns (uint256) {
         return super.deposit(assets, receiver);
+    }
+
+    /// @notice finish a deposit for the msg.sender
+    function finishDeposit() public nonReentrant returns (uint256 shares) {
+        shares = _finishDeposit(msg.sender, msg.sender, 0, 0);
     }
 
     /// @notice finish a deposit that was started by another caller
@@ -542,15 +547,10 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
 
     /// @dev i wanted to override `transfer` to work transparently, but that got too complicated quickly
     function sponsorTransferFrom(address from, address to, uint256 assets) public returns (bool) {
-        address spender = msg.sender;
-        _spendAllowance(from, spender, previewWithdraw(assets));
+        _spendAllowance(from, msg.sender, previewWithdraw(assets));
         _sponsorTransfer(from, to, assets);
         return true;
     }
-
-    // TODO: sponsorTransferFrom
-
-    // TODO: sponsorFrom? need an "operator" mapping i think
 
     /**
      * @dev See {IERC4626-withdraw}.
