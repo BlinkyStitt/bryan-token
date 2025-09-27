@@ -32,10 +32,10 @@ contract FanTokenTest is Test {
     address owner = makeAddr("owner");
     address treasury = makeAddr("treasury");
 
-    IERC4626 prizeVault = IERC4626(0x4E42f783db2D0C5bDFf40fDc66FCAe8b1Cda4a43);
-    IWETH9 constant WETH9 = IWETH9(payable(0x4200000000000000000000000000000000000006));
+    IERC4626 constant PRIZE_VAULT = IERC4626(0x4E42f783db2D0C5bDFf40fDc66FCAe8b1Cda4a43);
     Generic4626Router constant UNISWAP_V4_4626_HOOK =
         Generic4626Router(address(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888));
+    IWETH9 constant WETH9 = IWETH9(payable(0x4200000000000000000000000000000000000006));
 
     FanTokenFactory factory;
     FanToken public bryanFanToken;
@@ -57,7 +57,7 @@ contract FanTokenTest is Test {
             "BRY-ETH",
             harvestOwnerFeeBasisPoints,
             harvestTreasuryFeeBasisPoints,
-            prizeVault,
+            PRIZE_VAULT,
             treasury,
             bytes32(0),
             0, // initial deposit
@@ -651,7 +651,7 @@ contract FanTokenTest is Test {
     function test_harvest_with_both_fees() public {
         uint256 initialDeposit = 10 ether;
 
-        vm.prank(owner);
+        vm.startPrank(owner);
         FanToken testFanToken = factory.create{value: initialDeposit}(
             "Both Fees Test",
             "BOTH",
@@ -664,11 +664,23 @@ contract FanTokenTest is Test {
             false
         );
 
-        vm.prank(owner);
-        testFanToken.setSponsorship(false);
+        // TODO: test turning sponsorship off
+        // testFanToken.setSponsorship(false);
+        assertEq(
+            testFanToken.balanceOfSponsorAssets(owner),
+            initialDeposit,
+            "initial owner balance should equal deposited assets"
+        );
 
+        // TODO: this is only true because initial deposits are 1:1. I don't actually like this check very much
+        assertEq(
+            testFanToken.balanceOf(address(testFanToken)),
+            initialDeposit,
+            "initial deposit should all be sponsored tokens owned by the contract"
+        );
+
+        // TODO: this is only true because initial deposits are 1:1. I don't actually like this check very much
         assertEq(testFanToken.totalSupply(), initialDeposit, "initial total supply should equal deposited assets");
-        assertEq(testFanToken.balanceOf(owner), initialDeposit, "initial owner balance should equal deposited assets");
 
         // fake rewards
         uint256 rewardAmount = 1 ether;
@@ -679,26 +691,19 @@ contract FanTokenTest is Test {
         assertEq(harvested, rewardAmount, "should harvest all rewards");
         assertEq(testFanToken.totalSupply(), initialDeposit, "total supply should not change after harvest");
 
+        // owner and treasury split the entire reward evenly
+        uint256 feeAmount = rewardAmount / 2;
+
+        assertGt(PRIZE_VAULT.balanceOf(owner), 0, "owner should have a balance of prize vault from fees");
         assertEq(
-            prizeVault.previewRedeem(prizeVault.balanceOf(owner)),
-            rewardAmount / 2,
+            PRIZE_VAULT.previewRedeem(PRIZE_VAULT.balanceOf(owner)),
+            feeAmount,
             "owner fee balance should get half the rewards"
         );
         assertEq(
-            prizeVault.balanceOf(treasury),
-            prizeVault.balanceOf(owner),
+            PRIZE_VAULT.balanceOf(treasury),
+            PRIZE_VAULT.balanceOf(owner),
             "treasury fee balance should increase the same as the owner's"
-        );
-
-        // Both owner and treasury should get fees in assets now
-        // TODO: reward amount is in the underlying, but we need to convert this to shares
-        assertEq(
-            prizeVault.balanceOf(owner), prizeVault.previewWithdraw(rewardAmount / 2), "owner should get asset fee"
-        );
-        assertEq(
-            prizeVault.balanceOf(treasury),
-            prizeVault.previewWithdraw(rewardAmount / 2),
-            "treasury should get asset fee"
         );
     }
 
