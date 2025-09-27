@@ -9,7 +9,6 @@ import {Generic4626Router} from "./interfaces/Generic4626Router.sol";
 import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/ReentrancyGuardTransient.sol";
 import {PoolKey, IHooks} from "@uniswap/v4-core/src/types/PoolKey.sol";
 
-
 error InvalidFanToken();
 error IncorrectUnderlying(address underlying);
 error NoUnderlyingAssets();
@@ -100,7 +99,7 @@ contract FanTokenFactory is ReentrancyGuardTransient {
             return;
         }
 
-        (PoolKey memory poolKey, /*PoolId poolId*/) = UNISWAP_V4_ERC4626_HOOK.initializePool(vault);
+        (PoolKey memory poolKey, /*PoolId poolId*/ ) = UNISWAP_V4_ERC4626_HOOK.initializePool(vault);
 
         _deployedUniswapV4Pools[vault] = poolKey;
     }

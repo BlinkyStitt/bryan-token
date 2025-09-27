@@ -27,7 +27,6 @@ import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 // using PoolIdLibrary for PoolKey;
 using CurrencyLibrary for Currency;
 
-
 /**
  * @title Generic4626Router Integration Test
  * @notice Tests that Generic4626Router hook properly creates V4 pools

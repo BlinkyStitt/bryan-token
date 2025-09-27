@@ -68,6 +68,7 @@ contract FanTokenTest is Test {
     function test_vault_asset() public view {
         assertEq(address(bryan.UNDERLYING()), address(WETH9), "underlying isn't weth");
     }
+
     function test_vault_starts_empty() public view {
         assertEq(bryan.totalSupply(), 0, "vault should start with zero total supply");
         assertEq(bryan.totalAssets(), 0, "vault should start with zero total assets");
