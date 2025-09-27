@@ -13,24 +13,24 @@ contract FanTokenFactoryTest is Test {
     IWETH9 weth = IWETH9(payable(0x4200000000000000000000000000000000000006));
     Generic4626Router uniswapV4Hook = Generic4626Router(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888);
 
-    address treasury;
+    address treasury = makeAddr("treasury");
+    address owner = makeAddr("owner");
 
     function setUp() public {
-        fanTokenFactory = new FanTokenFactory(weth, uniswapV4Hook);
+        deal(owner, 10 ether);
 
-        address owner = makeAddr("bryan owner");
+        fanTokenFactory = new FanTokenFactory(weth, uniswapV4Hook);
 
         // TODO: need tests that have fees!
         uint256 harvestOwnerFeeBasisPoints = 0;
         uint256 harvestTreasuryFeeBasisPoints = 0;
 
-        treasury = makeAddr("treasury");
         uint256 initialDeposit = 0 ether;
 
         bytes32 salt = bytes32(0);
         bool setupUniswapV4HookedPool = false;
 
-        vm.startPrank(owner);
+        vm.prank(owner);
         bryan = fanTokenFactory.create(
             "ETH from Bryan",
             "BRY-ETH",
@@ -47,6 +47,11 @@ contract FanTokenFactoryTest is Test {
     function test_initial_deposit() public {
         uint256 initialDeposit = 1 ether;
 
+        deal(owner, initialDeposit);
+
+        require(owner.balance >= initialDeposit, "not enough for the initial deposit");
+
+        vm.prank(owner);
         FanToken fanToken = fanTokenFactory.create{value: initialDeposit}(
             "ETH from Bryan Again", "BRY-ETH-2", 0, 0, prizeVault, address(0), bytes32(0), initialDeposit, false
         );
@@ -54,12 +59,12 @@ contract FanTokenFactoryTest is Test {
         uint256 initialShares = fanToken.previewWithdraw(initialDeposit);
         assertEq(initialShares, initialDeposit, "initial deposit should be 1:1 shares");
 
-        assertEq(fanToken.balanceOfSponsorAssets(address(this)), initialDeposit, "initial deposits should be 1:1");
+        assertEq(fanToken.balanceOfSponsorAssets(owner), initialDeposit, "initial deposits should be 1:1");
 
         assertEq(fanToken.balanceOf(address(fanToken)), initialShares, "the contract should own the sponsored shares");
 
         // TODO: i can't decide if we should override balanceOf to include sponsor tokens. that will make transfers easy, but i think has other problems
-        assertEq(fanToken.balanceOf(address(this)), 0, "there should be some initial shares");
+        assertEq(fanToken.balanceOf(owner), 0, "there should be some initial shares");
     }
 
     function test_vault_asset() public view {

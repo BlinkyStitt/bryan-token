@@ -38,13 +38,12 @@ contract FanTokenTest is Test {
         Generic4626Router(address(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888));
 
     FanTokenFactory factory;
-    FanToken public bryan;
+    FanToken public bryanFanToken;
     IERC20 underlying;
 
     function setUp() public {
-        // TODO: use flags on the test command instead of forcing a fork here?
-
-        // TODO: the entry fee isn't what i want. i want it to be in fanTokens, not in underlying!
+        deal(owner, 10 ether);
+        deal(address(this), 10 ether);
 
         // Use realistic fee values for thorough testing
         uint256 harvestOwnerFeeBasisPoints = 200; // 2%
@@ -52,43 +51,42 @@ contract FanTokenTest is Test {
 
         factory = new FanTokenFactory(WETH9, UNISWAP_V4_4626_HOOK);
 
-        vm.startPrank(address(factory));
-
-        // TODO: this is not good. this should use factory.create, not new.
-        bryan = new FanToken(
-            "ETH from Bryan",
+        vm.prank(owner);
+        bryanFanToken = factory.create(
+            "ETH from bryan",
             "BRY-ETH",
             harvestOwnerFeeBasisPoints,
             harvestTreasuryFeeBasisPoints,
-            owner,
             prizeVault,
             treasury,
-            WETH9
+            bytes32(0),
+            0, // initial deposit
+            false
         );
 
-        underlying = bryan.UNDERLYING();
+        underlying = bryanFanToken.UNDERLYING();
 
-        vm.startPrank(sponsor);
-        bryan.setSponsorship(true);
+        vm.prank(sponsor);
+        bryanFanToken.setSponsorship(true);
 
-        vm.startPrank(sponsor1);
-        bryan.setSponsorship(true);
+        vm.prank(sponsor1);
+        bryanFanToken.setSponsorship(true);
 
-        vm.startPrank(sponsor2);
-        bryan.setSponsorship(true);
+        vm.prank(sponsor2);
+        bryanFanToken.setSponsorship(true);
 
-        vm.startPrank(sponsor3);
-        bryan.setSponsorship(true);
+        vm.prank(sponsor3);
+        bryanFanToken.setSponsorship(true);
     }
 
     /// @dev make sure the vault's underlying is weth
     function test_vault_asset() public view {
-        assertEq(address(bryan.UNDERLYING()), address(WETH9), "underlying isn't weth");
+        assertEq(address(bryanFanToken.UNDERLYING()), address(WETH9), "underlying isn't weth");
     }
 
     function test_vault_starts_empty() public view {
-        assertEq(bryan.totalSupply(), 0, "vault should start with zero total supply");
-        assertEq(bryan.totalAssets(), 0, "vault should start with zero total assets");
+        assertEq(bryanFanToken.totalSupply(), 0, "vault should start with zero total supply");
+        assertEq(bryanFanToken.totalAssets(), 0, "vault should start with zero total assets");
     }
 
     function test_ownership() public {
@@ -96,26 +94,26 @@ contract FanTokenTest is Test {
 
         // changing ownership from owner to nextOwner
 
-        assertEq(owner, bryan.owner(), "initial owner should match expected owner");
+        assertEq(owner, bryanFanToken.owner(), "initial owner should match expected owner");
 
         // make sure random accounts can't call transferOwnership
         vm.expectRevert();
-        bryan.transferOwnership(nextOwner);
+        bryanFanToken.transferOwnership(nextOwner);
 
         // only the owner should be able to call transfer ownership
         vm.startPrank(owner);
-        bryan.transferOwnership(nextOwner);
+        bryanFanToken.transferOwnership(nextOwner);
 
         // make sure acceptOwnership from other people fails
         vm.expectRevert();
-        bryan.acceptOwnership();
+        bryanFanToken.acceptOwnership();
 
         // only the next owner should be able to accept ownership
         vm.startPrank(nextOwner);
-        bryan.acceptOwnership();
+        bryanFanToken.acceptOwnership();
 
         // make sure the owner changed
-        assertEq(nextOwner, bryan.owner(), "wrong new owner");
+        assertEq(nextOwner, bryanFanToken.owner(), "wrong new owner");
     }
 
     /// @dev helper function for turning underlying assets into erc4626 shares
@@ -123,10 +121,10 @@ contract FanTokenTest is Test {
         deal(address(underlying), address(this), underlyingAssets, false);
 
         // asset == prize vault
-        asset = IERC4626(bryan.asset());
+        asset = IERC4626(bryanFanToken.asset());
         assertNotEq(address(asset), address(0), "asset should not be zero address");
 
-        // approve and deposit the underlying to get the asset that backs Bryan
+        // approve and deposit the underlying to get the asset that backs bryanFanToken
         underlying.approve(address(asset), type(uint256).max);
         assets = asset.deposit(underlyingAssets, receiver);
     }
@@ -134,70 +132,70 @@ contract FanTokenTest is Test {
     /// @dev Helper function for deposit operations with proper Transfer event expectations
     function _depositWithEvents(uint256 assets, address receiver) internal returns (uint256 shares) {
         // Deposit operations emit two Transfer events:
-        // 1. Mint to contract: Transfer(address(0), address(bryan), assets)
-        // 2. Transfer to alice: Transfer(address(bryan), receiver, assets)
+        // 1. Mint to contract: Transfer(address(0), address(bryanFanToken), assets)
+        // 2. Transfer to alice: Transfer(address(bryanFanToken), receiver, assets)
         vm.expectEmit(true, true, false, true);
-        emit IERC20.Transfer(address(0), address(bryan), assets);
+        emit IERC20.Transfer(address(0), address(bryanFanToken), assets);
         vm.expectEmit(true, true, false, true);
-        emit IERC20.Transfer(address(bryan), receiver, assets);
-        return bryan.deposit(assets, receiver);
+        emit IERC20.Transfer(address(bryanFanToken), receiver, assets);
+        return bryanFanToken.deposit(assets, receiver);
     }
 
     /// @dev Helper function for withdraw operations with proper Transfer event expectations
     function _withdrawWithEvents(uint256 assets, address to, address from) internal returns (uint256 shares) {
-        uint256 expectedShares = bryan.previewWithdraw(assets);
+        uint256 expectedShares = bryanFanToken.previewWithdraw(assets);
 
-        if (bryan.isSponsor(from)) {
+        if (bryanFanToken.isSponsor(from)) {
             // Sponsor withdraw operations emit THREE Transfer events:
-            // 1. Transfer(address(bryan), from, assets) - Contract to sponsor (assets)
+            // 1. Transfer(address(bryanFanToken), from, assets) - Contract to sponsor (assets)
             // 2. Transfer(from, address(0), expectedShares) - Burn shares from sponsor
-            // 3. Transfer(address(bryan), to, assets) - Contract to recipient (final assets)
+            // 3. Transfer(address(bryanFanToken), to, assets) - Contract to recipient (final assets)
             vm.expectEmit(true, true, false, true);
-            emit IERC20.Transfer(address(bryan), from, assets);
+            emit IERC20.Transfer(address(bryanFanToken), from, assets);
             vm.expectEmit(true, true, false, true);
             emit IERC20.Transfer(from, address(0), expectedShares);
             vm.expectEmit(true, true, false, true);
-            emit IERC20.Transfer(address(bryan), to, assets);
+            emit IERC20.Transfer(address(bryanFanToken), to, assets);
         } else {
             // Non-sponsor withdraw operations emit TWO Transfer events:
             // 1. Transfer(from, address(0), shares) - Burn shares from alice
-            // 2. Transfer(address(bryan), to, assets) - Transfer assets from contract to recipient
+            // 2. Transfer(address(bryanFanToken), to, assets) - Transfer assets from contract to recipient
             vm.expectEmit(true, true, false, true);
             emit IERC20.Transfer(from, address(0), expectedShares);
             vm.expectEmit(true, true, false, true);
-            emit IERC20.Transfer(address(bryan), to, assets);
+            emit IERC20.Transfer(address(bryanFanToken), to, assets);
         }
-        return bryan.withdraw(assets, to, from);
+        return bryanFanToken.withdraw(assets, to, from);
     }
 
     /// @dev Helper function for redeem operations with proper Transfer event expectations
     function _redeemWithEvents(uint256 shares, address to, address from) internal returns (uint256 assets) {
-        if (bryan.isSponsor(from)) {
+        if (bryanFanToken.isSponsor(from)) {
             // Sponsor redeem operations emit THREE Transfer events:
-            // 1. Transfer(address(bryan), from, shares) - Contract to sponsor
+            // 1. Transfer(address(bryanFanToken), from, shares) - Contract to sponsor
             // 2. Transfer(from, address(0), shares) - Burn from sponsor
-            // 3. Transfer(address(bryan), to, assets) - Contract to recipient (underlying assets)
-            uint256 expectedAssets = bryan.previewRedeem(shares);
+            // 3. Transfer(address(bryanFanToken), to, assets) - Contract to recipient (underlying assets)
+            uint256 expectedAssets = bryanFanToken.previewRedeem(shares);
             vm.expectEmit(true, true, false, true);
-            emit IERC20.Transfer(address(bryan), from, shares);
+            emit IERC20.Transfer(address(bryanFanToken), from, shares);
             vm.expectEmit(true, true, false, true);
             emit IERC20.Transfer(from, address(0), shares);
             vm.expectEmit(true, true, false, true);
-            emit IERC20.Transfer(address(bryan), to, expectedAssets);
+            emit IERC20.Transfer(address(bryanFanToken), to, expectedAssets);
         } else {
             // Non-sponsor redeem operations emit one Transfer event: Transfer(from, address(0), shares)
             vm.expectEmit(true, true, false, true);
             emit IERC20.Transfer(from, address(0), shares);
         }
-        return bryan.redeem(shares, to, from);
+        return bryanFanToken.redeem(shares, to, from);
     }
 
     function test_expected_default_sponsors() public view {
-        assertEq(bryan.isSponsor(address(0)), false, "zero address should not be sponsor");
-        assertEq(bryan.isSponsor(address(bryan)), false, "contract itself should not be sponsor"); // TODO: i'm unsure if we want this to be true or not. i think not
-        assertEq(bryan.isSponsor(owner), true, "owner should be default sponsor");
-        assertEq(bryan.isSponsor(treasury), true, "treasury should be default sponsor");
-        assertEq(bryan.isSponsor(address(factory)), true, "factory should be default sponsor");
+        assertEq(bryanFanToken.isSponsor(address(0)), false, "zero address should not be sponsor");
+        assertEq(bryanFanToken.isSponsor(address(bryanFanToken)), false, "contract itself should not be sponsor"); // TODO: i'm unsure if we want this to be true or not. i think not
+        assertEq(bryanFanToken.isSponsor(owner), true, "owner should be default sponsor");
+        assertEq(bryanFanToken.isSponsor(treasury), true, "treasury should be default sponsor");
+        assertEq(bryanFanToken.isSponsor(address(factory)), true, "factory should be default sponsor");
     }
 
     function test_multiple_users_depositing_without_sponsorship() public {
@@ -218,78 +216,88 @@ contract FanTokenTest is Test {
 
         // get some tokens for alice
         vm.startPrank(alice);
-        asset.approve(address(bryan), type(uint256).max);
-        uint256 aliceWhen = bryan.startDeposit(quarterAssets);
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        uint256 aliceWhen = bryanFanToken.startDeposit(quarterAssets);
         assertEq(aliceWhen, 0, "first deposit should be instant");
 
-        uint256 aliceFanTokens = bryan.balanceOf(alice);
+        uint256 aliceFanTokens = bryanFanToken.balanceOf(alice);
         assertEq(aliceFanTokens, quarterAssets, "alice should receive fan tokens equal to deposited assets");
 
         // check balances
-        assertEq(bryan.balanceOfUnderlying(alice), quarterAssets, "alice initial deposit should work");
-        assertEq(bryan.balanceOfUnderlying(bob), 0, "bob should have zero");
-        assertEq(bryan.balanceOfUnderlying(charlie), 0, "charlie should have zero");
+        assertEq(bryanFanToken.balanceOfUnderlying(alice), quarterAssets, "alice initial deposit should work");
+        assertEq(bryanFanToken.balanceOfUnderlying(bob), 0, "bob should have zero");
+        assertEq(bryanFanToken.balanceOfUnderlying(charlie), 0, "charlie should have zero");
 
         // check sponsorship levels
-        assertEq(bryan.isSponsor(alice), false, "alice must not be a sponsor");
-        assertEq(bryan.isSponsor(bob), false, "bob must be a sponsor");
-        assertEq(bryan.isSponsor(charlie), false, "charlie must not be a sponsor");
+        assertEq(bryanFanToken.isSponsor(alice), false, "alice must not be a sponsor");
+        assertEq(bryanFanToken.isSponsor(bob), false, "bob must be a sponsor");
+        assertEq(bryanFanToken.isSponsor(charlie), false, "charlie must not be a sponsor");
 
         // get some sponsor tokens for bob
         vm.startPrank(bob);
-        asset.approve(address(bryan), type(uint256).max);
-        uint256 bobWhen = bryan.startDeposit(quarterAssets);
-        assertEq(bobWhen, block.timestamp + bryan.DEPOSIT_DELAY(), "unexpected deposit delay");
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        uint256 bobWhen = bryanFanToken.startDeposit(quarterAssets);
+        assertEq(bobWhen, block.timestamp + bryanFanToken.DEPOSIT_DELAY(), "unexpected deposit delay");
 
         // check balances
-        assertEq(bryan.balanceOfUnderlying(alice), quarterAssets, "alice initial deposit should work");
-        assertEq(bryan.balanceOfUnderlying(bob), 0, "bob should have zero");
-        assertEq(bryan.balanceOfUnderlying(charlie), 0, "charlie should have zero");
+        assertEq(bryanFanToken.balanceOfUnderlying(alice), quarterAssets, "alice initial deposit should work");
+        assertEq(bryanFanToken.balanceOfUnderlying(bob), 0, "bob should have zero");
+        assertEq(bryanFanToken.balanceOfUnderlying(charlie), 0, "charlie should have zero");
 
-        assertEq(bryan.balanceOfSponsorAssets(alice), 0, "alice should not have a sponsor balance");
-        assertEq(bryan.balanceOfSponsorAssets(bob), 0, "bob should not have a sponsor balance");
-        assertEq(bryan.balanceOfSponsorAssets(charlie), 0, "charlie should not have a sponsor balance");
+        assertEq(bryanFanToken.balanceOfSponsorAssets(alice), 0, "alice should not have a sponsor balance");
+        assertEq(bryanFanToken.balanceOfSponsorAssets(bob), 0, "bob should not have a sponsor balance");
+        assertEq(bryanFanToken.balanceOfSponsorAssets(charlie), 0, "charlie should not have a sponsor balance");
 
         // TODO: this name should include "assets". and then balanceOfPendingAssets should be in shares.
-        assertEq(bryan.balanceOfPendingAssets(alice), 0, "alice should not have a pending balance");
-        assertEq(bryan.balanceOfPendingAssets(bob), quarterAssets, "bob should have a pending balance");
-        assertEq(bryan.balanceOfPendingAssets(charlie), 0, "charlie should not have a pending balance");
+        assertEq(bryanFanToken.balanceOfPendingAssets(alice), 0, "alice should not have a pending balance");
+        assertEq(bryanFanToken.balanceOfPendingAssets(bob), quarterAssets, "bob should have a pending balance");
+        assertEq(bryanFanToken.balanceOfPendingAssets(charlie), 0, "charlie should not have a pending balance");
 
         // fast forward and finalize deposit
-        vm.warp(block.timestamp + bryan.DEPOSIT_DELAY());
+        vm.warp(block.timestamp + bryanFanToken.DEPOSIT_DELAY());
         uint256 bobFanTokens = _depositWithEvents(quarterAssets, address(bob));
         assertEq(bobFanTokens, quarterAssets, "bob should receive fan tokens equal to deposited assets");
 
-        assertEq(bryan.balanceOfUnderlying(alice), quarterAssets, "alice initial deposit should work");
-        assertEq(bryan.balanceOfUnderlying(bob), quarterAssets, "bob should have a deposit now");
-        assertEq(bryan.balanceOfUnderlying(charlie), 0, "charlie should still have zero");
+        assertEq(bryanFanToken.balanceOfUnderlying(alice), quarterAssets, "alice initial deposit should work");
+        assertEq(bryanFanToken.balanceOfUnderlying(bob), quarterAssets, "bob should have a deposit now");
+        assertEq(bryanFanToken.balanceOfUnderlying(charlie), 0, "charlie should still have zero");
 
-        assertEq(bryan.balanceOfSponsorAssets(alice), 0, "alice should still not have a sponsor balance");
-        assertEq(bryan.balanceOfSponsorAssets(bob), 0, "bob should still not have a sponsor balance now");
-        assertEq(bryan.balanceOfSponsorAssets(charlie), 0, "charlie should still not have a sponsor balance");
+        assertEq(bryanFanToken.balanceOfSponsorAssets(alice), 0, "alice should still not have a sponsor balance");
+        assertEq(bryanFanToken.balanceOfSponsorAssets(bob), 0, "bob should still not have a sponsor balance now");
+        assertEq(bryanFanToken.balanceOfSponsorAssets(charlie), 0, "charlie should still not have a sponsor balance");
 
         // get some tokens for charlie and then convert them to sponsor tokens
         vm.startPrank(charlie);
-        asset.approve(address(bryan), type(uint256).max);
-        uint256 charlieWhen = bryan.startDeposit(quarterAssets);
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        uint256 charlieWhen = bryanFanToken.startDeposit(quarterAssets);
 
-        assertEq(charlieWhen, block.timestamp + bryan.DEPOSIT_DELAY(), "charlie deposit delay wrong");
+        assertEq(charlieWhen, block.timestamp + bryanFanToken.DEPOSIT_DELAY(), "charlie deposit delay wrong");
 
         // TODO: add some rewards to the contract and make sure that doesn't break any balances
 
         // fast forward and finalize deposit
-        vm.warp(block.timestamp + bryan.DEPOSIT_DELAY());
-        uint256 charlieFanTokens = bryan.deposit(quarterAssets, address(charlie));
+        vm.warp(block.timestamp + bryanFanToken.DEPOSIT_DELAY());
+        uint256 charlieFanTokens = bryanFanToken.deposit(quarterAssets, address(charlie));
         assertEq(charlieFanTokens, quarterAssets, "charlie should receive fan tokens equal to deposited assets");
 
-        assertEq(bryan.balanceOfUnderlying(alice), quarterAssets, "alice should still have their original deposit");
-        assertEq(bryan.balanceOfUnderlying(bob), quarterAssets, "bob should still have their original deposit");
-        assertEq(bryan.balanceOfUnderlying(charlie), quarterAssets, "charlie should now have a deposit");
-
-        assertEq(bryan.balanceOfSponsorAssets(alice), 0, "after charlie, alice should still not have a sponsor balance");
-        assertEq(bryan.balanceOfSponsorAssets(bob), 0, "after charlie, bob should still not have a sponsor balance");
         assertEq(
-            bryan.balanceOfSponsorAssets(charlie), 0, "after charlie, charlie should still not have a sponsor balance"
+            bryanFanToken.balanceOfUnderlying(alice), quarterAssets, "alice should still have their original deposit"
+        );
+        assertEq(bryanFanToken.balanceOfUnderlying(bob), quarterAssets, "bob should still have their original deposit");
+        assertEq(bryanFanToken.balanceOfUnderlying(charlie), quarterAssets, "charlie should now have a deposit");
+
+        assertEq(
+            bryanFanToken.balanceOfSponsorAssets(alice),
+            0,
+            "after charlie, alice should still not have a sponsor balance"
+        );
+        assertEq(
+            bryanFanToken.balanceOfSponsorAssets(bob), 0, "after charlie, bob should still not have a sponsor balance"
+        );
+        assertEq(
+            bryanFanToken.balanceOfSponsorAssets(charlie),
+            0,
+            "after charlie, charlie should still not have a sponsor balance"
         );
 
         // TODO: transfer tokens from alice to bob
@@ -318,87 +326,99 @@ contract FanTokenTest is Test {
 
         // get some tokens for alice
         vm.startPrank(alice);
-        asset.approve(address(bryan), type(uint256).max);
-        uint256 aliceWhen = bryan.startDeposit(quarterAssets);
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        uint256 aliceWhen = bryanFanToken.startDeposit(quarterAssets);
         assertEq(aliceWhen, 0, "first deposit should be instant");
 
-        uint256 aliceFanTokens = bryan.balanceOf(alice);
+        uint256 aliceFanTokens = bryanFanToken.balanceOf(alice);
         assertEq(aliceFanTokens, quarterAssets, "alice should receive fan tokens equal to deposited assets");
 
         // check balances
-        assertEq(bryan.balanceOfUnderlying(alice), quarterAssets, "alice initial deposit should work");
-        assertEq(bryan.balanceOfUnderlying(bob), 0, "bob should have zero");
-        assertEq(bryan.balanceOfUnderlying(charlie), 0, "charlie should have zero");
+        assertEq(bryanFanToken.balanceOfUnderlying(alice), quarterAssets, "alice initial deposit should work");
+        assertEq(bryanFanToken.balanceOfUnderlying(bob), 0, "bob should have zero");
+        assertEq(bryanFanToken.balanceOfUnderlying(charlie), 0, "charlie should have zero");
 
         // mark bob as a sponsor
         vm.startPrank(bob);
-        bryan.setSponsorship(true);
+        bryanFanToken.setSponsorship(true);
 
         // check sponsorship levels
-        assertEq(bryan.isSponsor(alice), false, "alice must not be a sponsor");
-        assertEq(bryan.isSponsor(bob), true, "bob must be a sponsor");
-        assertEq(bryan.isSponsor(charlie), false, "charlie must not be a sponsor");
+        assertEq(bryanFanToken.isSponsor(alice), false, "alice must not be a sponsor");
+        assertEq(bryanFanToken.isSponsor(bob), true, "bob must be a sponsor");
+        assertEq(bryanFanToken.isSponsor(charlie), false, "charlie must not be a sponsor");
 
         // get some sponsor tokens for bob
-        asset.approve(address(bryan), type(uint256).max);
-        uint256 bobWhen = bryan.startDeposit(quarterAssets);
-        assertEq(bobWhen, block.timestamp + bryan.DEPOSIT_DELAY(), "unexpected deposit delay");
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        uint256 bobWhen = bryanFanToken.startDeposit(quarterAssets);
+        assertEq(bobWhen, block.timestamp + bryanFanToken.DEPOSIT_DELAY(), "unexpected deposit delay");
 
         // check balances
-        assertEq(bryan.balanceOfUnderlying(alice), quarterAssets, "alice initial deposit should work");
-        assertEq(bryan.balanceOfUnderlying(bob), 0, "bob should have zero");
-        assertEq(bryan.balanceOfUnderlying(charlie), 0, "charlie should have zero");
+        assertEq(bryanFanToken.balanceOfUnderlying(alice), quarterAssets, "alice initial deposit should work");
+        assertEq(bryanFanToken.balanceOfUnderlying(bob), 0, "bob should have zero");
+        assertEq(bryanFanToken.balanceOfUnderlying(charlie), 0, "charlie should have zero");
 
-        assertEq(bryan.balanceOfSponsorAssets(alice), 0, "alice should not have a sponsor balance");
-        assertEq(bryan.balanceOfSponsorAssets(bob), 0, "bob should not have a sponsor balance");
-        assertEq(bryan.balanceOfSponsorAssets(charlie), 0, "charlie should not have a sponsor balance");
+        assertEq(bryanFanToken.balanceOfSponsorAssets(alice), 0, "alice should not have a sponsor balance");
+        assertEq(bryanFanToken.balanceOfSponsorAssets(bob), 0, "bob should not have a sponsor balance");
+        assertEq(bryanFanToken.balanceOfSponsorAssets(charlie), 0, "charlie should not have a sponsor balance");
 
         // TODO: this name should include "assets". and then balanceOfPendingAssets should be in shares.
-        assertEq(bryan.balanceOfPendingAssets(alice), 0, "alice should not have a pending balance");
-        assertEq(bryan.balanceOfPendingAssets(bob), quarterAssets, "bob should have a pending balance");
-        assertEq(bryan.balanceOfPendingAssets(charlie), 0, "charlie should not have a pending balance");
+        assertEq(bryanFanToken.balanceOfPendingAssets(alice), 0, "alice should not have a pending balance");
+        assertEq(bryanFanToken.balanceOfPendingAssets(bob), quarterAssets, "bob should have a pending balance");
+        assertEq(bryanFanToken.balanceOfPendingAssets(charlie), 0, "charlie should not have a pending balance");
 
         // fast forward and finalize deposit
-        vm.warp(block.timestamp + bryan.DEPOSIT_DELAY());
-        uint256 bobFanTokens = bryan.deposit(quarterAssets, address(bob));
+        vm.warp(block.timestamp + bryanFanToken.DEPOSIT_DELAY());
+        uint256 bobFanTokens = bryanFanToken.deposit(quarterAssets, address(bob));
         assertEq(bobFanTokens, quarterAssets, "bob should receive fan tokens equal to deposited assets");
 
-        assertEq(bryan.balanceOfUnderlying(alice), quarterAssets, "alice initial deposit should work");
-        assertEq(bryan.balanceOfUnderlying(bob), 0, "bob should still have zero");
-        assertEq(bryan.balanceOfUnderlying(charlie), 0, "charlie should still have zero");
+        assertEq(bryanFanToken.balanceOfUnderlying(alice), quarterAssets, "alice initial deposit should work");
+        assertEq(bryanFanToken.balanceOfUnderlying(bob), 0, "bob should still have zero");
+        assertEq(bryanFanToken.balanceOfUnderlying(charlie), 0, "charlie should still have zero");
 
-        assertEq(bryan.balanceOfSponsorAssets(alice), 0, "alice should still not have a sponsor balance");
-        assertEq(bryan.balanceOfSponsorAssets(bob), quarterAssets, "bob should have a sponsor balance now");
-        assertEq(bryan.balanceOfSponsorAssets(charlie), 0, "charlie should still not have a sponsor balance");
+        assertEq(bryanFanToken.balanceOfSponsorAssets(alice), 0, "alice should still not have a sponsor balance");
+        assertEq(bryanFanToken.balanceOfSponsorAssets(bob), quarterAssets, "bob should have a sponsor balance now");
+        assertEq(bryanFanToken.balanceOfSponsorAssets(charlie), 0, "charlie should still not have a sponsor balance");
 
         // get some tokens for charlie and then convert them to sponsor tokens
         vm.startPrank(charlie);
-        asset.approve(address(bryan), type(uint256).max);
-        uint256 charlieWhen = bryan.startDeposit(quarterAssets);
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        uint256 charlieWhen = bryanFanToken.startDeposit(quarterAssets);
 
-        assertEq(charlieWhen, block.timestamp + bryan.DEPOSIT_DELAY(), "charlie deposit delay wrong");
+        assertEq(charlieWhen, block.timestamp + bryanFanToken.DEPOSIT_DELAY(), "charlie deposit delay wrong");
 
         // we change set sponsorship during the delay queue
         // TODO: we should also have a test that changes sponsorship after the deposit is finalized
-        bryan.setSponsorship(true);
+        bryanFanToken.setSponsorship(true);
 
         // TODO: add some rewards to the contract and make sure that doesn't break any balances
 
         // fast forward and finalize deposit
-        vm.warp(block.timestamp + bryan.DEPOSIT_DELAY());
-        uint256 charlieFanTokens = bryan.deposit(quarterAssets, address(charlie));
+        vm.warp(block.timestamp + bryanFanToken.DEPOSIT_DELAY());
+        uint256 charlieFanTokens = bryanFanToken.deposit(quarterAssets, address(charlie));
         assertEq(charlieFanTokens, quarterAssets, "charlie should receive fan tokens equal to deposited assets");
 
-        assertEq(bryan.balanceOfUnderlying(alice), quarterAssets, "alice should still have their original deposit");
-        assertEq(bryan.balanceOfUnderlying(bob), 0, "bob is a sponsor and should have zero still");
-        assertEq(bryan.balanceOfUnderlying(charlie), 0, "charlie is a sponsor and should should still have zero still");
-
-        assertEq(bryan.balanceOfSponsorAssets(alice), 0, "after charlie, alice should still not have a sponsor balance");
         assertEq(
-            bryan.balanceOfSponsorAssets(bob), quarterAssets, "after charlie, bob should have a sponsor balance now"
+            bryanFanToken.balanceOfUnderlying(alice), quarterAssets, "alice should still have their original deposit"
+        );
+        assertEq(bryanFanToken.balanceOfUnderlying(bob), 0, "bob is a sponsor and should have zero still");
+        assertEq(
+            bryanFanToken.balanceOfUnderlying(charlie),
+            0,
+            "charlie is a sponsor and should should still have zero still"
+        );
+
+        assertEq(
+            bryanFanToken.balanceOfSponsorAssets(alice),
+            0,
+            "after charlie, alice should still not have a sponsor balance"
         );
         assertEq(
-            bryan.balanceOfSponsorAssets(charlie),
+            bryanFanToken.balanceOfSponsorAssets(bob),
+            quarterAssets,
+            "after charlie, bob should have a sponsor balance now"
+        );
+        assertEq(
+            bryanFanToken.balanceOfSponsorAssets(charlie),
             quarterAssets,
             "after charlie, charlie should have a sponsor balance now"
         );
@@ -420,34 +440,38 @@ contract FanTokenTest is Test {
         (IERC4626 asset, uint256 assets) = _dealAsset(underlyingAssets, address(this));
         assertEq(assets, underlyingAssets, "should deal exactly the underlying assets amount");
 
-        asset.approve(address(bryan), type(uint256).max);
-        uint256 when = bryan.startDeposit(assets);
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        uint256 when = bryanFanToken.startDeposit(assets);
 
         assertEq(when, 0, "this deposit should be instant");
 
-        uint256 originalTotalSupply = bryan.totalSupply();
+        uint256 originalTotalSupply = bryanFanToken.totalSupply();
         assertEq(originalTotalSupply, underlyingAssets, "initial total supply should equal underlying assets");
 
-        assertEq(bryan.balanceOfUnderlying(address(this)), underlyingAssets, "initial deposit amount");
+        assertEq(bryanFanToken.balanceOfUnderlying(address(this)), underlyingAssets, "initial deposit amount");
         assertEq(
-            bryan.balanceOfSponsorAssets(address(this)), 0, "initial deposit amount shouldn't have any sponsorship"
+            bryanFanToken.balanceOfSponsorAssets(address(this)),
+            0,
+            "initial deposit amount shouldn't have any sponsorship"
         );
-        assertEq(bryan.totalAssets(), assets, "initial deposit assets");
+        assertEq(bryanFanToken.totalAssets(), assets, "initial deposit assets");
         assertEq(originalTotalSupply, underlyingAssets, "total supply should equal underlying assets");
 
-        bryan.setSponsorship(true);
+        bryanFanToken.setSponsorship(true);
 
-        assertEq(bryan.balanceOfUnderlying(address(this)), 0, "initial deposit amount");
-        assertEq(bryan.balanceOfSponsorAssets(address(this)), underlyingAssets, "now it should have sponsorship");
-        assertEq(bryan.totalAssets(), assets, "total assets should be unchanged");
-        assertEq(bryan.totalSupply(), originalTotalSupply, "total supply should be unchanged");
+        assertEq(bryanFanToken.balanceOfUnderlying(address(this)), 0, "initial deposit amount");
+        assertEq(
+            bryanFanToken.balanceOfSponsorAssets(address(this)), underlyingAssets, "now it should have sponsorship"
+        );
+        assertEq(bryanFanToken.totalAssets(), assets, "total assets should be unchanged");
+        assertEq(bryanFanToken.totalSupply(), originalTotalSupply, "total supply should be unchanged");
 
-        bryan.setSponsorship(false);
+        bryanFanToken.setSponsorship(false);
 
-        assertEq(bryan.balanceOfUnderlying(address(this)), underlyingAssets, "initial deposit amount");
-        assertEq(bryan.balanceOfSponsorAssets(address(this)), 0, "now it should have sponsorship");
-        assertEq(bryan.totalAssets(), assets, "total assets should still be unchanged");
-        assertEq(bryan.totalSupply(), originalTotalSupply, "total supply should be still unchanged");
+        assertEq(bryanFanToken.balanceOfUnderlying(address(this)), underlyingAssets, "initial deposit amount");
+        assertEq(bryanFanToken.balanceOfSponsorAssets(address(this)), 0, "now it should have sponsorship");
+        assertEq(bryanFanToken.totalAssets(), assets, "total assets should still be unchanged");
+        assertEq(bryanFanToken.totalSupply(), originalTotalSupply, "total supply should be still unchanged");
     }
 
     function test_deposit_and_withdraw() public {
@@ -455,37 +479,39 @@ contract FanTokenTest is Test {
         uint256 underlyingAssets = 1 ether;
         (IERC4626 asset, uint256 assets) = _dealAsset(underlyingAssets, address(this));
 
-        uint256 depositDelay = bryan.DEPOSIT_DELAY();
+        uint256 depositDelay = bryanFanToken.DEPOSIT_DELAY();
 
-        asset.approve(address(bryan), type(uint256).max);
+        asset.approve(address(bryanFanToken), type(uint256).max);
 
-        uint256 shares = bryan.deposit(assets / 2, address(this));
+        uint256 shares = bryanFanToken.deposit(assets / 2, address(this));
         assertEq(shares, assets / 2, "shares minted should equal deposited assets");
 
-        assertEq(bryan.totalSupply(), shares, "supply wrong 1");
+        assertEq(bryanFanToken.totalSupply(), shares, "supply wrong 1");
 
         // todo: deposit without calling start should revert
-        uint256 when = bryan.startDeposit(assets / 2, address(this));
+        uint256 when = bryanFanToken.startDeposit(assets / 2, address(this));
         assertEq(when, block.timestamp + depositDelay, "second deposit availability mismatch");
-        assertEq(bryan.balanceOfPendingAssets(address(this)), assets / 2, "finishing deposit failed");
+        assertEq(bryanFanToken.balanceOfPendingAssets(address(this)), assets / 2, "finishing deposit failed");
 
         // Total supply should not increase until deposit is finalized
-        assertEq(bryan.totalSupply(), shares, "supply should stay same until deposit finalized");
+        assertEq(bryanFanToken.totalSupply(), shares, "supply should stay same until deposit finalized");
 
         vm.warp(block.timestamp + depositDelay);
         // TODO: test depositing from another address. anyone should be able to finalize a deposit
-        uint256 newShares = bryan.deposit(assets / 2, address(this));
+        uint256 newShares = bryanFanToken.deposit(assets / 2, address(this));
         assertEq(newShares, assets / 2, "second deposit should mint same number of shares");
 
-        assertEq(bryan.balanceOfPendingAssets(address(this)), 0, "finishing deposit failed");
+        assertEq(bryanFanToken.balanceOfPendingAssets(address(this)), 0, "finishing deposit failed");
 
-        assertEq(bryan.totalSupply(), shares + newShares, "supply wrong 3");
+        assertEq(bryanFanToken.totalSupply(), shares + newShares, "supply wrong 3");
 
         // TODO: the fees make this annoying
-        assertEq(asset.balanceOf(address(bryan)), assets, "asset balance does not match assets");
-        assertEq(bryan.balanceOf(address(this)), shares + newShares, "bryan balance does not match shares");
+        assertEq(asset.balanceOf(address(bryanFanToken)), assets, "asset balance does not match assets");
+        assertEq(
+            bryanFanToken.balanceOf(address(this)), shares + newShares, "bryanFanToken balance does not match shares"
+        );
         assertApproxEqAbs(
-            bryan.balanceOfUnderlying(address(this)), underlyingAssets, 1, "underlying balance does not match"
+            bryanFanToken.balanceOfUnderlying(address(this)), underlyingAssets, 1, "underlying balance does not match"
         );
 
         // test the main redeem function
@@ -493,56 +519,59 @@ contract FanTokenTest is Test {
 
         assertEq(redeemed, underlyingAssets, "should redeem the original deposit amount");
         assertApproxEqAbs(
-            IERC20(bryan.asset()).balanceOf(address(bryan)), 0, 1, "token's asset balance should be empty"
+            IERC20(bryanFanToken.asset()).balanceOf(address(bryanFanToken)),
+            0,
+            1,
+            "token's asset balance should be empty"
         );
-        assertEq(bryan.balanceOf(address(this)), 0, "our balance of bryan should be empty");
+        assertEq(bryanFanToken.balanceOf(address(this)), 0, "our balance of bryanFanToken should be empty");
         assertApproxEqAbs(asset.balanceOf(address(this)), assets, 1, "we should have our asset back less the fee");
-        assertEq(bryan.balanceOfUnderlying(address(this)), 0, "underlying balance is not zeroed");
+        assertEq(bryanFanToken.balanceOfUnderlying(address(this)), 0, "underlying balance is not zeroed");
     }
 
     function test_enableAuction_asset_fails() public {
-        IERC20 from = IERC20(bryan.asset());
+        IERC20 from = IERC20(bryanFanToken.asset());
 
         vm.expectRevert(InvalidAuctionToken.selector);
-        bryan.enableAuction(from);
+        bryanFanToken.enableAuction(from);
     }
 
     function test_enableAuction_underlying_fails() public {
-        IERC20 from = IERC20(address(bryan.UNDERLYING()));
+        IERC20 from = IERC20(address(bryanFanToken.UNDERLYING()));
 
         vm.expectRevert(InvalidAuctionToken.selector);
-        bryan.enableAuction(from);
+        bryanFanToken.enableAuction(from);
     }
 
     function test_enableAuction_self_fails() public {
-        IERC20 from = IERC20(address(bryan));
+        IERC20 from = IERC20(address(bryanFanToken));
 
         vm.expectRevert(InvalidAuctionToken.selector);
-        bryan.enableAuction(from);
+        bryanFanToken.enableAuction(from);
     }
 
     function test_auction_pool() public {
         IERC20 from = IERC20(0xd652C5425aea2Afd5fb142e120FeCf79e18fafc3); // POOL
 
-        bryan.enableAuction(from);
+        bryanFanToken.enableAuction(from);
 
         uint256 fromAmount = 1 ether;
         assertEq(fromAmount, 1 ether, "test assumes an auction size of 1 ether");
 
-        deal(address(from), address(bryan), fromAmount, true);
+        deal(address(from), address(bryanFanToken), fromAmount, true);
 
-        assertEq(bryan.kickable(address(from)), fromAmount, "kickable amount wrong");
+        assertEq(bryanFanToken.kickable(address(from)), fromAmount, "kickable amount wrong");
 
         // Test auctionTrigger before kicking
-        (bool shouldKick, bytes memory triggerData) = bryan.auctionTrigger(address(from));
+        (bool shouldKick, bytes memory triggerData) = bryanFanToken.auctionTrigger(address(from));
         assertTrue(shouldKick, "auctionTrigger should return true for kickable amount");
         assertNotEq(triggerData.length, 0, "trigger data should not be empty");
 
-        IAuction auction = IAuction(bryan.auction());
+        IAuction auction = IAuction(bryanFanToken.auction());
         require(address(auction) != address(0), "no auction contract");
 
-        // TODO: compare encoding bryan.KickAuction to triggerData.
-        uint256 available = bryan.kickAuction(address(from));
+        // TODO: compare encoding bryanFanToken.KickAuction to triggerData.
+        uint256 available = bryanFanToken.kickAuction(address(from));
 
         assertEq(fromAmount, available, "auction size incorrect");
 
@@ -550,7 +579,7 @@ contract FanTokenTest is Test {
         vm.warp(block.timestamp + 12 hours);
 
         address want = auction.want();
-        assertEq(want, address(bryan.UNDERLYING()), "wrong want");
+        assertEq(want, address(bryanFanToken.UNDERLYING()), "wrong want");
 
         // prepare approvals
         IERC20(want).approve(address(auction), type(uint256).max);
@@ -567,35 +596,35 @@ contract FanTokenTest is Test {
 
         // the old code had a postTake hook. the new code does not!
         // thanks to the post take hook, this was deposited
-        // assertEq(IERC20(want).balanceOf(address(bryan)), 0, "want balance should be 0");
+        // assertEq(IERC20(want).balanceOf(address(bryanFanToken)), 0, "want balance should be 0");
 
         // TODO: assert more things about the value
         assertGt(amountFromTaken, 0, "from taken should be nonzero");
     }
 
     function test_empty_harvest() public {
-        assertEq(bryan.harvest(), 0);
+        assertEq(bryanFanToken.harvest(), 0);
     }
 
     function test_harvest_eth() public {
-        require(address(bryan.UNDERLYING()) == address(WETH9), "not weth");
+        require(address(bryanFanToken.UNDERLYING()) == address(WETH9), "not weth");
 
         uint256 amount = 1 ether;
 
-        assertEq(bryan.harvest{value: amount}(), amount, "incorrect eth harvest amount");
+        assertEq(bryanFanToken.harvest{value: amount}(), amount, "incorrect eth harvest amount");
 
         // TODO: assert that the share price went up properly
     }
 
     function test_harvest_weth() public {
-        require(address(bryan.UNDERLYING()) == address(WETH9), "not weth");
+        require(address(bryanFanToken.UNDERLYING()) == address(WETH9), "not weth");
 
         uint256 amount = 1 ether;
 
         WETH9.deposit{value: amount}();
-        require(WETH9.transfer(address(bryan), amount), "weth transfer failed");
+        require(WETH9.transfer(address(bryanFanToken), amount), "weth transfer failed");
 
-        assertEq(bryan.harvest(), amount, "incorrect weth harvest amount");
+        assertEq(bryanFanToken.harvest(), amount, "incorrect weth harvest amount");
 
         // TODO: assert that the share price went up properly
     }
@@ -605,132 +634,101 @@ contract FanTokenTest is Test {
         vm.assume(value < 100 ether);
         vm.assume(value > 0); // we call wrapETH at the start and end, so no real point in skipping it
 
-        assertEq(bryan.wrapETH(), 0);
-        assertEq(WETH9.balanceOf(address(bryan)), 0);
+        assertEq(bryanFanToken.wrapETH(), 0);
+        assertEq(WETH9.balanceOf(address(bryanFanToken)), 0);
 
-        assertEq(bryan.wrapETH{value: value}(), value);
-        assertEq(WETH9.balanceOf(address(bryan)), value);
+        assertEq(bryanFanToken.wrapETH{value: value}(), value);
+        assertEq(WETH9.balanceOf(address(bryanFanToken)), value);
 
-        assertEq(bryan.wrapETH(), 0);
-        assertEq(WETH9.balanceOf(address(bryan)), value);
+        assertEq(bryanFanToken.wrapETH(), 0);
+        assertEq(WETH9.balanceOf(address(bryanFanToken)), value);
     }
 
     function test_harvest_with_both_fees() public {
-        (IERC4626 asset, uint256 assets) = _dealAsset(1 ether, address(this));
+        uint256 initialDeposit = 10 ether;
 
-        vm.startPrank(address(owner));
-        asset.approve(address(factory), type(uint256).max);
-        FanToken testFanToken = factory.create(
+        vm.prank(owner);
+        FanToken testFanToken = factory.create{value: initialDeposit}(
             "Both Fees Test",
             "BOTH",
             5000, // 50% owner fee
             5000, // 50% treasury fee
-            IERC4626(bryan.asset()),
+            IERC4626(bryanFanToken.asset()),
             treasury,
             bytes32(0),
-            assets,
+            initialDeposit,
             false
         );
 
-        assertEq(testFanToken.balanceOf(owner), assets, "initial owner balance should equal deposited assets");
-        assertEq(testFanToken.totalSupply(), assets, "initial total supply should equal deposited assets");
+        vm.prank(owner);
+        testFanToken.setSponsorship(false);
 
+        assertEq(testFanToken.totalSupply(), initialDeposit, "initial total supply should equal deposited assets");
+        assertEq(testFanToken.balanceOf(owner), initialDeposit, "initial owner balance should equal deposited assets");
+
+        // fake rewards
         uint256 rewardAmount = 1 ether;
-        vm.deal(address(this), rewardAmount);
-        WETH9.deposit{value: rewardAmount}();
-        require(WETH9.transfer(address(testFanToken), rewardAmount), "weth transfer failed");
+        vm.deal(address(testFanToken), rewardAmount);
 
         // Harvest
         uint256 harvested = testFanToken.harvest();
         assertEq(harvested, rewardAmount, "should harvest all rewards");
-        assertEq(testFanToken.totalSupply(), assets, "total supply should not change after harvest");
+        assertEq(testFanToken.totalSupply(), initialDeposit, "total supply should not change after harvest");
 
-        // Check fees were distributed
-        // TODO: this is wrong. the fees are in
-        assertGt(
+        assertEq(
             prizeVault.previewRedeem(prizeVault.balanceOf(owner)),
             rewardAmount / 2,
             "owner fee balance should get half the rewards"
         );
-        assertGt(
+        assertEq(
             prizeVault.balanceOf(treasury),
             prizeVault.balanceOf(owner),
             "treasury fee balance should increase the same as the owner's"
         );
 
         // Both owner and treasury should get fees in assets now
-        assertEq(prizeVault.balanceOf(owner), rewardAmount / 2, "owner should get asset fee");
-        assertEq(prizeVault.balanceOf(treasury), rewardAmount / 2, "treasury should get asset fee");
+        // TODO: reward amount is in the underlying, but we need to convert this to shares
+        assertEq(prizeVault.balanceOf(owner), prizeVault.previewWithdraw(rewardAmount / 2), "owner should get asset fee");
+        assertEq(prizeVault.balanceOf(treasury), prizeVault.previewWithdraw(rewardAmount / 2), "treasury should get asset fee");
     }
 
     /// TODO: clean up this ai slop
     function test_sponsor_burn() public {
-        {
-            uint256 depositAmount = 1 ether;
-            (IERC4626 asset, uint256 assets) = _dealAsset(depositAmount, sponsor);
+        uint256 depositAmount = 1 ether;
+        (IERC4626 asset, uint256 assets) = _dealAsset(depositAmount, sponsor);
 
-            vm.startPrank(sponsor);
-            bryan.setSponsorship(true);
+        vm.startPrank(sponsor);
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        bryanFanToken.deposit(assets, sponsor);
 
-            asset.approve(address(bryan), type(uint256).max);
-            uint256 when = bryan.startDeposit(assets);
-            assertEq(when, 0, "first deposit should be instant for sponsor");
-        }
+        uint256 sponsorBalance = bryanFanToken.balanceOfSponsorAssets(sponsor);
 
-        // Record initial state in separate scope
-        {
-            uint256 initialSponsorBalance = bryan.balanceOfSponsorAssets(sponsor);
-            uint256 initialTotalSponsorAssets = bryan.totalSponsorAssets();
-            uint256 initialContractShares = bryan.balanceOf(address(bryan));
+        assertGt(sponsorBalance, 0, "there should be some sponsor balance");
 
-            assertGt(initialSponsorBalance, 0, "sponsor should have balance");
-            assertGt(initialTotalSponsorAssets, 0, "should have total sponsor assets");
-            assertEq(
-                initialTotalSponsorAssets,
-                initialSponsorBalance,
-                "total sponsor assets should equal sponsor balance before burn"
-            );
-            assertGt(initialContractShares, 0, "contract should hold sponsored shares before burn");
+        bryanFanToken.sponsorBurn(sponsorBalance / 2);
 
-            // Burn half the assets
-            uint256 burnAmount = initialSponsorBalance / 2;
-            assertGt(burnAmount, 0, "burn amount should be positive");
-            bryan.sponsorBurn(burnAmount);
-
-            // Verify results
-            uint256 finalSponsorBalance = bryan.balanceOfSponsorAssets(sponsor);
-            uint256 finalTotalSponsorAssets = bryan.totalSponsorAssets();
-            uint256 finalContractShares = bryan.balanceOf(address(bryan));
-
-            assertEq(
-                finalSponsorBalance,
-                initialSponsorBalance - burnAmount,
-                "sponsor balance should decrease by burn amount"
-            );
-            assertEq(
-                finalTotalSponsorAssets, initialTotalSponsorAssets - burnAmount, "total sponsor assets should decrease"
-            );
-            assertLt(finalContractShares, initialContractShares, "contract shares should decrease from burn");
-        }
+        assertEq(
+            bryanFanToken.balanceOfSponsorAssets(sponsor),
+            sponsorBalance / 2,
+            "half the balance should have been burned"
+        );
     }
 
+    /// @dev Trying  to burn more than balance should fail
     function test_sponsor_burn_insufficient_balance() public {
         uint256 depositAmount = 1 ether;
         (IERC4626 asset, uint256 assets) = _dealAsset(depositAmount, sponsor);
 
         vm.startPrank(sponsor);
-        asset.approve(address(bryan), type(uint256).max);
-        bryan.deposit(assets, sponsor);
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        bryanFanToken.deposit(assets, sponsor);
 
-        uint256 sponsorBalance = bryan.balanceOfSponsorAssets(sponsor);
+        uint256 sponsorBalance = bryanFanToken.balanceOfSponsorAssets(sponsor);
 
-        // Try to burn more than balance
-        uint256 excessiveBurnAmount = sponsorBalance + 1 ether;
-        assertEq(excessiveBurnAmount, sponsorBalance + 1 ether, "excessive burn should exceed balance by one ether");
-        assertGt(excessiveBurnAmount, sponsorBalance, "excessive burn must exceed sponsor balance");
+        assertGt(sponsorBalance, 0, "there should be some sponsor balance");
 
         vm.expectRevert();
-        bryan.sponsorBurn(excessiveBurnAmount);
+        bryanFanToken.sponsorBurn(sponsorBalance + 1);
     }
 
     // Set up scenario: sponsor and non-sponsor users, then send rewards to trigger harvestSponsorship
@@ -745,49 +743,51 @@ contract FanTokenTest is Test {
 
         // Non-sponsors deposit first with proper timing
         vm.startPrank(alice);
-        asset.approve(address(bryan), type(uint256).max);
-        uint256 aliceWhen = bryan.startDeposit(depositAmount, alice);
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        uint256 aliceWhen = bryanFanToken.startDeposit(depositAmount, alice);
         // Alice should be the first deposit, so immediate
         assertEq(aliceWhen, 0, "alice first deposit should be immediate");
 
         vm.startPrank(bob);
-        asset.approve(address(bryan), type(uint256).max);
-        uint256 bobWhen = bryan.startDeposit(depositAmount, bob);
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        uint256 bobWhen = bryanFanToken.startDeposit(depositAmount, bob);
         // Bob deposit should be delayed since Alice already deposited
         assertGt(bobWhen, 0, "bob deposit should be delayed");
         vm.warp(bobWhen);
-        bryan.deposit(depositAmount, bob);
+        bryanFanToken.deposit(depositAmount, bob);
 
         // Sponsor deposits with proper timing
         vm.startPrank(sponsor);
-        asset.approve(address(bryan), type(uint256).max);
-        uint256 sponsorWhen = bryan.startDeposit(depositAmount, sponsor);
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        uint256 sponsorWhen = bryanFanToken.startDeposit(depositAmount, sponsor);
         // Sponsor deposit should be delayed since others already deposited
         assertGt(sponsorWhen, 0, "sponsor deposit should be delayed");
         vm.warp(sponsorWhen);
-        bryan.deposit(depositAmount, sponsor);
+        bryanFanToken.deposit(depositAmount, sponsor);
 
         // Record initial state
-        uint256 initialSponsorAssets = bryan.balanceOfSponsorAssets(sponsor);
-        uint256 initialAliceUnderlying = bryan.balanceOfUnderlying(alice);
-        uint256 initialBobUnderlying = bryan.balanceOfUnderlying(bob);
+        uint256 initialSponsorAssets = bryanFanToken.balanceOfSponsorAssets(sponsor);
+        uint256 initialAliceUnderlying = bryanFanToken.balanceOfUnderlying(alice);
+        uint256 initialBobUnderlying = bryanFanToken.balanceOfUnderlying(bob);
 
         // Send fake rewards to the contract using transfer
         uint256 rewardAmount = 0.5 ether;
 
         vm.deal(address(this), rewardAmount);
         WETH9.deposit{value: rewardAmount}();
-        require(WETH9.transfer(address(bryan), rewardAmount), "weth transfer failed");
+        require(WETH9.transfer(address(bryanFanToken), rewardAmount), "weth transfer failed");
 
         // Harvest - this should trigger harvestSponsorship automatically
-        assertEq(bryan.harvest(), rewardAmount, "should harvest all rewards");
+        assertEq(bryanFanToken.harvest(), rewardAmount, "should harvest all rewards");
 
         // Key verification: sponsor balance should remain the same in underlying value
-        assertEq(bryan.balanceOfSponsorAssets(sponsor), initialSponsorAssets, "sponsor assets should remain the same");
+        assertEq(
+            bryanFanToken.balanceOfSponsorAssets(sponsor), initialSponsorAssets, "sponsor assets should remain the same"
+        );
 
         // Calculate exact expected rewards for non-sponsors
-        uint256 finalAliceUnderlying = bryan.balanceOfUnderlying(alice);
-        uint256 finalBobUnderlying = bryan.balanceOfUnderlying(bob);
+        uint256 finalAliceUnderlying = bryanFanToken.balanceOfUnderlying(alice);
+        uint256 finalBobUnderlying = bryanFanToken.balanceOfUnderlying(bob);
         uint256 aliceGain = finalAliceUnderlying - initialAliceUnderlying;
         uint256 bobGain = finalBobUnderlying - initialBobUnderlying;
 
@@ -814,44 +814,44 @@ contract FanTokenTest is Test {
 
         // Alice (non-sponsor) deposits first with proper timing
         vm.startPrank(alice);
-        asset.approve(address(bryan), type(uint256).max);
-        uint256 aliceWhen = bryan.startDeposit(depositAmount, alice);
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        uint256 aliceWhen = bryanFanToken.startDeposit(depositAmount, alice);
         assertEq(aliceWhen, 0, "alice first deposit should be immediate");
 
         // First sponsor deposits with proper timing
         vm.startPrank(sponsor1);
-        asset.approve(address(bryan), type(uint256).max);
-        uint256 sponsor1When = bryan.startDeposit(depositAmount, sponsor1);
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        uint256 sponsor1When = bryanFanToken.startDeposit(depositAmount, sponsor1);
         assertGt(sponsor1When, 0, "first sponsor deposit should be delayed");
         vm.warp(sponsor1When);
-        bryan.deposit(depositAmount, sponsor1);
+        bryanFanToken.deposit(depositAmount, sponsor1);
 
         // Second sponsor deposits with proper timing
         vm.startPrank(sponsor2);
-        asset.approve(address(bryan), type(uint256).max);
-        uint256 sponsor2When = bryan.startDeposit(depositAmount, sponsor2);
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        uint256 sponsor2When = bryanFanToken.startDeposit(depositAmount, sponsor2);
         assertGt(sponsor2When, 0, "second sponsor deposit should be delayed");
         vm.warp(sponsor2When);
-        bryan.deposit(depositAmount, sponsor2);
+        bryanFanToken.deposit(depositAmount, sponsor2);
 
         uint256[3] memory preBalances;
-        preBalances[0] = bryan.balanceOfUnderlying(alice);
-        preBalances[1] = bryan.balanceOfSponsorAssets(sponsor1);
-        preBalances[2] = bryan.balanceOfSponsorAssets(sponsor2);
+        preBalances[0] = bryanFanToken.balanceOfUnderlying(alice);
+        preBalances[1] = bryanFanToken.balanceOfSponsorAssets(sponsor1);
+        preBalances[2] = bryanFanToken.balanceOfSponsorAssets(sponsor2);
 
         uint256 rewardAmount = 1 ether;
 
         vm.deal(address(this), rewardAmount);
         WETH9.deposit{value: rewardAmount}();
-        require(WETH9.transfer(address(bryan), rewardAmount), "weth transfer failed");
+        require(WETH9.transfer(address(bryanFanToken), rewardAmount), "weth transfer failed");
 
-        uint256 harvested = bryan.harvest();
+        uint256 harvested = bryanFanToken.harvest();
         assertEq(harvested, rewardAmount, "should harvest all rewards");
 
         uint256[3] memory postBalances;
-        postBalances[0] = bryan.balanceOfUnderlying(alice);
-        postBalances[1] = bryan.balanceOfSponsorAssets(sponsor1);
-        postBalances[2] = bryan.balanceOfSponsorAssets(sponsor2);
+        postBalances[0] = bryanFanToken.balanceOfUnderlying(alice);
+        postBalances[1] = bryanFanToken.balanceOfSponsorAssets(sponsor1);
+        postBalances[2] = bryanFanToken.balanceOfSponsorAssets(sponsor2);
 
         assertEq(postBalances[1], preBalances[1], "sponsor1 assets should remain constant");
         assertEq(postBalances[2], preBalances[2], "sponsor2 assets should remain constant");
@@ -866,14 +866,14 @@ contract FanTokenTest is Test {
         (IERC4626 asset, uint256 assets) = _dealAsset(1 ether, sponsor1);
 
         vm.startPrank(sponsor1);
-        asset.approve(address(bryan), type(uint256).max);
-        uint256 when = bryan.startDeposit(assets, sponsor1);
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        uint256 when = bryanFanToken.startDeposit(assets, sponsor1);
         // This should be the first deposit, so it should be immediate
         assertEq(when, 0, "first deposit should be immediate");
         // For immediate deposits, startDeposit already completed the deposit
 
         // Get sponsor's actual asset balance and transfer half
-        uint256 sponsor1Assets = bryan.balanceOfSponsorAssets(sponsor1);
+        uint256 sponsor1Assets = bryanFanToken.balanceOfSponsorAssets(sponsor1);
 
         assertEq(sponsor1Assets, assets, "initial deposit balance");
 
@@ -887,59 +887,65 @@ contract FanTokenTest is Test {
         vm.startPrank(sponsor1);
         vm.expectEmit(true, true, false, true);
         emit IERC20.Transfer(sponsor1, sponsor2, transferAmount);
-        bryan.sponsorTransfer(sponsor2, transferAmount);
+        bryanFanToken.sponsorTransfer(sponsor2, transferAmount);
 
         // Verify transfer
         assertEq(
-            bryan.balanceOfSponsorAssets(sponsor1), sponsor1Assets - transferAmount, "sponsor assets should decrease"
+            bryanFanToken.balanceOfSponsorAssets(sponsor1),
+            sponsor1Assets - transferAmount,
+            "sponsor assets should decrease"
         );
-        assertEq(bryan.balanceOfSponsorAssets(sponsor2), transferAmount, "recipient should receive transferred assets");
+        assertEq(
+            bryanFanToken.balanceOfSponsorAssets(sponsor2),
+            transferAmount,
+            "recipient should receive transferred assets"
+        );
     }
 
     function test_deposit_delay_constant() public view {
-        assertEq(bryan.DEPOSIT_DELAY(), 3 days);
+        assertEq(bryanFanToken.DEPOSIT_DELAY(), 3 days);
     }
 
     function test_claiming_pool_rewards() public {
         // Since we don't have actual POOL rewards in test, just verify the harvest function works
-        uint256 initialBalance = WETH9.balanceOf(address(bryan));
+        uint256 initialBalance = WETH9.balanceOf(address(bryanFanToken));
 
         // Send some WETH to simulate rewards
         vm.deal(address(this), 1 ether);
         WETH9.deposit{value: 1 ether}();
-        require(WETH9.transfer(address(bryan), 1 ether));
+        require(WETH9.transfer(address(bryanFanToken), 1 ether));
 
-        uint256 harvested = bryan.harvest();
+        uint256 harvested = bryanFanToken.harvest();
         assertEq(harvested, 1 ether, "should harvest exactly 1 ether of rewards");
-        assertEq(WETH9.balanceOf(address(bryan)), initialBalance);
+        assertEq(WETH9.balanceOf(address(bryanFanToken)), initialBalance);
     }
 
     function test_withdraw_sponsor() public {
         (IERC4626 asset, uint256 assets) = _dealAsset(10 ether, sponsor);
 
         vm.startPrank(sponsor);
-        bryan.setSponsorship(true);
-        asset.approve(address(bryan), type(uint256).max);
+        bryanFanToken.setSponsorship(true);
+        asset.approve(address(bryanFanToken), type(uint256).max);
 
-        uint256 when = bryan.startDeposit(assets, sponsor);
+        uint256 when = bryanFanToken.startDeposit(assets, sponsor);
         // This should be the first deposit, so immediate
         assertEq(when, 0, "first deposit should be immediate");
 
-        uint256 sponsorShares = bryan.balanceOf(sponsor);
-        uint256 sponsorAssets = bryan.balanceOfSponsorAssets(sponsor);
+        uint256 sponsorShares = bryanFanToken.balanceOf(sponsor);
+        uint256 sponsorAssets = bryanFanToken.balanceOfSponsorAssets(sponsor);
 
         // For sponsors, shares are held by contract but they have sponsor assets
         assertEq(sponsorShares, 0, "sponsor should have 0 direct shares (held by contract)");
         assertEq(sponsorAssets, assets, "sponsor should have exact deposited amount as sponsor assets");
 
         uint256 withdrawAmount = sponsorAssets / 2; // withdraw half of sponsor assets
-        uint256 initialTotalSponsoredShares = bryan.totalSponsoredShares();
-        uint256 initialTotalSponsoredAssets = bryan.totalSponsoredAssets();
+        uint256 initialTotalSponsoredShares = bryanFanToken.totalSponsoredShares();
+        uint256 initialTotalSponsoredAssets = bryanFanToken.totalSponsoredAssets();
 
-        uint256 withdrawn = bryan.withdraw(withdrawAmount, sponsor, sponsor);
+        uint256 withdrawn = bryanFanToken.withdraw(withdrawAmount, sponsor, sponsor);
 
-        uint256 sponsorSharesAfter = bryan.balanceOf(sponsor);
-        uint256 sponsorAssetsAfter = bryan.balanceOfSponsorAssets(sponsor);
+        uint256 sponsorSharesAfter = bryanFanToken.balanceOf(sponsor);
+        uint256 sponsorAssetsAfter = bryanFanToken.balanceOfSponsorAssets(sponsor);
 
         assertEq(sponsorSharesAfter, 0, "sponsor should still have 0 direct shares after withdrawal");
         assertEq(withdrawn, withdrawAmount, "should receive exact withdrawn amount");
@@ -947,12 +953,12 @@ contract FanTokenTest is Test {
 
         // Verify total sponsored amounts decreased by exactly the withdrawal
         assertEq(
-            bryan.totalSponsoredAssets(),
+            bryanFanToken.totalSponsoredAssets(),
             initialTotalSponsoredAssets - withdrawAmount,
             "total sponsored assets should decrease by withdrawal amount"
         );
         assertLt(
-            bryan.totalSponsoredShares(),
+            bryanFanToken.totalSponsoredShares(),
             initialTotalSponsoredShares,
             "total sponsored shares should decrease after withdrawal"
         );
@@ -966,39 +972,43 @@ contract FanTokenTest is Test {
         (IERC4626 asset, uint256 assets) = _dealAsset(totalSupply, sponsor1);
 
         vm.startPrank(sponsor1);
-        bryan.setSponsorship(true);
-        asset.approve(address(bryan), type(uint256).max);
+        bryanFanToken.setSponsorship(true);
+        asset.approve(address(bryanFanToken), type(uint256).max);
 
-        uint256 when = bryan.startDeposit(assets);
+        uint256 when = bryanFanToken.startDeposit(assets);
         if (when > 0) {
             vm.warp(when);
-            bryan.deposit(assets, sponsor1);
+            bryanFanToken.deposit(assets, sponsor1);
         }
 
         vm.startPrank(sponsor2);
-        bryan.setSponsorship(true);
+        bryanFanToken.setSponsorship(true);
 
-        assertEq(bryan.balanceOfSponsorAssets(sponsor1), assets, "sponsor 1 should have the initial deposit");
-        assertEq(bryan.balanceOfSponsorAssets(sponsor2), 0, "sponsor 2 shouldn't have any balance to start");
+        assertEq(bryanFanToken.balanceOfSponsorAssets(sponsor1), assets, "sponsor 1 should have the initial deposit");
+        assertEq(bryanFanToken.balanceOfSponsorAssets(sponsor2), 0, "sponsor 2 shouldn't have any balance to start");
 
         // Approve sponsor2 to transfer from sponsor1
         vm.startPrank(sponsor1);
-        bryan.approve(sponsor2, transferAmount);
+        bryanFanToken.approve(sponsor2, transferAmount);
 
         // Transfer from sponsor1 to sponsor2
         vm.expectEmit(true, true, false, true);
         emit IERC20.Transfer(sponsor1, sponsor2, transferAmount);
         vm.startPrank(sponsor2);
-        bool success = bryan.sponsorTransferFrom(sponsor1, sponsor2, transferAmount);
+        bool success = bryanFanToken.sponsorTransferFrom(sponsor1, sponsor2, transferAmount);
         assertTrue(success, "sponsorTransferFrom should return true on successful transfer");
 
-        assertEq(bryan.balanceOfSponsorAssets(sponsor1), assets - transferAmount, "sponsor 1 should still have 9/10");
         assertEq(
-            bryan.balanceOfSponsorAssets(sponsor2), transferAmount, "sponsor 2 should have the amount of one transfer"
+            bryanFanToken.balanceOfSponsorAssets(sponsor1), assets - transferAmount, "sponsor 1 should still have 9/10"
         );
-        assertEq(bryan.allowance(sponsor1, sponsor2), 0, "there shouldnt be any allowance left");
         assertEq(
-            bryan.totalSponsoredShares(),
+            bryanFanToken.balanceOfSponsorAssets(sponsor2),
+            transferAmount,
+            "sponsor 2 should have the amount of one transfer"
+        );
+        assertEq(bryanFanToken.allowance(sponsor1, sponsor2), 0, "there shouldnt be any allowance left");
+        assertEq(
+            bryanFanToken.totalSponsoredShares(),
             assets,
             "Total sponsored shares are held by the contract, not individual sponsors"
         );
@@ -1007,27 +1017,27 @@ contract FanTokenTest is Test {
     function test_sponsorTransferFrom_insufficient_allowance() public {
         (IERC4626 asset, uint256 assets) = _dealAsset(10 ether, sponsor1);
 
-        asset.approve(address(bryan), type(uint256).max);
-        uint256 when = bryan.startDeposit(assets, sponsor1);
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        uint256 when = bryanFanToken.startDeposit(assets, sponsor1);
         if (when > 0) {
             vm.warp(when);
-            bryan.deposit(assets, sponsor1);
+            bryanFanToken.deposit(assets, sponsor1);
         }
 
         vm.startPrank(sponsor2);
-        bryan.setSponsorship(true);
+        bryanFanToken.setSponsorship(true);
 
         // Try to transfer without approval
         uint256 transferAmount = 1 ether; // Try to transfer a specific amount
         vm.startPrank(sponsor2);
         vm.expectRevert(); // Should fail due to insufficient allowance
-        bryan.sponsorTransferFrom(sponsor1, sponsor2, transferAmount);
+        bryanFanToken.sponsorTransferFrom(sponsor1, sponsor2, transferAmount);
     }
 
     /// TODO: clean up this ai slop
     function test_totalSponsoredShares_and_totalSponsoredAssets() public {
-        assertEq(bryan.totalSponsoredShares(), 0);
-        assertEq(bryan.totalSponsoredAssets(), 0);
+        assertEq(bryanFanToken.totalSponsoredShares(), 0);
+        assertEq(bryanFanToken.totalSponsoredAssets(), 0);
 
         (IERC4626 asset, uint256 totalAssets) = _dealAsset(15 ether, address(this));
         uint256 assets1 = (totalAssets * 2) / 3; // 10 ether worth
@@ -1037,37 +1047,37 @@ contract FanTokenTest is Test {
         require(asset.transfer(sponsor2, assets2));
 
         vm.startPrank(sponsor1);
-        bryan.setSponsorship(true);
-        asset.approve(address(bryan), type(uint256).max);
-        uint256 when1 = bryan.startDeposit(assets1, sponsor1);
+        bryanFanToken.setSponsorship(true);
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        uint256 when1 = bryanFanToken.startDeposit(assets1, sponsor1);
         if (when1 > 0) {
             vm.warp(when1);
-            bryan.deposit(assets1, sponsor1);
+            bryanFanToken.deposit(assets1, sponsor1);
         }
 
         vm.startPrank(sponsor2);
-        bryan.setSponsorship(true);
-        asset.approve(address(bryan), type(uint256).max);
+        bryanFanToken.setSponsorship(true);
+        asset.approve(address(bryanFanToken), type(uint256).max);
 
         // After sponsor1 deposits and sponsor2 becomes a sponsor,
         // sponsor1's shares should be moved to the contract
-        uint256 contractShares = bryan.totalSponsoredShares();
+        uint256 contractShares = bryanFanToken.totalSponsoredShares();
         assertGt(contractShares, 0, "contract should hold some sponsored shares after sponsor deposit");
-        assertEq(bryan.totalSponsoredAssets(), bryan.convertToAssets(contractShares));
+        assertEq(bryanFanToken.totalSponsoredAssets(), bryanFanToken.convertToAssets(contractShares));
 
         // Deposit for sponsor2
-        uint256 when2 = bryan.startDeposit(assets2, sponsor2);
+        uint256 when2 = bryanFanToken.startDeposit(assets2, sponsor2);
         if (when2 > 0) {
             vm.warp(when2);
-            bryan.deposit(assets2, sponsor2);
+            bryanFanToken.deposit(assets2, sponsor2);
         }
 
         // After both sponsors deposit, all shares should be in the contract
-        uint256 totalContractShares = bryan.totalSponsoredShares();
+        uint256 totalContractShares = bryanFanToken.totalSponsoredShares();
         assertGt(
             totalContractShares, contractShares, "total sponsored shares should increase after second sponsor deposit"
         );
-        assertEq(bryan.totalSponsoredAssets(), bryan.convertToAssets(totalContractShares));
+        assertEq(bryanFanToken.totalSponsoredAssets(), bryanFanToken.convertToAssets(totalContractShares));
     }
 
     function test_finishDeposit_for_another_user() public {
@@ -1077,8 +1087,8 @@ contract FanTokenTest is Test {
         // Ensure this is NOT the first deposit to the contract
         // by making a small deposit first
         (IERC4626 asset, uint256 initialAssets) = _dealAsset(0.1 ether, address(this));
-        asset.approve(address(bryan), type(uint256).max);
-        bryan.deposit(initialAssets, address(this));
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        bryanFanToken.deposit(initialAssets, address(this));
 
         // Now set up the actual test
         ( /*IERC4626 asset2*/ , uint256 assets) = _dealAsset(1 ether, address(this));
@@ -1086,10 +1096,10 @@ contract FanTokenTest is Test {
 
         // Depositor requests sponsorship and starts deposit
         vm.startPrank(depositor);
-        bryan.setSponsorship(true);
-        asset.approve(address(bryan), type(uint256).max);
+        bryanFanToken.setSponsorship(true);
+        asset.approve(address(bryanFanToken), type(uint256).max);
 
-        uint256 when = bryan.startDeposit(assets, depositor);
+        uint256 when = bryanFanToken.startDeposit(assets, depositor);
 
         assertGt(when, block.timestamp, "deposit should have delay after initial deposit");
 
@@ -1098,17 +1108,17 @@ contract FanTokenTest is Test {
 
         // Different alice (finisher) calls finishDeposit for the depositor
         vm.startPrank(finisher);
-        uint256 finishedDeposit = bryan.finishDeposit(depositor, depositor);
+        uint256 finishedDeposit = bryanFanToken.finishDeposit(depositor, depositor);
 
         assertEq(finishedDeposit, assets, "should finish deposit of original amount");
 
         // Since depositor became a sponsor, their shares should be moved to the contract
-        uint256 contractSponsoredShares = bryan.totalSponsoredShares();
+        uint256 contractSponsoredShares = bryanFanToken.totalSponsoredShares();
         assertGt(contractSponsoredShares, 0, "contract should hold sponsored shares after sponsor deposit");
-        assertGt(bryan.totalSponsoredAssets(), 0, "sponsored assets should be tracked after sponsor deposit");
+        assertGt(bryanFanToken.totalSponsoredAssets(), 0, "sponsored assets should be tracked after sponsor deposit");
 
         // Depositor's direct balance should be zero since they're a sponsor
-        uint256 depositorBalanceAfter = bryan.balanceOf(depositor);
+        uint256 depositorBalanceAfter = bryanFanToken.balanceOf(depositor);
         assertEq(
             depositorBalanceAfter,
             0,
@@ -1120,38 +1130,38 @@ contract FanTokenTest is Test {
         // Add WETH to contract and sweep it
         vm.deal(address(this), 2 ether);
         WETH9.deposit{value: 2 ether}();
-        require(WETH9.transfer(address(bryan), 2 ether));
+        require(WETH9.transfer(address(bryanFanToken), 2 ether));
 
-        uint256 initialContractBalance = bryan.totalAssets();
-        uint256 harvested = bryan.harvest();
+        uint256 initialContractBalance = bryanFanToken.totalAssets();
+        uint256 harvested = bryanFanToken.harvest();
 
         assertEq(harvested, 2 ether, "should harvest exactly 2 ether of WETH rewards");
-        assertGt(bryan.totalAssets(), initialContractBalance);
+        assertGt(bryanFanToken.totalAssets(), initialContractBalance);
     }
 
     function test_initial_total_sponsor_assets() public view {
-        assertEq(bryan.totalSponsorAssets(), 0);
+        assertEq(bryanFanToken.totalSponsorAssets(), 0);
     }
 
     function test_version() public {
-        string memory factoryVersion = bryan.FACTORY().version();
-        string memory tokenVersion = bryan.version();
+        string memory factoryVersion = bryanFanToken.FACTORY().version();
+        string memory tokenVersion = bryanFanToken.version();
         assertEq(factoryVersion, "3.0.0", "factory version should be 3.0.0");
         assertEq(tokenVersion, factoryVersion, "token version should match factory version");
     }
 
     function test_harvest_empty_contract() public {
-        uint256 harvested = bryan.harvest();
+        uint256 harvested = bryanFanToken.harvest();
         assertEq(harvested, 0, "harvest should return 0 when contract is empty");
     }
 
     function test_sponsor_burn_zero_amount() public {
         vm.startPrank(sponsor);
-        bryan.setSponsorship(true);
+        bryanFanToken.setSponsorship(true);
 
         // Burning 0 should succeed (it just does nothing)
-        bryan.sponsorBurn(0);
-        assertEq(bryan.balanceOfSponsorAssets(sponsor), 0, "sponsor should have 0 assets");
+        bryanFanToken.sponsorBurn(0);
+        assertEq(bryanFanToken.balanceOfSponsorAssets(sponsor), 0, "sponsor should have 0 assets");
     }
 
     /// @dev Test that when a sponsor burns tokens, the share value for regular users increases
@@ -1166,20 +1176,20 @@ contract FanTokenTest is Test {
 
         // Alice deposits first (will be instant since it's first deposit)
         vm.startPrank(alice);
-        asset.approve(address(bryan), type(uint256).max);
-        bryan.deposit(depositAmount, alice);
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        bryanFanToken.deposit(depositAmount, alice);
 
         // Sponsor becomes sponsor and deposits
         vm.startPrank(sponsor);
-        bryan.setSponsorship(true);
-        asset.approve(address(bryan), type(uint256).max);
-        uint256 sponsorWhen = bryan.startDeposit(depositAmount, sponsor);
+        bryanFanToken.setSponsorship(true);
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        uint256 sponsorWhen = bryanFanToken.startDeposit(depositAmount, sponsor);
         if (sponsorWhen > 0) {
             vm.warp(sponsorWhen);
-            bryan.deposit(depositAmount, sponsor);
+            bryanFanToken.deposit(depositAmount, sponsor);
         }
 
-        uint256 initialAliceUnderlying = bryan.balanceOfUnderlying(alice);
+        uint256 initialAliceUnderlying = bryanFanToken.balanceOfUnderlying(alice);
 
         console.log("Before burn:");
         console.log("  Alice underlying:", initialAliceUnderlying);
@@ -1189,10 +1199,10 @@ contract FanTokenTest is Test {
 
         // Sponsor burns half their assets
         uint256 burnAmount = sponsorAssets / 2;
-        bryan.sponsorBurn(burnAmount);
+        bryanFanToken.sponsorBurn(burnAmount);
 
-        uint256 finalAliceUnderlying = bryan.balanceOfUnderlying(alice);
-        uint256 finalSponsorAssets = bryan.balanceOfSponsorAssets(sponsor);
+        uint256 finalAliceUnderlying = bryanFanToken.balanceOfUnderlying(alice);
+        uint256 finalSponsorAssets = bryanFanToken.balanceOfSponsorAssets(sponsor);
 
         console.log("After burn:");
         console.log("  Alice underlying:", finalAliceUnderlying);
@@ -1214,31 +1224,31 @@ contract FanTokenTest is Test {
 
         // Alice deposits first (instant since it's the first deposit)
         vm.startPrank(alice);
-        asset.approve(address(bryan), type(uint256).max);
-        bryan.deposit(depositAmount, alice);
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        bryanFanToken.deposit(depositAmount, alice);
 
-        uint256 aliceShares = bryan.balanceOf(alice);
+        uint256 aliceShares = bryanFanToken.balanceOf(alice);
 
         assertGt(aliceShares, 0, "alice should have shares");
-        assertGt(bryan.totalSupply(), 0, "should have total supply");
+        assertGt(bryanFanToken.totalSupply(), 0, "should have total supply");
 
         // Alice redeems all her shares
-        bryan.redeem(aliceShares, alice, alice);
+        bryanFanToken.redeem(aliceShares, alice, alice);
 
-        assertEq(bryan.balanceOf(alice), 0, "alice should have no shares");
-        assertEq(bryan.totalSupply(), 0, "total supply should be zero");
+        assertEq(bryanFanToken.balanceOf(alice), 0, "alice should have no shares");
+        assertEq(bryanFanToken.totalSupply(), 0, "total supply should be zero");
 
         // TODO: have a similar test that harvests some prizes here!
 
         // Bob deposits after total supply went to zero (should be instant like first deposit)
         vm.startPrank(bob);
-        asset.approve(address(bryan), type(uint256).max);
-        bryan.deposit(depositAmount, bob);
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        bryanFanToken.deposit(depositAmount, bob);
 
-        uint256 bobShares = bryan.balanceOf(bob);
+        uint256 bobShares = bryanFanToken.balanceOf(bob);
 
         assertGt(bobShares, 0, "bob should have shares");
-        assertEq(bryan.totalSupply(), bobShares, "total supply should equal bob's shares");
+        assertEq(bryanFanToken.totalSupply(), bobShares, "total supply should equal bob's shares");
     }
 
     function test_sponsorTransfer_from_sponsor_to_nonsponsor() public {
@@ -1247,37 +1257,39 @@ contract FanTokenTest is Test {
         require(asset.transfer(sponsor, assets), "asset transfer failed");
 
         vm.startPrank(sponsor);
-        bryan.setSponsorship(true);
-        asset.approve(address(bryan), type(uint256).max);
+        bryanFanToken.setSponsorship(true);
+        asset.approve(address(bryanFanToken), type(uint256).max);
 
-        uint256 when = bryan.startDeposit(assets, sponsor);
+        uint256 when = bryanFanToken.startDeposit(assets, sponsor);
         if (when > 0) {
             vm.warp(when);
-            bryan.finishDeposit(sponsor, sponsor);
+            bryanFanToken.finishDeposit(sponsor, sponsor);
         }
 
-        uint256 sponsorAssets = bryan.balanceOfSponsorAssets(sponsor);
+        uint256 sponsorAssets = bryanFanToken.balanceOfSponsorAssets(sponsor);
         uint256 transferAmount = sponsorAssets / 2;
 
         console.log("Before transfer (sponsor -> non-sponsor):");
         console.log("  Sponsor assets:", sponsorAssets);
-        console.log("  Non-sponsor balance:", bryan.balanceOf(nonSponsor));
+        console.log("  Non-sponsor balance:", bryanFanToken.balanceOf(nonSponsor));
         console.log("  Transfer amount:", transferAmount);
 
         assertGt(sponsorAssets, 0, "sponsor should have assets");
-        assertEq(bryan.balanceOf(nonSponsor), 0, "non-sponsor should start with zero balance");
+        assertEq(bryanFanToken.balanceOf(nonSponsor), 0, "non-sponsor should start with zero balance");
 
         // Transfer from sponsor to non-sponsor
-        bryan.sponsorTransfer(nonSponsor, transferAmount);
+        bryanFanToken.sponsorTransfer(nonSponsor, transferAmount);
 
         // After transferring half, sponsor should have the remaining half
         assertEq(
-            bryan.balanceOfSponsorAssets(sponsor),
+            bryanFanToken.balanceOfSponsorAssets(sponsor),
             sponsorAssets - transferAmount,
             "sponsor should have remaining assets after transfer"
         );
         assertEq(
-            bryan.balanceOfUnderlying(nonSponsor), transferAmount, "non sponsor should receive transferred underlying"
+            bryanFanToken.balanceOfUnderlying(nonSponsor),
+            transferAmount,
+            "non sponsor should receive transferred underlying"
         );
     }
 
@@ -1286,38 +1298,38 @@ contract FanTokenTest is Test {
         (IERC4626 asset, uint256 assets) = _dealAsset(2 ether, nonSponsor);
 
         vm.startPrank(nonSponsor);
-        asset.approve(address(bryan), type(uint256).max);
+        asset.approve(address(bryanFanToken), type(uint256).max);
 
-        uint256 when = bryan.startDeposit(assets, nonSponsor);
+        uint256 when = bryanFanToken.startDeposit(assets, nonSponsor);
         if (when > 0) {
             vm.warp(when);
-            bryan.deposit(assets, nonSponsor);
+            bryanFanToken.deposit(assets, nonSponsor);
         }
 
-        uint256 nonSponsorShares = bryan.balanceOf(nonSponsor);
-        uint256 transferAmount = bryan.convertToAssets(nonSponsorShares / 2);
+        uint256 nonSponsorShares = bryanFanToken.balanceOf(nonSponsor);
+        uint256 transferAmount = bryanFanToken.convertToAssets(nonSponsorShares / 2);
 
         console.log("Before transfer (non-sponsor -> sponsor):");
         console.log("  Non-sponsor shares:", nonSponsorShares);
-        console.log("  Sponsor assets:", bryan.balanceOfSponsorAssets(sponsor));
+        console.log("  Sponsor assets:", bryanFanToken.balanceOfSponsorAssets(sponsor));
         console.log("  Transfer amount:", transferAmount);
 
         assertGt(nonSponsorShares, 0, "non-sponsor should have shares");
-        assertEq(bryan.balanceOfSponsorAssets(sponsor), 0, "sponsor should start with zero sponsor assets");
+        assertEq(bryanFanToken.balanceOfSponsorAssets(sponsor), 0, "sponsor should start with zero sponsor assets");
 
         // Set sponsor status for recipient
         vm.startPrank(sponsor);
-        bryan.setSponsorship(true);
+        bryanFanToken.setSponsorship(true);
 
         // Transfer from non-sponsor to sponsor
         vm.expectEmit(true, true, false, true);
-        emit IERC20.Transfer(nonSponsor, sponsor, bryan.previewWithdraw(transferAmount));
+        emit IERC20.Transfer(nonSponsor, sponsor, bryanFanToken.previewWithdraw(transferAmount));
         vm.startPrank(nonSponsor);
-        bryan.sponsorTransfer(sponsor, transferAmount);
+        bryanFanToken.sponsorTransfer(sponsor, transferAmount);
 
-        uint256 finalNonSponsorShares = bryan.balanceOf(nonSponsor);
-        uint256 finalSponsorAssets = bryan.balanceOfSponsorAssets(sponsor);
-        uint256 expectedShares = bryan.previewWithdraw(transferAmount);
+        uint256 finalNonSponsorShares = bryanFanToken.balanceOf(nonSponsor);
+        uint256 finalSponsorAssets = bryanFanToken.balanceOfSponsorAssets(sponsor);
+        uint256 expectedShares = bryanFanToken.previewWithdraw(transferAmount);
 
         console.log("After transfer (non-sponsor -> sponsor):");
         console.log("  Non-sponsor shares:", finalNonSponsorShares);
@@ -1337,20 +1349,20 @@ contract FanTokenTest is Test {
         require(asset.transfer(nonSponsor1, assets), "asset transfer failed");
 
         vm.startPrank(nonSponsor1);
-        asset.approve(address(bryan), type(uint256).max);
+        asset.approve(address(bryanFanToken), type(uint256).max);
 
-        uint256 when = bryan.startDeposit(assets, nonSponsor1);
+        uint256 when = bryanFanToken.startDeposit(assets, nonSponsor1);
         if (when > 0) {
             vm.warp(when);
-            bryan.deposit(assets, nonSponsor1);
+            bryanFanToken.deposit(assets, nonSponsor1);
         }
 
-        uint256 transferAmount = bryan.previewRedeem(bryan.balanceOf(nonSponsor1) / 2);
+        uint256 transferAmount = bryanFanToken.previewRedeem(bryanFanToken.balanceOf(nonSponsor1) / 2);
         assertGt(transferAmount, 0, "transfer amount should be non-zero");
 
         // This should revert with AtLeastOneSideMustBeSponsor
         vm.expectRevert(AtLeastOneSideMustBeSponsor.selector);
-        bryan.sponsorTransfer(nonSponsor2, transferAmount);
+        bryanFanToken.sponsorTransfer(nonSponsor2, transferAmount);
     }
 
     function test_harvestSponsorship_public_function() public {
@@ -1358,7 +1370,7 @@ contract FanTokenTest is Test {
         // This should typically return 0 when there's no excess shares to burn
 
         // Call harvestSponsorship directly as public function
-        uint256 amount = bryan.harvestSponsorship();
+        uint256 amount = bryanFanToken.harvestSponsorship();
 
         // Should return 0 when there are no excess shares
         assertEq(amount, 0, "harvestSponsorship should return 0 with no excess shares");
@@ -1372,45 +1384,47 @@ contract FanTokenTest is Test {
         require(asset.transfer(sponsor, assets), "asset transfer failed");
 
         vm.startPrank(sponsor);
-        bryan.setSponsorship(true);
-        asset.approve(address(bryan), type(uint256).max);
+        bryanFanToken.setSponsorship(true);
+        asset.approve(address(bryanFanToken), type(uint256).max);
 
-        uint256 when = bryan.startDeposit(assets, sponsor);
+        uint256 when = bryanFanToken.startDeposit(assets, sponsor);
         if (when > 0) {
             vm.warp(when);
-            bryan.deposit(assets, sponsor);
+            bryanFanToken.deposit(assets, sponsor);
         }
 
-        uint256 sponsorAssets = bryan.balanceOfSponsorAssets(sponsor);
+        uint256 sponsorAssets = bryanFanToken.balanceOfSponsorAssets(sponsor);
         uint256 withdrawAmount = sponsorAssets / 2;
 
         console.log("Before withdrawal:");
         console.log("  Sponsor assets:", sponsorAssets);
-        console.log("  Sponsor direct balance:", bryan.balanceOf(sponsor));
-        console.log("  Contract balance:", bryan.balanceOf(address(bryan)));
+        console.log("  Sponsor direct balance:", bryanFanToken.balanceOf(sponsor));
+        console.log("  Contract balance:", bryanFanToken.balanceOf(address(bryanFanToken)));
 
         // Approve withdrawer to withdraw sponsor's tokens
-        uint256 sharesToApprove = bryan.previewWithdraw(withdrawAmount);
-        bryan.approve(withdrawer, sharesToApprove);
+        uint256 sharesToApprove = bryanFanToken.previewWithdraw(withdrawAmount);
+        bryanFanToken.approve(withdrawer, sharesToApprove);
 
         console.log("  Approved shares:", sharesToApprove);
-        console.log("  Allowance:", bryan.allowance(sponsor, withdrawer));
+        console.log("  Allowance:", bryanFanToken.allowance(sponsor, withdrawer));
 
         // Withdrawer tries to withdraw sponsor's tokens
         vm.startPrank(withdrawer);
 
         console.log("Attempting withdrawal by approved withdrawer...");
         // This should work but might fail due to approval logic issues
-        uint256 withdrawn = bryan.withdraw(withdrawAmount, withdrawer, sponsor);
+        uint256 withdrawn = bryanFanToken.withdraw(withdrawAmount, withdrawer, sponsor);
 
         console.log("After withdrawal:");
         console.log("  Withdrawn amount:", withdrawn);
-        console.log("  Sponsor assets:", bryan.balanceOfSponsorAssets(sponsor));
+        console.log("  Sponsor assets:", bryanFanToken.balanceOfSponsorAssets(sponsor));
         console.log("  Withdrawer received:", asset.balanceOf(withdrawer));
 
         assertEq(withdrawn, withdrawAmount, "should withdraw the requested amount");
         assertEq(
-            bryan.balanceOfSponsorAssets(sponsor), sponsorAssets - withdrawAmount, "sponsor assets should decrease"
+            bryanFanToken.balanceOfSponsorAssets(sponsor),
+            sponsorAssets - withdrawAmount,
+            "sponsor assets should decrease"
         );
     }
 
@@ -1422,16 +1436,16 @@ contract FanTokenTest is Test {
         require(asset.transfer(sponsor, assets), "asset transfer failed");
 
         vm.startPrank(sponsor);
-        bryan.setSponsorship(true);
-        asset.approve(address(bryan), type(uint256).max);
+        bryanFanToken.setSponsorship(true);
+        asset.approve(address(bryanFanToken), type(uint256).max);
 
-        uint256 when = bryan.startDeposit(assets, sponsor);
+        uint256 when = bryanFanToken.startDeposit(assets, sponsor);
         if (when > 0) {
             vm.warp(when);
-            bryan.deposit(assets, sponsor);
+            bryanFanToken.deposit(assets, sponsor);
         }
 
-        uint256 sponsorAssets = bryan.balanceOfSponsorAssets(sponsor);
+        uint256 sponsorAssets = bryanFanToken.balanceOfSponsorAssets(sponsor);
         uint256 withdrawAmount = sponsorAssets / 2;
 
         // Withdrawer tries to withdraw sponsor's tokens WITHOUT approval
@@ -1440,7 +1454,7 @@ contract FanTokenTest is Test {
         console.log("Attempting withdrawal without approval...");
         // This should fail with insufficient allowance
         vm.expectRevert(); // Should revert with ERC20InsufficientAllowance
-        bryan.withdraw(withdrawAmount, withdrawer, sponsor);
+        bryanFanToken.withdraw(withdrawAmount, withdrawer, sponsor);
     }
 
     function test_withdraw_non_sponsor() public {
@@ -1448,30 +1462,30 @@ contract FanTokenTest is Test {
         (IERC4626 asset, uint256 assets) = _dealAsset(2 ether, alice);
 
         vm.startPrank(alice);
-        asset.approve(address(bryan), type(uint256).max);
+        asset.approve(address(bryanFanToken), type(uint256).max);
 
-        uint256 when = bryan.startDeposit(assets, alice);
+        uint256 when = bryanFanToken.startDeposit(assets, alice);
         if (when > 0) {
             vm.warp(when);
-            bryan.deposit(assets, alice);
+            bryanFanToken.deposit(assets, alice);
         }
 
-        uint256 userShares = bryan.balanceOf(alice);
-        uint256 withdrawAmount = bryan.convertToAssets(userShares / 2);
+        uint256 userShares = bryanFanToken.balanceOf(alice);
+        uint256 withdrawAmount = bryanFanToken.convertToAssets(userShares / 2);
 
         console.log("Before withdrawal (non-sponsor):");
         console.log("  alice shares:", userShares);
         console.log("  Withdraw amount:", withdrawAmount);
 
         // alice withdraws their own tokens
-        uint256 withdrawn = bryan.withdraw(withdrawAmount, alice, alice);
+        uint256 withdrawn = bryanFanToken.withdraw(withdrawAmount, alice, alice);
 
         console.log("After withdrawal (non-sponsor):");
         console.log("  Withdrawn amount:", withdrawn);
-        console.log("  alice shares remaining:", bryan.balanceOf(alice));
+        console.log("  alice shares remaining:", bryanFanToken.balanceOf(alice));
 
         assertEq(withdrawn, withdrawAmount, "should withdraw the requested amount");
-        assertLt(bryan.balanceOf(alice), userShares, "alice shares should decrease");
+        assertLt(bryanFanToken.balanceOf(alice), userShares, "alice shares should decrease");
     }
 
     function test_withdraw_sponsor_self() public {
@@ -1480,35 +1494,39 @@ contract FanTokenTest is Test {
         require(asset.transfer(sponsor, assets), "asset transfer failed");
 
         vm.startPrank(sponsor);
-        bryan.setSponsorship(true);
-        asset.approve(address(bryan), type(uint256).max);
+        bryanFanToken.setSponsorship(true);
+        asset.approve(address(bryanFanToken), type(uint256).max);
 
-        uint256 when = bryan.startDeposit(assets, sponsor);
+        uint256 when = bryanFanToken.startDeposit(assets, sponsor);
         if (when > 0) {
             vm.warp(when);
-            bryan.deposit(assets, sponsor);
+            bryanFanToken.deposit(assets, sponsor);
         }
 
-        uint256 sponsorAssets = bryan.balanceOfSponsorAssets(sponsor);
+        uint256 sponsorAssets = bryanFanToken.balanceOfSponsorAssets(sponsor);
         uint256 withdrawAmount = sponsorAssets / 2;
 
         console.log("Before self-withdrawal (sponsor):");
         console.log("  Sponsor assets:", sponsorAssets);
-        console.log("  Total sponsor assets:", bryan.totalSponsorAssets());
+        console.log("  Total sponsor assets:", bryanFanToken.totalSponsorAssets());
 
         // Sponsor withdraws their own tokens
-        uint256 withdrawn = bryan.withdraw(withdrawAmount, sponsor, sponsor);
+        uint256 withdrawn = bryanFanToken.withdraw(withdrawAmount, sponsor, sponsor);
 
         console.log("After self-withdrawal (sponsor):");
         console.log("  Withdrawn amount:", withdrawn);
-        console.log("  Sponsor assets:", bryan.balanceOfSponsorAssets(sponsor));
-        console.log("  Total sponsor assets:", bryan.totalSponsorAssets());
+        console.log("  Sponsor assets:", bryanFanToken.balanceOfSponsorAssets(sponsor));
+        console.log("  Total sponsor assets:", bryanFanToken.totalSponsorAssets());
 
         assertEq(withdrawn, withdrawAmount, "should withdraw the requested amount");
         assertEq(
-            bryan.balanceOfSponsorAssets(sponsor), sponsorAssets - withdrawAmount, "sponsor assets should decrease"
+            bryanFanToken.balanceOfSponsorAssets(sponsor),
+            sponsorAssets - withdrawAmount,
+            "sponsor assets should decrease"
         );
-        assertEq(bryan.totalSponsorAssets(), sponsorAssets - withdrawAmount, "total sponsor assets should decrease");
+        assertEq(
+            bryanFanToken.totalSponsorAssets(), sponsorAssets - withdrawAmount, "total sponsor assets should decrease"
+        );
     }
 
     function test_withdraw_sponsor_insufficient_balance() public {
@@ -1516,16 +1534,16 @@ contract FanTokenTest is Test {
         (IERC4626 asset, uint256 assets) = _dealAsset(1 ether, sponsor);
 
         vm.startPrank(sponsor);
-        bryan.setSponsorship(true);
-        asset.approve(address(bryan), type(uint256).max);
+        bryanFanToken.setSponsorship(true);
+        asset.approve(address(bryanFanToken), type(uint256).max);
 
-        uint256 when = bryan.startDeposit(assets, sponsor);
+        uint256 when = bryanFanToken.startDeposit(assets, sponsor);
         if (when > 0) {
             vm.warp(when);
-            bryan.deposit(assets, sponsor);
+            bryanFanToken.deposit(assets, sponsor);
         }
 
-        uint256 sponsorAssets = bryan.balanceOfSponsorAssets(sponsor);
+        uint256 sponsorAssets = bryanFanToken.balanceOfSponsorAssets(sponsor);
         uint256 excessiveAmount = sponsorAssets + 1 ether;
 
         console.log("Attempting withdrawal of more than sponsor balance:");
@@ -1533,8 +1551,8 @@ contract FanTokenTest is Test {
         console.log("  Excessive amount:", excessiveAmount);
 
         // Should fail with InsufficientSponsorBalance
-        uint256 excessiveShares = bryan.previewWithdraw(excessiveAmount);
-        uint256 availableShares = bryan.previewWithdraw(sponsorAssets);
+        uint256 excessiveShares = bryanFanToken.previewWithdraw(excessiveAmount);
+        uint256 availableShares = bryanFanToken.previewWithdraw(sponsorAssets);
         vm.expectRevert(
             abi.encodeWithSelector(
                 InsufficientSponsorBalance.selector,
@@ -1545,7 +1563,7 @@ contract FanTokenTest is Test {
                 excessiveShares
             )
         );
-        bryan.withdraw(excessiveAmount, sponsor, sponsor);
+        bryanFanToken.withdraw(excessiveAmount, sponsor, sponsor);
     }
 
     function test_redeem_sponsor() public {
@@ -1553,17 +1571,17 @@ contract FanTokenTest is Test {
         (IERC4626 asset, uint256 assets) = _dealAsset(2 ether, sponsor);
 
         vm.startPrank(sponsor);
-        bryan.setSponsorship(true);
-        asset.approve(address(bryan), type(uint256).max);
+        bryanFanToken.setSponsorship(true);
+        asset.approve(address(bryanFanToken), type(uint256).max);
 
-        uint256 when = bryan.startDeposit(assets, sponsor);
+        uint256 when = bryanFanToken.startDeposit(assets, sponsor);
         if (when > 0) {
             vm.warp(when);
-            bryan.deposit(assets, sponsor);
+            bryanFanToken.deposit(assets, sponsor);
         }
 
-        uint256 sponsorAssets = bryan.balanceOfSponsorAssets(sponsor);
-        uint256 sharesToRedeem = bryan.previewWithdraw(sponsorAssets / 2);
+        uint256 sponsorAssets = bryanFanToken.balanceOfSponsorAssets(sponsor);
+        uint256 sharesToRedeem = bryanFanToken.previewWithdraw(sponsorAssets / 2);
         assertEq(sharesToRedeem, 1 ether, "should calculate 1 ether of shares to redeem");
 
         console.log("Before redeem (sponsor):");
@@ -1571,17 +1589,19 @@ contract FanTokenTest is Test {
         console.log("  Shares to redeem:", sharesToRedeem);
 
         // Sponsor redeems shares
-        uint256 redeemed = bryan.redeem(sharesToRedeem, sponsor, sponsor);
+        uint256 redeemed = bryanFanToken.redeem(sharesToRedeem, sponsor, sponsor);
 
         console.log("After redeem (sponsor):");
         console.log("  Redeemed amount:", redeemed);
-        console.log("  Sponsor assets:", bryan.balanceOfSponsorAssets(sponsor));
+        console.log("  Sponsor assets:", bryanFanToken.balanceOfSponsorAssets(sponsor));
 
         assertEq(redeemed, sharesToRedeem, "should redeem the calculated shares amount");
         // redeem now properly updates sponsor accounting
-        uint256 redeemedAssets = bryan.previewRedeem(sharesToRedeem);
+        uint256 redeemedAssets = bryanFanToken.previewRedeem(sharesToRedeem);
         assertEq(
-            bryan.balanceOfSponsorAssets(sponsor), sponsorAssets - redeemedAssets, "sponsor assets should decrease"
+            bryanFanToken.balanceOfSponsorAssets(sponsor),
+            sponsorAssets - redeemedAssets,
+            "sponsor assets should decrease"
         );
     }
 
@@ -1590,15 +1610,15 @@ contract FanTokenTest is Test {
         (IERC4626 asset, uint256 assets) = _dealAsset(1 ether, alice);
 
         vm.startPrank(alice);
-        asset.approve(address(bryan), type(uint256).max);
+        asset.approve(address(bryanFanToken), type(uint256).max);
 
-        uint256 when = bryan.startDeposit(assets, alice);
+        uint256 when = bryanFanToken.startDeposit(assets, alice);
         if (when > 0) {
             vm.warp(when);
-            bryan.deposit(assets, alice);
+            bryanFanToken.deposit(assets, alice);
         }
 
-        uint256 userShares = bryan.balanceOf(alice);
+        uint256 userShares = bryanFanToken.balanceOf(alice);
         uint256 sharesToRedeem = userShares / 2;
         assertEq(sharesToRedeem, 0.5 ether, "should calculate 0.5 ether of shares to redeem");
 
@@ -1607,32 +1627,32 @@ contract FanTokenTest is Test {
         console.log("  Shares to redeem:", sharesToRedeem);
 
         // alice redeems shares
-        uint256 assetsRedeemed = bryan.redeem(sharesToRedeem, alice, alice);
+        uint256 assetsRedeemed = bryanFanToken.redeem(sharesToRedeem, alice, alice);
 
         console.log("After redeem (non-sponsor):");
         console.log("  Redeemed assets:", assetsRedeemed);
-        console.log("  alice shares remaining:", bryan.balanceOf(alice));
+        console.log("  alice shares remaining:", bryanFanToken.balanceOf(alice));
 
         // TODO: shares are 1:1. that makes these asserts feel fragile
         assertEq(assetsRedeemed, 0.5 ether, "should redeem the calculated shares amount");
-        assertEq(bryan.balanceOf(alice), userShares - sharesToRedeem, "alice shares should decrease");
+        assertEq(bryanFanToken.balanceOf(alice), userShares - sharesToRedeem, "alice shares should decrease");
     }
 
     function test_redeem_insufficient_balance_sponsor() public {
         (IERC4626 asset, uint256 assets) = _dealAsset(1 ether, sponsor);
 
         vm.startPrank(sponsor);
-        bryan.setSponsorship(true);
-        asset.approve(address(bryan), type(uint256).max);
+        bryanFanToken.setSponsorship(true);
+        asset.approve(address(bryanFanToken), type(uint256).max);
 
-        uint256 when = bryan.startDeposit(assets, sponsor);
+        uint256 when = bryanFanToken.startDeposit(assets, sponsor);
         if (when > 0) {
             vm.warp(when);
-            bryan.deposit(assets, sponsor);
+            bryanFanToken.deposit(assets, sponsor);
         }
 
-        uint256 sponsorAssets = bryan.balanceOfSponsorAssets(sponsor);
-        uint256 maxShares = bryan.previewWithdraw(sponsorAssets);
+        uint256 sponsorAssets = bryanFanToken.balanceOfSponsorAssets(sponsor);
+        uint256 maxShares = bryanFanToken.previewWithdraw(sponsorAssets);
         uint256 excessiveShares = maxShares + 1e18;
 
         console.log("Attempting redeem of more than sponsor shares:");
@@ -1641,8 +1661,8 @@ contract FanTokenTest is Test {
         console.log("  Excessive shares:", excessiveShares);
 
         // Should fail with InsufficientSponsorBalance
-        uint256 excessiveAssets = bryan.previewRedeem(excessiveShares);
-        uint256 availableShares = bryan.previewWithdraw(sponsorAssets);
+        uint256 excessiveAssets = bryanFanToken.previewRedeem(excessiveShares);
+        uint256 availableShares = bryanFanToken.previewWithdraw(sponsorAssets);
         vm.expectRevert(
             abi.encodeWithSelector(
                 InsufficientSponsorBalance.selector,
@@ -1653,7 +1673,7 @@ contract FanTokenTest is Test {
                 excessiveShares
             )
         );
-        bryan.redeem(excessiveShares, sponsor, sponsor);
+        bryanFanToken.redeem(excessiveShares, sponsor, sponsor);
     }
 
     function test_withdraw_with_allowance() public {
@@ -1664,29 +1684,29 @@ contract FanTokenTest is Test {
         require(asset.transfer(alice, assets), "asset transfer failed");
 
         vm.startPrank(alice);
-        asset.approve(address(bryan), type(uint256).max);
+        asset.approve(address(bryanFanToken), type(uint256).max);
 
-        uint256 when = bryan.startDeposit(assets, alice);
+        uint256 when = bryanFanToken.startDeposit(assets, alice);
         if (when > 0) {
             vm.warp(when);
-            bryan.deposit(assets, alice);
+            bryanFanToken.deposit(assets, alice);
         }
 
-        uint256 userShares = bryan.balanceOf(alice);
-        uint256 withdrawAmount = bryan.convertToAssets(userShares / 2);
-        uint256 sharesToApprove = bryan.previewWithdraw(withdrawAmount);
+        uint256 userShares = bryanFanToken.balanceOf(alice);
+        uint256 withdrawAmount = bryanFanToken.convertToAssets(userShares / 2);
+        uint256 sharesToApprove = bryanFanToken.previewWithdraw(withdrawAmount);
 
         // Approve withdrawer
-        bryan.approve(withdrawer, sharesToApprove);
+        bryanFanToken.approve(withdrawer, sharesToApprove);
 
         // Withdrawer withdraws alice's tokens
         vm.startPrank(withdrawer);
 
-        uint256 withdrawn = bryan.withdraw(withdrawAmount, withdrawer, alice);
+        uint256 withdrawn = bryanFanToken.withdraw(withdrawAmount, withdrawer, alice);
 
         assertEq(withdrawn, withdrawAmount, "should withdraw the requested amount");
-        assertEq(bryan.balanceOf(alice), userShares - sharesToApprove, "alice shares should decrease");
-        assertEq(bryan.allowance(alice, withdrawer), 0, "allowance should be consumed");
+        assertEq(bryanFanToken.balanceOf(alice), userShares - sharesToApprove, "alice shares should decrease");
+        assertEq(bryanFanToken.allowance(alice, withdrawer), 0, "allowance should be consumed");
     }
 
     // ============ INVARIANT TESTS ============
@@ -1710,12 +1730,11 @@ contract FanTokenTest is Test {
 
         for (uint256 i = 0; i < 3; i++) {
             vm.startPrank(sponsors[i]);
-            bryan.setSponsorship(true);
-            asset.approve(address(bryan), type(uint256).max);
-            uint256 when = bryan.startDeposit(amounts[i], sponsors[i]);
+            asset.approve(address(bryanFanToken), type(uint256).max);
+            uint256 when = bryanFanToken.startDeposit(amounts[i], sponsors[i]);
             if (when > 0) {
                 vm.warp(when);
-                bryan.finishDeposit(sponsors[i], sponsors[i]);
+                bryanFanToken.finishDeposit(sponsors[i], sponsors[i]);
             }
         }
 
@@ -1724,25 +1743,25 @@ contract FanTokenTest is Test {
 
         // Perform various operations and check invariant holds
         vm.startPrank(sponsor1);
-        bryan.sponsorTransfer(sponsor2, 1 ether);
+        bryanFanToken.sponsorTransfer(sponsor2, 1 ether);
         _checkSponsorAccountingInvariant(sponsors);
 
         vm.startPrank(sponsor2);
-        bryan.sponsorBurn(0.5 ether);
+        bryanFanToken.sponsorBurn(0.5 ether);
         _checkSponsorAccountingInvariant(sponsors);
 
         vm.startPrank(sponsor3);
-        bryan.setSponsorship(false);
+        bryanFanToken.setSponsorship(false);
         _checkSponsorAccountingInvariant(sponsors);
     }
 
     function _checkSponsorAccountingInvariant(address[] memory sponsors) internal view {
         uint256 sumIndividual = 0;
         for (uint256 i = 0; i < sponsors.length; i++) {
-            sumIndividual += bryan.balanceOfSponsorAssets(sponsors[i]);
+            sumIndividual += bryanFanToken.balanceOfSponsorAssets(sponsors[i]);
         }
 
-        uint256 totalReported = bryan.totalSponsorAssets();
+        uint256 totalReported = bryanFanToken.totalSponsorAssets();
         assertEq(totalReported, sumIndividual, "totalSponsorAssets must equal sum of individual balanceOfSponsorAssets");
     }
 
@@ -1751,78 +1770,79 @@ contract FanTokenTest is Test {
         (IERC4626 asset, uint256 totalAssets) = _dealAsset(10 ether, sponsor);
 
         vm.startPrank(sponsor);
-        bryan.setSponsorship(true);
-        asset.approve(address(bryan), type(uint256).max);
-        uint256 when = bryan.startDeposit(totalAssets, sponsor);
+        bryanFanToken.setSponsorship(true);
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        uint256 when = bryanFanToken.startDeposit(totalAssets, sponsor);
         if (when > 0) {
             vm.warp(when);
-            bryan.finishDeposit(sponsor, sponsor);
+            bryanFanToken.finishDeposit(sponsor, sponsor);
         }
 
-        uint256 sponsorBalance = bryan.balanceOfSponsorAssets(sponsor);
+        uint256 sponsorBalance = bryanFanToken.balanceOfSponsorAssets(sponsor);
         assertEq(sponsorBalance, totalAssets, "Sponsor balance should equal deposited assets");
 
         // Test exact balance withdrawal
-        uint256 withdrawn1 = bryan.withdraw(sponsorBalance, sponsor, sponsor);
+        uint256 withdrawn1 = bryanFanToken.withdraw(sponsorBalance, sponsor, sponsor);
         assertEq(withdrawn1, sponsorBalance, "Should withdraw exact sponsor balance");
-        assertEq(bryan.balanceOfSponsorAssets(sponsor), 0, "Sponsor balance should be zero after full withdrawal");
+        assertEq(
+            bryanFanToken.balanceOfSponsorAssets(sponsor), 0, "Sponsor balance should be zero after full withdrawal"
+        );
 
         // Deposit again for next test
-        uint256 when2 = bryan.startDeposit(totalAssets, sponsor);
+        uint256 when2 = bryanFanToken.startDeposit(totalAssets, sponsor);
         if (when2 > 0) {
             vm.warp(when2);
-            bryan.finishDeposit(sponsor, sponsor);
+            bryanFanToken.finishDeposit(sponsor, sponsor);
         }
 
         // Test withdrawal that exceeds balance should revert
-        uint256 excessiveAmount = bryan.balanceOfSponsorAssets(sponsor) + 1;
-        uint256 availableShares = bryan.previewWithdraw(bryan.balanceOfSponsorAssets(sponsor));
-        uint256 excessiveShares = bryan.previewWithdraw(excessiveAmount);
+        uint256 excessiveAmount = bryanFanToken.balanceOfSponsorAssets(sponsor) + 1;
+        uint256 availableShares = bryanFanToken.previewWithdraw(bryanFanToken.balanceOfSponsorAssets(sponsor));
+        uint256 excessiveShares = bryanFanToken.previewWithdraw(excessiveAmount);
 
         vm.expectRevert(
             abi.encodeWithSelector(
                 InsufficientSponsorBalance.selector,
                 sponsor,
-                bryan.balanceOfSponsorAssets(sponsor),
+                bryanFanToken.balanceOfSponsorAssets(sponsor),
                 availableShares,
                 excessiveAmount,
                 excessiveShares
             )
         );
-        bryan.withdraw(excessiveAmount, sponsor, sponsor);
+        bryanFanToken.withdraw(excessiveAmount, sponsor, sponsor);
     }
 
-    /// TODO: rewrite this ai slop
     function test_deposit_delay_timing() public {
         (IERC4626 asset, uint256 assets1) = _dealAsset(1 ether, alice);
         (, uint256 assets2) = _dealAsset(1 ether, bob);
 
         // First deposit should have no delay (totalSupply == 0)
         vm.startPrank(alice);
-        asset.approve(address(bryan), type(uint256).max);
-        uint256 claimWhen1 = bryan.startDeposit(assets1, alice);
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        uint256 claimWhen1 = bryanFanToken.startDeposit(assets1, alice);
         assertEq(claimWhen1, 0, "First deposit should have no delay");
 
-        uint256 shares1 = bryan.balanceOf(alice);
+        uint256 shares1 = bryanFanToken.balanceOf(alice);
         assertEq(shares1, assets1, "Should receive shares equal to deposited assets for first deposit");
 
         // Second deposit should have delay (totalSupply > 0)
         vm.startPrank(bob);
-        asset.approve(address(bryan), type(uint256).max);
+        asset.approve(address(bryanFanToken), type(uint256).max);
 
         uint256 startTime = block.timestamp;
-        uint256 expectedDelay = bryan.DEPOSIT_DELAY();
-        uint256 claimWhen2 = bryan.startDeposit(assets2, bob);
+        uint256 expectedDelay = bryanFanToken.DEPOSIT_DELAY();
+        uint256 claimWhen2 = bryanFanToken.startDeposit(assets2, bob);
 
         assertEq(claimWhen2, startTime + expectedDelay, "Second deposit claim time calculation incorrect");
 
         // Should not be able to finalize before delay
         vm.expectRevert(abi.encodeWithSelector(DepositNotReady.selector));
-        bryan.finishDeposit(bob, bob);
+        bryanFanToken.finishDeposit(bob, bob);
 
         // Should be able to finalize exactly at delay time
         vm.warp(claimWhen2);
-        uint256 shares2 = bryan.finishDeposit(bob, bob);
+        uint256 shares2 = bryanFanToken.finishDeposit(bob, bob);
         assertEq(shares2, assets2, "Should receive shares equal to deposited assets after delay");
     }
 
@@ -1833,54 +1853,58 @@ contract FanTokenTest is Test {
 
         // Setup sponsor1
         vm.startPrank(sponsor1);
-        bryan.setSponsorship(true);
-        asset.approve(address(bryan), type(uint256).max);
-        uint256 when1 = bryan.startDeposit(assets, sponsor1);
+        bryanFanToken.setSponsorship(true);
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        uint256 when1 = bryanFanToken.startDeposit(assets, sponsor1);
         if (when1 > 0) {
             vm.warp(when1);
-            bryan.finishDeposit(sponsor1, sponsor1);
+            bryanFanToken.finishDeposit(sponsor1, sponsor1);
         }
 
         // Setup nonSponsor (must wait for delay since sponsor1 already deposited)
         vm.startPrank(nonSponsor);
-        asset.approve(address(bryan), type(uint256).max);
-        uint256 when2 = bryan.startDeposit(assets2, nonSponsor);
+        asset.approve(address(bryanFanToken), type(uint256).max);
+        uint256 when2 = bryanFanToken.startDeposit(assets2, nonSponsor);
         if (when2 > 0) {
             vm.warp(when2);
-            bryan.finishDeposit(nonSponsor, nonSponsor);
+            bryanFanToken.finishDeposit(nonSponsor, nonSponsor);
         }
 
         // Setup sponsor2 (empty initially)
         vm.startPrank(sponsor2);
-        bryan.setSponsorship(true);
+        bryanFanToken.setSponsorship(true);
 
         uint256 transferAmount = 1 ether;
 
         // Test sponsor-to-sponsor transfer
         vm.startPrank(sponsor1);
-        bryan.sponsorTransfer(sponsor2, transferAmount);
+        bryanFanToken.sponsorTransfer(sponsor2, transferAmount);
 
         assertEq(
-            bryan.balanceOfSponsorAssets(sponsor1), assets - transferAmount, "Sponsor1 balance incorrect after transfer"
+            bryanFanToken.balanceOfSponsorAssets(sponsor1),
+            assets - transferAmount,
+            "Sponsor1 balance incorrect after transfer"
         );
-        assertEq(bryan.balanceOfSponsorAssets(sponsor2), transferAmount, "Sponsor2 balance incorrect after transfer");
+        assertEq(
+            bryanFanToken.balanceOfSponsorAssets(sponsor2), transferAmount, "Sponsor2 balance incorrect after transfer"
+        );
 
         // Total should remain unchanged
-        assertEq(bryan.totalSponsorAssets(), assets, "Total sponsor assets should remain constant");
+        assertEq(bryanFanToken.totalSponsorAssets(), assets, "Total sponsor assets should remain constant");
 
         // Test non-sponsor to sponsor transfer (should convert shares)
-        uint256 nonSponsorShares = bryan.balanceOf(nonSponsor);
-        uint256 nonSponsorAssets = bryan.convertToAssets(nonSponsorShares);
+        uint256 nonSponsorShares = bryanFanToken.balanceOf(nonSponsor);
+        uint256 nonSponsorAssets = bryanFanToken.convertToAssets(nonSponsorShares);
 
         vm.startPrank(nonSponsor);
-        bryan.sponsorTransfer(sponsor1, nonSponsorAssets);
+        bryanFanToken.sponsorTransfer(sponsor1, nonSponsorAssets);
 
         // Non-sponsor should lose all shares
-        assertEq(bryan.balanceOf(nonSponsor), 0, "Non-sponsor should have no shares left");
+        assertEq(bryanFanToken.balanceOf(nonSponsor), 0, "Non-sponsor should have no shares left");
 
         // Sponsor should gain the assets
         assertEq(
-            bryan.balanceOfSponsorAssets(sponsor1),
+            bryanFanToken.balanceOfSponsorAssets(sponsor1),
             assets - transferAmount + nonSponsorAssets,
             "Sponsor1 balance incorrect after receiving from non-sponsor"
         );
