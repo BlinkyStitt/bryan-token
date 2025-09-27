@@ -339,6 +339,7 @@ contract FanTokenTest is Test {
         assertEq(bryanFanToken.balanceOfUnderlying(charlie), 0, "charlie should have zero");
 
         // mark bob as a sponsor
+        // TODO: just use one of the already setup sponsor users
         vm.startPrank(bob);
         bryanFanToken.setSponsorship(true);
 
