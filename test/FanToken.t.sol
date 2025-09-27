@@ -1036,12 +1036,14 @@ contract FanTokenTest is Test {
     function test_sponsorTransferFrom_insufficient_allowance() public {
         (IERC4626 asset, uint256 assets) = _dealAsset(10 ether, sponsor1);
 
+        vm.startPrank(sponsor1);
         asset.approve(address(bryanFanToken), type(uint256).max);
         uint256 when = bryanFanToken.startDeposit(assets, sponsor1);
         if (when > 0) {
             vm.warp(when);
             bryanFanToken.deposit(assets, sponsor1);
         }
+        vm.stopPrank();
 
         vm.startPrank(sponsor2);
         bryanFanToken.setSponsorship(true);
