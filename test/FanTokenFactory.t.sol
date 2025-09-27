@@ -54,7 +54,7 @@ contract FanTokenFactoryTest is Test {
         uint256 initialShares = fanToken.previewWithdraw(initialDeposit);
         assertEq(initialShares, initialDeposit, "initial deposit should be 1:1 shares");
 
-        assertEq(fanToken.balanceOfSponsor(address(this)), initialDeposit, "initial deposits should be 1:1");
+        assertEq(fanToken.balanceOfSponsorAssets(address(this)), initialDeposit, "initial deposits should be 1:1");
 
         assertEq(fanToken.balanceOf(address(fanToken)), initialShares, "the contract should own the sponsored shares");
 

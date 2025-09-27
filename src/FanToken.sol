@@ -74,13 +74,13 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
 
     /// @dev this is the number of assets, not the number of shares
     /// TODO: i'm not sure if tracking this is worth the gas
-    mapping(address who => uint256) public balanceOfPending;
+    mapping(address who => uint256) public balanceOfPendingAssets;
 
     /// @dev sponsor tokens do not earn any rewards
     mapping(address who => bool) public isSponsor;
 
     /// @dev this is the number of assets, not the number of shares - stores asset amounts for sponsor accounting
-    mapping(address who => uint256) public balanceOfSponsor;
+    mapping(address who => uint256) public balanceOfSponsorAssets;
 
     /// @dev these underscores are gross. too many different libraries and styles are being mixed together
     /// todo: change this into an initializer that can only run once during deploy?
@@ -188,7 +188,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
 
         totalPendingAssets -= assets;
 
-        balanceOfPending[receiver] -= assets;
+        balanceOfPendingAssets[receiver] -= assets;
 
         _update(address(this), receiver, shares);
 
@@ -213,7 +213,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
 
             // update counters - don't mint shares yet, calculate them at finalization
             totalPendingAssets += assets;
-            balanceOfPending[receiver] += assets;
+            balanceOfPendingAssets[receiver] += assets;
             pendingDeposit.assets += assets;
 
             // allow claiming the deposit after a delay
@@ -389,7 +389,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
      */
     function redeem(uint256 shares, address receiver, address owner) public override nonReentrant returns (uint256) {
         if (isSponsor[owner]) {
-            uint256 ownerSponsorAssets = balanceOfSponsor[owner];
+            uint256 ownerSponsorAssets = balanceOfSponsorAssets[owner];
             uint256 assets = previewRedeem(shares);
 
             if (assets > ownerSponsorAssets) {
@@ -398,7 +398,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
             }
 
             // Update sponsor accounting before moving shares
-            balanceOfSponsor[owner] -= assets;
+            balanceOfSponsorAssets[owner] -= assets;
             totalSponsorAssets -= assets;
 
             super._update(address(this), owner, shares);
@@ -463,7 +463,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
                 // update sponsor accounting
                 uint256 assets = previewRedeem(shares);
                 totalSponsorAssets += assets;
-                balanceOfSponsor[who] += assets;
+                balanceOfSponsorAssets[who] += assets;
                 // TODO: emit events
             }
         } else {
@@ -473,12 +473,12 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
             }
 
             // transfer the fan tokens back to the caller
-            uint256 assets = balanceOfSponsor[who];
+            uint256 assets = balanceOfSponsorAssets[who];
             if (assets > 0) {
                 uint256 shares = previewWithdraw(assets);
 
                 // update sponsor accounting
-                balanceOfSponsor[who] -= assets;
+                balanceOfSponsorAssets[who] -= assets;
                 totalSponsorAssets -= assets;
 
                 _update(address(this), who, shares);
@@ -488,12 +488,12 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
 
     /// @notice burn your sponsored tokens and credit them to all the other fan token holders
     function sponsorBurn(uint256 assets) public nonReentrant {
-        uint256 senderSponsorAssets = balanceOfSponsor[msg.sender];
+        uint256 senderSponsorAssets = balanceOfSponsorAssets[msg.sender];
         if (assets > senderSponsorAssets) {
             revert ERC20InsufficientBalance(msg.sender, senderSponsorAssets, assets);
         }
 
-        balanceOfSponsor[msg.sender] -= assets;
+        balanceOfSponsorAssets[msg.sender] -= assets;
         totalSponsorAssets -= assets;
 
         harvestSponsorship();
@@ -509,14 +509,14 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
         // this isn't the most gas efficient way, but i think its best to ensure we get all the math right
         if (fromIsSponsor && toIsSponsor) {
             // no need to do anything with the shares. they are owned by this contract and stay owned by this contract
-            balanceOfSponsor[from] -= assets;
-            balanceOfSponsor[to] += assets;
+            balanceOfSponsorAssets[from] -= assets;
+            balanceOfSponsorAssets[to] += assets;
             emit Transfer(from, to, shares);
         } else if (fromIsSponsor) {
             // since from is a sponsor, the shares are held by this contract
             // move them to the from. then do the normal transfer flow
             // we could maybe _update(address(this, to)), but i think events are confusing that way
-            balanceOfSponsor[from] -= assets;
+            balanceOfSponsorAssets[from] -= assets;
             super._update(address(this), from, shares);
 
             super._update(from, to, shares);
@@ -557,7 +557,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
      */
     function withdraw(uint256 assets, address receiver, address owner) public override nonReentrant returns (uint256) {
         if (isSponsor[owner]) {
-            uint256 ownerSponsorAssets = balanceOfSponsor[owner];
+            uint256 ownerSponsorAssets = balanceOfSponsorAssets[owner];
             uint256 shares = previewWithdraw(assets);
 
             if (assets > ownerSponsorAssets) {
@@ -566,7 +566,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
             }
 
             // Update sponsor accounting before moving shares
-            balanceOfSponsor[owner] -= assets;
+            balanceOfSponsorAssets[owner] -= assets;
             totalSponsorAssets -= assets;
 
             super._update(address(this), owner, shares);

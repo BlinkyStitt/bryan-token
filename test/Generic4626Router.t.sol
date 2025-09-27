@@ -85,14 +85,14 @@ contract Generic4626RouterTest is Test {
         );
 
         assertEq(
-            fanToken.balanceOfSponsor(address(this)),
+            fanToken.balanceOfSponsorAssets(address(this)),
             INITIAL_WETH,
             "creator should receive sponsor assets from initial deposit"
         );
 
         fanToken.sponsorTransfer(trader, INITIAL_WETH);
 
-        assertEq(fanToken.balanceOfSponsor(address(this)), 0, "creator sponsorship should transfer to trader");
+        assertEq(fanToken.balanceOfSponsorAssets(address(this)), 0, "creator sponsorship should transfer to trader");
 
         startHoax(trader, INITIAL_WETH * 2);
 
