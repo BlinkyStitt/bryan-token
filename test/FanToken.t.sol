@@ -555,6 +555,13 @@ contract FanTokenTest is Test {
 
         bryanFanToken.enableAuction(from);
 
+        assertEq(bryanFanToken.kickable(address(from)), 0, "nothing should be kickable yet");
+
+        (bool startShouldKick, bytes memory startKickData) = bryanFanToken.auctionTrigger(address(from));
+
+        assertEq(startShouldKick, false, "should not need to kick yet");
+        assertEq(startKickData, "not enough kickable", "unexpected error message");
+
         uint256 fromAmount = 1 ether;
         assertEq(fromAmount, 1 ether, "test assumes an auction size of 1 ether");
 
@@ -1107,46 +1114,46 @@ contract FanTokenTest is Test {
         address depositor = makeAddr("depositor");
         address finisher = makeAddr("finisher");
 
-        // Ensure this is NOT the first deposit to the contract
-        // by making a small deposit first
-        (IERC4626 asset, uint256 initialAssets) = _dealAsset(0.1 ether, address(this));
+        // get some assets
+        (IERC4626 asset, uint256 initialAssets) = _dealAsset(1 ether, address(this));
         asset.approve(address(bryanFanToken), type(uint256).max);
-        bryanFanToken.deposit(initialAssets, address(this));
 
-        // Now set up the actual test
-        ( /*IERC4626 asset2*/ , uint256 assets) = _dealAsset(1 ether, address(this));
-        require(asset.transfer(depositor, assets));
+        // do an initial deposit that finishes instantly.
+        uint256 initialDeposit = bryanFanToken.deposit(initialAssets / 10, address(this));
 
-        // Depositor requests sponsorship and starts deposit
+        uint256 assets = bryanFanToken.balanceOf(address(this));
+
+        // prepare for a second deposit
+        require(asset.transfer(depositor, assets), "transfer to depositor failed");
+
         vm.startPrank(depositor);
-        bryanFanToken.setSponsorship(true);
         asset.approve(address(bryanFanToken), type(uint256).max);
 
+        // start the deposit
         uint256 when = bryanFanToken.startDeposit(assets, depositor);
 
-        assertGt(when, block.timestamp, "deposit should have delay after initial deposit");
+        assertEq(
+            when, block.timestamp + bryanFanToken.DEPOSIT_DELAY(), "deposit should have delay after initial deposit"
+        );
 
         // Warp to when deposit is ready
         vm.warp(when);
 
-        // Different alice (finisher) calls finishDeposit for the depositor
+        // Different user (the finisher) calls finishDeposit for the depositor
         vm.startPrank(finisher);
         uint256 finishedDeposit = bryanFanToken.finishDeposit(depositor, depositor);
 
         assertEq(finishedDeposit, assets, "should finish deposit of original amount");
 
         // Since depositor became a sponsor, their shares should be moved to the contract
-        uint256 contractSponsoredShares = bryanFanToken.totalSponsoredShares();
-        assertGt(contractSponsoredShares, 0, "contract should hold sponsored shares after sponsor deposit");
-        assertGt(bryanFanToken.totalSponsoredAssets(), 0, "sponsored assets should be tracked after sponsor deposit");
-
-        // Depositor's direct balance should be zero since they're a sponsor
-        uint256 depositorBalanceAfter = bryanFanToken.balanceOf(depositor);
         assertEq(
-            depositorBalanceAfter,
-            0,
-            "sponsor depositor should have zero direct balance, shares moved to sponsored pool"
+            bryanFanToken.totalSupply(),
+            initialDeposit + finishedDeposit,
+            "contract should hold sponsored shares after sponsor deposit"
         );
+        assertEq(bryanFanToken.totalSponsoredAssets(), 0, "none of the assets are sponsored");
+
+        assertEq(bryanFanToken.balanceOf(depositor), finishedDeposit, "depositor should have some balance");
     }
 
     function test_harvesting_weth() public {

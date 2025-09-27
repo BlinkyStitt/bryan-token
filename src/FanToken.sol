@@ -192,7 +192,8 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
 
         _update(address(this), receiver, shares);
 
-        _setSponsorship(receiver, isSponsor[receiver]);
+        // TODO: this is already part of _update
+        // _setSponsorship(receiver, isSponsor[receiver]);
 
         return shares;
     }
@@ -243,7 +244,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
     }
 
     /// @notice prepare the auction contract for selling a token
-    /// @dev this resets approvals to max (unlikely to be needed, but its a good safety measure)
+    /// @dev calling this multiple times will reset approvals to max (unlikely to be needed, but its a good safety measure)
     /// TODO: i feel like we should store a minimum trade amount here. but i don't know how to make that open. maybe this should be an only-owner function?
     function enableAuction(IERC20 from) public {
         IERC20 _asset = IERC20(asset());
@@ -356,7 +357,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
 
             // burn the excess shares to redistribute rewards to non-sponsored token holders
             _update(address(this), address(0), amount);
-        } else {}
+        }
     }
 
     /// @notice Returns the amount of underlying assets that can be harvested
