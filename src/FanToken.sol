@@ -272,6 +272,11 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
         shares = _finishDeposit(msg.sender, msg.sender, 0, 0);
     }
 
+    /// @notice finish a deposit for another user that was started by the msg.sender
+    function finishDeposit(address receiver) public nonReentrant returns (uint256 shares) {
+        shares = _finishDeposit(msg.sender, receiver, 0, 0);
+    }
+
     /// @notice finish a deposit that was started by another caller
     function finishDeposit(address originalCaller, address receiver) public nonReentrant returns (uint256 shares) {
         shares = _finishDeposit(originalCaller, receiver, 0, 0);

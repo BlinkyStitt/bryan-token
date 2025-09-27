@@ -30,7 +30,7 @@ contract FanTokenFactoryTest is Test {
         bytes32 salt = bytes32(0);
         bool setupUniswapV4HookedPool = false;
 
-        vm.prank(owner);
+        vm.startPrank(owner);
         bryan = fanTokenFactory.create(
             "ETH from Bryan",
             "BRY-ETH",

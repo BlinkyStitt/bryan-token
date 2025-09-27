@@ -278,7 +278,7 @@ contract Generic4626RouterTest is Test {
         assertLt(finalFanTokens, initialFanTokens, "Should have spent fan tokens");
         assertGt(finalWETH, initialWETH, "Should have received WETH");
 
-        vm.stopPrank();
+        
     }
     */
 
@@ -342,8 +342,6 @@ contract Generic4626RouterTest is Test {
 
         // Execute swap via Universal Router
         UNIVERSAL_ROUTER.execute(commands, inputs, block.timestamp + 300);
-
-        vm.stopPrank();
 
         // Verify the swap worked
         uint256 finalWETH = WETH.balanceOf(trader);
