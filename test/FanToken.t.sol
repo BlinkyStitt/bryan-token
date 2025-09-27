@@ -686,6 +686,11 @@ contract FanTokenTest is Test {
         uint256 rewardAmount = 1 ether;
         vm.deal(address(testFanToken), rewardAmount);
 
+        assertEq(testFanToken.harvestable(), rewardAmount, "there should be some harvestable");
+
+        // TODO: donate some prize vault shares to the contract to test this
+        assertEq(testFanToken.harvestableSponsorship(), 0, "there shouldn't be any harvestable sponsorship");
+
         // Harvest
         uint256 harvested = testFanToken.harvest();
         assertEq(harvested, rewardAmount, "should harvest all rewards");
@@ -925,14 +930,11 @@ contract FanTokenTest is Test {
         assertEq(bryanFanToken.DEPOSIT_DELAY(), 3 days);
     }
 
-    function test_claiming_pool_rewards() public {
-        // Since we don't have actual POOL rewards in test, just verify the harvest function works
+    function test_claiming_ETH_rewards() public {
         uint256 initialBalance = WETH9.balanceOf(address(bryanFanToken));
 
-        // Send some WETH to simulate rewards
-        vm.deal(address(this), 1 ether);
-        WETH9.deposit{value: 1 ether}();
-        require(WETH9.transfer(address(bryanFanToken), 1 ether));
+        // Send some ETH to simulate rewards
+        vm.deal(address(bryanFanToken), 1 ether);
 
         uint256 harvested = bryanFanToken.harvest();
         assertEq(harvested, 1 ether, "should harvest exactly 1 ether of rewards");
