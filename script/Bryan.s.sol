@@ -1,79 +1,109 @@
 // SPDX-License-Identifier: UNLICENSED
+// script to deploy the tokens for Bryan. TODO: make this configurable so anyone can use it
 pragma solidity ^0.8.13;
 
 import {LibString} from "solady/utils/LibString.sol";
 import {Script} from "forge-std/Script.sol";
-import {FanToken, FanTokenFactory, IERC4626} from "../src/FanTokenFactory.sol";
+import {FanToken, FanTokenFactory, IERC20, IERC4626} from "../src/FanTokenFactory.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 
 // TODO: rewrite this to prompt the user for inputs instead of having everything hard coded
 contract BryanScript is Script {
     using LibString for uint256;
 
-    address prizePoolTwabRewards = 0xF4c47dacFda99bE38793181af9Fd1A2Ec7576bBF; // TODO: actually use this
-    IERC4626 usdcPrizeVault = IERC4626(0x7f5C2b379b88499aC2B997Db583f8079503f25b9); // TODO: this is the USDC vault. i want the WETH vault
-    IERC4626 wethPrizeVault = IERC4626(0x4E42f783db2D0C5bDFf40fDc66FCAe8b1Cda4a43);
+    IERC4626 constant PRIZE_VAULT_USDC = IERC4626(0x7f5C2b379b88499aC2B997Db583f8079503f25b9);
+    IERC4626 constant PRIZE_VAULT_WETH = IERC4626(0x4E42f783db2D0C5bDFf40fDc66FCAe8b1Cda4a43);
 
     FanTokenFactory public fanTokenFactory;
-    FanToken public bryan;
+    address public owner;
 
-    function setUp() public {}
-
-    function run() public {
+    function setUp() public {
         // TODO: read the environment to get the contract address for the factory
         fanTokenFactory = FanTokenFactory(address(0));
 
-        // constructor arguments
-        address owner = 0x2699C32A793D58691419A054DA69414dF186b181; // TODO: use the active account
-        address treasury = address(0);
+        // TODO: is this right? how do we get the active account?
+        owner = msg.sender;
+    }
 
+    function _deploy(
+        string memory ownerName,
+        string memory ownerSymbol,
+        string memory addressPrefix,
+        IERC4626 prizeVault,
+        uint256 initialDeposit
+    ) internal returns (FanToken fanToken) {
         uint256 harvestOwnerFeeBasisPoints = 5000;
         uint256 harvestTreasuryFeeBasisPoints = 0;
-
-        string memory addressPrefix = "0x0112358D";
+        address treasury = address(0);
+        boolean setupUniswapV4HookedPool = true;
 
         // prepare creation code
-        revert("todo: this is wrong now. we need a helper function for checking salts from the factory");
-
-        // TODO: deploy a token for WETH and a token for USDC
-
-        /*
-        bytes memory creationCode = abi.encodePacked(type(FanToken).creationCode, abi.encode(owner, wethPrizeVault));
+        // TODO: get creation code hash from a call to the factory. that should make sure things are definitely set correctly. these constructor args are incorrect!
+        bytes memory creationCode =
+            abi.encodePacked(type(FanToken).creationCode, abi.encode(address(this), PRIZE_VAULT_WETH));
 
         bytes32 creationCodeHash = keccak256(creationCode);
 
         // find a salt. is it better to do this in deploy.sh or with ffi?
         // TODO: should we use a miner script like the uniswap deployer does? i think this is like 10x faster on my laptop
         // TODO: this needs to be changed now that there is a factory contract doing the deploy
-        string[] memory cmds = new string[](3);
+        string[] memory cmds = new string[](4);
         cmds[0] = "./script/salt_finder.sh";
-        cmds[1] = addressPrefix;
-        cmds[2] = LibString.toHexString(uint256(creationCodeHash), 32);
+        cmds[1] = LibString.toHexStringChecksummed(address(fanTokenFactory));
+        cmds[2] = addressPrefix;
+        cmds[3] = LibString.toHexString(uint256(creationCodeHash), 32);
         bytes memory result = vm.ffi(cmds);
 
         bytes32 salt = abi.decode(result, (bytes32));
-        uint256 initialDeposit = 0;
+
+        IERC20Metadata asset = IERC20Metadata(prizeVault.asset());
+
+        string memory assetSymbol = asset.symbol();
+
+        string memory name = string(abi.encodePacked(assetSymbol, " from ", ownerName));
+        string memory symbol = string(abi.encodePacked(ownerSymbol, "-", assetSymbol));
 
         // deploy the contract with our found salt
         vm.startBroadcast();
 
-        // approve if necessary
+        // approve if necessary for the initial deposit
+        if (initialDeposit > prizeVault.allowance(owner, address(fanTokenFactory))) {
+            prizeVault.approve(address(fanTokenFactory), type(uint256).max);
+        }
 
-        bryan = fanTokenFactory.create(
-            "ETH from Bryan",
-            "BRY-ETH",
-            entryFeeBasisPoints,
+        fanToken = fanTokenFactory.create(
+            name,
+            symbol,
             harvestOwnerFeeBasisPoints,
             harvestTreasuryFeeBasisPoints,
-            wethPrizeVault,
+            prizeVault,
             treasury,
             salt,
-            initialDeposit
+            initialDeposit,
+            setupUniswapV4HookedPool
         );
 
-        // TODO: make sure the address for bryan matches the address prefix
+        // TODO: make sure the address for fanToken matches the address prefix
 
         vm.stopBroadcast();
-        */
+    }
+
+    function run() public {
+        // TODO: constructor arguments should be function arguments i think
+        string memory ownerName = "Bryan";
+        string memory ownerSymbol = "BRY";
+
+        string memory usdcAddressPrefix = "0xD8532110";
+        string memory wethAddressPrefix = "0x0112358D";
+
+        _deploy(ownerName, ownerSymbol, usdcAddressPrefix, PRIZE_VAULT_USDC, 0);
+        _deploy(ownerName, ownerSymbol, wethAddressPrefix, PRIZE_VAULT_WETH, 0);
+    }
+
+    function claimPrize() public pure {
+        revert(
+            "claim any prizes. this might not be worth doing here. might be better to use pooltogether's official scirpts. research more"
+        );
     }
 
     // TODO: this should probably be in another file

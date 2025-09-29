@@ -1,4 +1,5 @@
 #!/bin/bash
+# mine a 
 set -eu -o pipefail
 
 cache_dir=broadcast/salts/
@@ -9,8 +10,9 @@ cache_file=$cache_dir/$2-$1
 
 if [ ! -e "$cache_file" ]; then
     salt=$(cast create2 \
-        --starts-with "$1" \
-        --init-code-hash "$2" \
+        --deployer "$1" \
+        --starts-with "$2" \
+        --init-code-hash "$3" \
         --no-random | grep Salt | awk '{print $2}')
 
     echo "$salt" > "$cache_file"

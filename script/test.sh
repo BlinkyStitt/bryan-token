@@ -2,6 +2,8 @@
 # run tests on a forked network on a recent block
 set -eu -o pipefail
 
+cd "$(dirname "$0")/../"
+
 if [ -e .env ]; then
     source .env
 fi
@@ -45,7 +47,7 @@ fi
 mode="test"
 if [ $# -gt 0 ]; then
     case "$1" in
-        test|coverage|snapshot)
+        anvil|test|coverage|snapshot)
             mode="$1"
             shift  # remove mode from arguments
             ;;
@@ -53,6 +55,21 @@ if [ $# -gt 0 ]; then
 fi
 
 case "$mode" in
+    anvil)
+        anvil --fork-block-number "$block_number" \
+            --fork-url "$fork_url" \
+            --optimism \
+            "$@" &
+
+        # TODO: sleep until 8545 is open. it starts faster than 3 seconds
+        sleep 3
+
+        # TODO:
+        ./script/deploy.sh --rpc-url "http://127.0.0.1:8545"
+
+        # wait for the anvil process to exit
+        wait
+        ;;
     test)
         exec forge test \
             --fork-block-number "$block_number" \

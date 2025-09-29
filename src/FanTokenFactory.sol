@@ -32,9 +32,9 @@ contract FanTokenFactory is ReentrancyGuardTransient {
     // TODO: how should we do indexes on this?
     event Created(address indexed _owner, address indexed _prizeVault, address indexed _treasury, address _token);
 
-    constructor(IWETH9 _weth, Generic4626Router _uniswapV4Hook) {
-        WETH = _weth;
+    constructor(Generic4626Router _uniswapV4Hook, IWETH9 _weth) {
         UNISWAP_V4_ERC4626_HOOK = _uniswapV4Hook;
+        WETH = _weth;
     }
 
     function create(

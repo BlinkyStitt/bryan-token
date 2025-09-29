@@ -19,7 +19,7 @@ contract FanTokenFactoryTest is Test {
     function setUp() public {
         deal(owner, 10 ether);
 
-        fanTokenFactory = new FanTokenFactory(weth, uniswapV4Hook);
+        fanTokenFactory = new FanTokenFactory(uniswapV4Hook, weth);
 
         // TODO: need tests that have fees!
         uint256 harvestOwnerFeeBasisPoints = 0;

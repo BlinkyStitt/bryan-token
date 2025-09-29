@@ -1,6 +1,6 @@
 # Fan Tokens
 
-A **social crypto tipping and gaming system** that creates personalized cryptocurrency tokens designed for social interactions, particularly on platforms like Farcaster. Think of fan tokens as "wrapping paper" around valuable assets - they make tips more personal and engaging than generic USDC or ETH transfers.
+A **social crypto tipping and gaming token** that creates personalized cryptocurrency tokens designed for social interactions, particularly on platforms like Farcaster. Think of fan tokens as "wrapping paper" around valuable assets - they make tips more personal and engaging than generic USDC or ETH transfers.
 
 ## What Are Fan Tokens?
 
@@ -11,8 +11,8 @@ A **social crypto tipping and gaming system** that creates personalized cryptocu
 
 **🏆 Prize-Enabled Gaming**
 - Token holders participate in daily [PoolTogether prize](https://pooltogether.com/) drawings
-- Acts like "branded PoolTogether tickets" with social meaning
 - Winners are determined by the underlying PoolTogether mechanics
+- Acts like "branded PoolTogether tickets" with social meaning
 
 **💰 Always Redeemable**
 - Tokens can always be redeemed for the underlying PoolTogether vault tokens
@@ -22,7 +22,8 @@ A **social crypto tipping and gaming system** that creates personalized cryptocu
 **⚙️ Configurable Economics**
 - Token creators set custom harvest fee percentages for owner and treasury
 - Only constraint: combined fees cannot exceed 100%
-- Prize winnings distributed among token holders with configurable splits
+- Prize winnings distributed among the owner, the treasury, and the token holders
+- Users can enable sponsorship if they do not want to earn any prizes.
 
 ## Warning!
 
@@ -32,23 +33,25 @@ A **social crypto tipping and gaming system** that creates personalized cryptocu
 ## How It Works
 
 **🏗️ Technical Architecture**
-- Built as ERC4626 vaults on Base network using Foundry framework
-- FanTokenFactory deploys customized FanToken contracts
-- Integration with Yearn-style dutch auctions for yield harvesting
-- Uniswap V4 hook integration via Generic4626Router for decentralized trading
+- Built as ERC4626 vaults on top of Pool Together vaults
+- Deployed to the Base network, but will work on any network that has pool together.
+- Using Solidity with the Foundry framework
+- FanTokenFactory deploys FanToken contracts
+- Integration with Yearn's dutch auctions for yield harvesting
+- Uniswap V4 hook integration via Generic4626Router so that wallets can easily show pricing
 
 **🛡️ "Can't Be Evil" Design Principles**
 - Contracts are immutable once deployed - no admin backdoors
 - Token settings (name, symbol, fees) cannot be changed after creation
 - Backing mechanism prevents "pump and dump" scenarios
 - All functions designed to be maximally fair to participants
+- No "owner-only" functions. Every function is designed to be open for anyone to call.
 
 **⏰ Safety Mechanisms**
 - 3-day deposit delays prevent unfair prize extraction after large wins
 - Dutch auction system ensures fair price discovery for yield distribution
-- Sponsor system allows fee-free token creation through PoolTogether deposits
 
-## Problems Left To Fix
+## Problems Left To Check and Fix
 
 TODO: If the vault suffers losses, we need to make sure the sponsors can't take an unfair share. It might be fine, but this needs investigation. Any losses should be shared fairly.
 
@@ -58,17 +61,15 @@ TODO: What happens if 100% of the tokens are burned/sponsored after there is som
 
 TODO: Someone can send us a single wei of a token and then start an auction. That auction will probably fail. This will waste a day of our time. Possible solution: if the kickable balance is 100x the current balance, allow cancelling the auction. That might open a griefing attack. 
 
-TODO: should our contract have harvest (or a similar function) do the work of claiming the pool together prize? Right now we let them handle that gas.
-
 ## Miscellaneous Ideas and Todos
 
 Primarily, this project gives me a reason to play with some smart contract tools/frameworks to prepare for a more serious project.
 
 If someone does a dust attack and then kicks an auction, they might be able to do some trickery with the deposit queue. This forces the deposit queue to be 3 days long. (so that theres time for 2 auctions and some buffer).
 
-The fan token owner can create the token with any name and symbol and fees that they want. But these settings cannot be changed.
+The fan token owner can create the token with any name and symbol and fees that they want. But these settings cannot be changed. I don't want someone changing the symbol of their token to USDC and confusing people that already hold it.
 
-The owner can transfer ownership but not change the treasury address.
+The owner can transfer ownership but they cannot change the treasury address.
 
 I tend towards having everything be immutable. If you want to change something, just deploy a new fan token. Users can migrate if they wish.
 

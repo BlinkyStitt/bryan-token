@@ -12,6 +12,9 @@ contract FanTokenFactoryScript is Script {
     IWETH9 constant WETH9 = IWETH9(payable(0x4200000000000000000000000000000000000006));
     Generic4626Router constant GENERIC_4626_ROUTER = Generic4626Router(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888);
 
+    /// TODO: can we get this from config?
+    address constant CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
+
     FanTokenFactory public fanTokenFactory;
 
     function setUp() public {}
@@ -21,24 +24,24 @@ contract FanTokenFactoryScript is Script {
 
         // prepare creation code
         bytes memory creationCode =
-            abi.encodePacked(type(FanTokenFactory).creationCode, abi.encode(WETH9, GENERIC_4626_ROUTER));
+            abi.encodePacked(type(FanTokenFactory).creationCode, abi.encode(GENERIC_4626_ROUTER, WETH9));
 
         bytes32 creationCodeHash = keccak256(creationCode);
 
         // find a salt. is it better to do this in deploy.sh or with ffi?
         // TODO: should we use a miner script like the uniswap deployer does? i think this is like 10x faster on my laptop
-        // TODO: this needs to be changed now that there is a factory contract doing the deploy
         string[] memory cmds = new string[](3);
         cmds[0] = "./script/salt_finder.sh";
-        cmds[1] = addressPrefix;
-        cmds[2] = LibString.toHexString(uint256(creationCodeHash), 32);
+        cmds[1] = LibString.toHexStringChecksummed(CREATE2_DEPLOYER);
+        cmds[2] = addressPrefix;
+        cmds[3] = LibString.toHexString(uint256(creationCodeHash), 32);
         bytes memory result = vm.ffi(cmds);
 
         bytes32 salt = abi.decode(result, (bytes32));
 
         // deploy the contract with our found salt
         vm.startBroadcast();
-        fanTokenFactory = new FanTokenFactory{salt: salt}(WETH9, GENERIC_4626_ROUTER);
+        fanTokenFactory = new FanTokenFactory{salt: salt}(GENERIC_4626_ROUTER, WETH9);
 
         // TODO: make sure the address for the deployed contract matches the address prefix
 

@@ -65,7 +65,7 @@ contract Generic4626RouterTest is Test {
         treasury = address(0);
 
         // Deploy factory with the Generic4626Router hook
-        factory = new FanTokenFactory(WETH, GENERIC_4626_ROUTER);
+        factory = new FanTokenFactory(GENERIC_4626_ROUTER, WETH);
 
         // Get the pool manager from the Generic4626Router
         poolManager = IPoolManager(GENERIC_4626_ROUTER.poolManager());

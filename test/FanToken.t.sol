@@ -49,7 +49,7 @@ contract FanTokenTest is Test {
         uint256 harvestOwnerFeeBasisPoints = 200; // 2%
         uint256 harvestTreasuryFeeBasisPoints = 300; // 3%
 
-        factory = new FanTokenFactory(WETH9, UNISWAP_V4_4626_HOOK);
+        factory = new FanTokenFactory(UNISWAP_V4_4626_HOOK, WETH9);
 
         vm.prank(owner);
         bryanFanToken = factory.create(
