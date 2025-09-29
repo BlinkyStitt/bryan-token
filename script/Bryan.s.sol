@@ -35,7 +35,7 @@ contract BryanScript is Script {
         uint256 harvestOwnerFeeBasisPoints = 5000;
         uint256 harvestTreasuryFeeBasisPoints = 0;
         address treasury = address(0);
-        boolean setupUniswapV4HookedPool = true;
+        bool setupUniswapV4HookedPool = true;
 
         // prepare creation code
         // TODO: get creation code hash from a call to the factory. that should make sure things are definitely set correctly. these constructor args are incorrect!
