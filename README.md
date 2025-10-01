@@ -9,21 +9,18 @@ A **social crypto tipping and gaming token** that creates personalized cryptocur
 - Meant to be given as gifts, not bought/sold on markets
 - Each token is backed 1:1 by PoolTogether vault deposits
 
-**🏆 Prize-Enabled Gaming**
+**🏆 Shared Prizes**
 - Token holders participate in daily [PoolTogether prize](https://pooltogether.com/) drawings
 - Winners are determined by the underlying PoolTogether mechanics
-- Acts like "branded PoolTogether tickets" with social meaning
+- Prize winnings are distributed among the owner, the treasury, and the token holders
+- Token creators set custom harvest fee percentages for owner and treasury
+- Only constraint: combined fees cannot exceed 100%
+- Users can enable sponsorship if they do not want to earn any prizes.
 
 **💰 Always Redeemable**
 - Tokens can always be redeemed for the underlying PoolTogether vault tokens
 - Vault tokens are backed by valuable assets like ETH or USDC
-- No risk of tokens becoming worthless due to backing mechanism
-
-**⚙️ Configurable Economics**
-- Token creators set custom harvest fee percentages for owner and treasury
-- Only constraint: combined fees cannot exceed 100%
-- Prize winnings distributed among the owner, the treasury, and the token holders
-- Users can enable sponsorship if they do not want to earn any prizes.
+- Minimized risk of tokens becoming worthless due to backing mechanism
 
 ## Warning!
 
@@ -41,7 +38,7 @@ A **social crypto tipping and gaming token** that creates personalized cryptocur
 - Uniswap V4 hook integration via Generic4626Router so that wallets can easily show pricing
 
 **🛡️ "Can't Be Evil" Design Principles**
-- Contracts are immutable once deployed - no admin backdoors
+- Contracts are immutable once deployed
 - Token settings (name, symbol, fees) cannot be changed after creation
 - Backing mechanism prevents "pump and dump" scenarios
 - All functions designed to be maximally fair to participants
@@ -129,10 +126,11 @@ New Auction Factory: https://etherscan.io/address/0xbC587a495420aBB71Bbd40A0e291
 
 ## Further Reading
 
-- <https://github.com/yearn/tokenized-strategy-periphery/blob/master/src/Auctions/Auction.sol>
+- [Yearn's Dutch Auctions](https://github.com/yearn/tokenized-strategy-periphery/blob/master/src/Auctions/Auction.sol)
 - [PoolTime](https://farcaster.xyz/miniapps/T97hT9WJH64p/pooltime) - A PoolTogether mini-app
 - [Noice](https://farcaster.xyz/miniapps/jzc2pVtLe_oa/noice)
 - [Cobuild](https://farcaster.xyz/miniapps/XTipkfp9jZBu/cobuild)
+- [Empire Builder](https://farcaster.xyz/miniapps/x7DwM6UhLXps/empire-builder)
 
 ## Developer Documentation
 
@@ -188,7 +186,18 @@ forge snapshot
 anvil
 ```
 
-### Deploy
+### Deploy on a Forked Network
+
+First, start the "anvil" rpc server:
+
+```shell
+./script/test.sh anvil
+```
+
+That will start anvil and then run the deploy scripts for the factory and the "Bryan" fan tokens for you.
+
+
+### Deploy on a Live Network
 
 First, set up an account:
 
@@ -204,16 +213,18 @@ cast wallet import \
 ;
 ```
 
-Run the deploy script against a forked network:
-
-```shell
-forge script Bryan --fork-url <your_rpc_url> --account <your_account_name>
-```
-
 Run the deploy script against a live network:
 
 ```shell
-forge script Bryan --rpc-url <your_rpc_url> --account <your_account_name>
+source .env
+```
+
+```shell
+./script/deploy_fan_token_factory.sh --rpc-url "$BASE_RPC_URL" --account "$ACCOUNT"
+```
+
+```shell
+./script/deploy_bryan.sh --rpc-url "$BASE_RPC_URL" --account "$ACCOUNT"
 ```
 
 ### Cast

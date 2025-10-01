@@ -2,6 +2,7 @@
 exclude_lints = ["mixed-case-function"]
 
 [profile.default]
+fs_permissions = [{ access = "read", path = "./broadcast"}]
 src = "src"
 out = "out"
 libs = ["lib"]

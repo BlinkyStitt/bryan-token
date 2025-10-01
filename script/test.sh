@@ -4,8 +4,9 @@ set -eu -o pipefail
 
 cd "$(dirname "$0")/../"
 
-if [ -e .env ]; then
-    source .env
+ENV_FILE=${ENV_FILE:-.env}
+if [ -e "$ENV_FILE" ]; then
+    source "$ENV_FILE"
 fi
 
 REORG_SAFETY=${REORG_SAFETY:-5}
@@ -58,18 +59,25 @@ case "$mode" in
     anvil)
         anvil \
             --auto-impersonate \
+            --chain-id 18543 \
             --fork-block-number "$block_number" \
             --fork-url "$fork_url" \
-            --optimism \
             "$@" &
+
+        # TODO: why isn't this working?
+        # anvil_pid=$!
+        # trap "kill $anvil_pid" EXIT
 
         # TODO: trap to kill anvil
 
         # TODO: sleep until 8545 is open. it starts faster than 3 seconds
         sleep 3
 
-        ./script/deploy_fan_token_factory.sh --rpc-url "http://127.0.0.1:8545"
-        ./script/deploy_bryan.sh --rpc-url "http://127.0.0.1:8545"
+        # This private key is baked into anvil. DO NOT SEND FUNDS HERE!
+        ./script/deploy_fan_token_factory.sh --rpc-url "http://127.0.0.1:8545" --private-key "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+        ./script/deploy_bryan.sh --rpc-url "http://127.0.0.1:8545" --private-key "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+
+        echo "deploys complete. anvil is ready for use"
 
         # wait for the anvil process to exit
         wait

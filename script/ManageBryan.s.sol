@@ -14,7 +14,8 @@ contract ManageBryanScript is Script {
     using LibString for uint256;
 
     // these are the addresses on Base. Maybe these should be from config, but this is enough for me for now
-    PrizePoolTwabRewards constant PRIZE_POOL_TWAB_REWARDS = PrizePoolTwabRewards(0xF4c47dacFda99bE38793181af9Fd1A2Ec7576bBF);
+    PrizePoolTwabRewards constant PRIZE_POOL_TWAB_REWARDS =
+        PrizePoolTwabRewards(0xF4c47dacFda99bE38793181af9Fd1A2Ec7576bBF);
 
     IERC20Metadata public poolToken;
 
@@ -75,7 +76,8 @@ contract ManageBryanScript is Script {
         uint8[] memory unclaimedEpochIds;
 
         // TODO: make sure this is NOT broadcast!
-        uint256[] memory unclaimedRewards = PRIZE_POOL_TWAB_REWARDS.calculateRewards(prizeVault, address(fanToken), promotionId, unclaimedEpochIds);
+        uint256[] memory unclaimedRewards =
+            PRIZE_POOL_TWAB_REWARDS.calculateRewards(prizeVault, address(fanToken), promotionId, unclaimedEpochIds);
 
         uint256 numUnclaimedRewards = unclaimedRewards.length;
 

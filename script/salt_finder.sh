@@ -6,7 +6,7 @@ cache_dir=broadcast/salts/
 
 mkdir -p "$cache_dir"
 
-cache_file=$cache_dir/$2-$1
+cache_file=$cache_dir/$1-$2-$3
 
 if [ ! -e "$cache_file" ]; then
     salt=$(cast create2 \

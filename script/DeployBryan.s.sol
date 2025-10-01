@@ -2,6 +2,7 @@
 // script to deploy the tokens for Bryan. TODO: make this configurable so anyone can use it
 pragma solidity ^0.8.13;
 
+import {console} from "forge-std/console.sol";
 import {LibString} from "solady/utils/LibString.sol";
 import {Script} from "forge-std/Script.sol";
 import {FanToken, FanTokenFactory, IERC4626} from "../src/FanTokenFactory.sol";
@@ -21,7 +22,7 @@ contract DeployBryanScript is Script {
     function setUp() public {
         // Read factory address from deployment artifacts for current chain
         string memory chainId = vm.toString(block.chainid);
-        string memory path = string.concat("./broadcast/FanTokenFactory.s.sol/", chainId, "/run-latest.json");
+        string memory path = string.concat("./broadcast/DeployFanTokenFactory.s.sol/", chainId, "/run-latest.json");
         string memory json = vm.readFile(path);
         address factoryAddr = vm.parseJsonAddress(json, ".transactions[0].contractAddress");
         fanTokenFactory = FanTokenFactory(factoryAddr);
@@ -32,8 +33,10 @@ contract DeployBryanScript is Script {
         string memory ownerName = "Bryan";
         string memory ownerSymbol = "BRY";
 
-        string memory usdcAddressPrefix = "0xD8532110";
-        string memory wethAddressPrefix = "0x0112358D";
+        // string memory usdcAddressPrefix = "0x8532110";
+        // string memory wethAddressPrefix = "0x0112358";
+        string memory usdcAddressPrefix = "0x"; // TODO: remove before flight!
+        string memory wethAddressPrefix = "0x"; // TODO: remove before flight!
 
         IERC20Metadata usdc = IERC20Metadata(PRIZE_VAULT_USDC.asset());
         // IERC20Metadata weth = IERC20Metadata(PRIZE_VAULT_WETH.asset());
@@ -56,12 +59,17 @@ contract DeployBryanScript is Script {
         address treasury = address(0);
         bool setupUniswapV4HookedPool = true;
 
-        IERC20Metadata asset = IERC20Metadata(prizeVault.asset());
+        IERC20Metadata underlying = IERC20Metadata(prizeVault.asset());
 
-        string memory assetSymbol = asset.symbol();
+        string memory underlyingSymbol = underlying.symbol();
 
-        string memory name = string(abi.encodePacked(assetSymbol, " from ", ownerName));
-        string memory symbol = string(abi.encodePacked(ownerSymbol, "-", assetSymbol));
+        console.log("underlyingSymbol:", underlyingSymbol);
+
+        string memory name = string(abi.encodePacked(underlyingSymbol, " from ", ownerName));
+        string memory symbol = string(abi.encodePacked(ownerSymbol, "-", underlyingSymbol));
+
+        console.log("fan token name:", name);
+        console.log("fan token symbol:", symbol);
 
         bytes32 salt;
         if (LibString.eq(addressPrefix, "0x")) {
@@ -84,14 +92,19 @@ contract DeployBryanScript is Script {
 
             salt = abi.decode(result, (bytes32));
         }
+        console.log("salt: ", LibString.toHexString(uint256(salt)));
+
+        // TODO: if the token is already deployed with these parameters, what should we do?
+
+        require(underlying.balanceOf(msg.sender) >= initialDeposit, "not enough for the initial deposit!");
 
         // deploy the contract with our found salt
         vm.startBroadcast();
 
         // approve if necessary for the initial deposit
-        if (initialDeposit > prizeVault.allowance(msg.sender, address(fanTokenFactory))) {
+        if (initialDeposit > underlying.allowance(msg.sender, address(fanTokenFactory))) {
             // TODO: max approval, or initialDeposit approval?
-            prizeVault.approve(address(fanTokenFactory), type(uint256).max);
+            underlying.approve(address(fanTokenFactory), type(uint256).max);
         }
 
         fanToken = fanTokenFactory.create(
@@ -106,7 +119,10 @@ contract DeployBryanScript is Script {
             setupUniswapV4HookedPool
         );
 
-        // TODO: make sure the address for fanToken matches the address prefix
+        // make sure the address for the deployed contract matches the address prefix
+        // TODO: case sensitive prefixes seem like a waste of time
+        string memory fanTokenStringAddr = LibString.lower(LibString.toHexStringChecksummed(address(fanToken)));
+        require(LibString.startsWith(fanTokenStringAddr, LibString.lower(addressPrefix)), "address prefix does not match");
 
         vm.stopBroadcast();
     }

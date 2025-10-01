@@ -7,8 +7,6 @@ import {FanTokenFactory, IWETH9} from "../src/FanTokenFactory.sol";
 import {Generic4626Router} from "../src/interfaces/Generic4626Router.sol";
 
 contract DeployFanTokenFactoryScript is Script {
-    using LibString for uint256;
-
     IWETH9 constant WETH9 = IWETH9(payable(0x4200000000000000000000000000000000000006));
     Generic4626Router constant GENERIC_4626_ROUTER = Generic4626Router(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888);
 
@@ -39,11 +37,16 @@ contract DeployFanTokenFactoryScript is Script {
 
         bytes32 salt = abi.decode(result, (bytes32));
 
+        // TODO: if the factory is already deployed at this address, what should we do?
+
         // deploy the contract with our found salt
         vm.startBroadcast();
+
         fanTokenFactory = new FanTokenFactory{salt: salt}(GENERIC_4626_ROUTER, WETH9);
 
-        // TODO: make sure the address for the deployed contract matches the address prefix
+        // make sure the address for the deployed contract matches the address prefix
+        string memory fanTokenFactoryStringAddr = LibString.lower(LibString.toHexStringChecksummed(address(fanTokenFactory)));
+        require(LibString.startsWith(fanTokenFactoryStringAddr, LibString.lower(addressPrefix)), "address prefix does not match");
 
         vm.stopBroadcast();
     }
