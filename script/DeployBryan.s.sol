@@ -3,13 +3,14 @@
 pragma solidity ^0.8.13;
 
 import {console} from "forge-std/console.sol";
+import {StdCheats} from "forge-std/StdCheats.sol";
 import {LibString} from "solady/utils/LibString.sol";
 import {Script} from "forge-std/Script.sol";
 import {FanToken, FanTokenFactory, IERC4626} from "../src/FanTokenFactory.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 
 // TODO: rewrite this to prompt the user for inputs instead of having everything hard coded
-contract DeployBryanScript is Script {
+contract DeployBryanScript is Script, StdCheats {
     using LibString for uint256;
 
     // these are the addresses on Base. Maybe these should be from config, but this is enough for me for now
@@ -95,6 +96,16 @@ contract DeployBryanScript is Script {
         console.log("salt: ", LibString.toHexString(uint256(salt)));
 
         // TODO: if the token is already deployed with these parameters, what should we do?
+
+        if (block.chainid == 18543) {
+            // this is a forked network. fake the initial deposit
+            // TODO: is there a better way to tell if we are on a forked network?
+            if (underlying.balanceOf(msg.sender) < initialDeposit) {
+                // TODO: can't decide if this should be true. that seems to break weth
+                // TODO: if WETH, should we call deposit instead?
+                deal(address(underlying), msg.sender, initialDeposit, false);
+            }
+        }
 
         require(underlying.balanceOf(msg.sender) >= initialDeposit, "not enough for the initial deposit!");
 
