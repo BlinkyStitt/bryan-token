@@ -37,6 +37,32 @@ contract FanTokenFactory is ReentrancyGuardTransient {
         WETH = _weth;
     }
 
+    /// @notice use this for calculating salts
+    function createCodeHash(
+        string memory _name,
+        string memory _symbol,
+        uint256 _harvestOwnerFeeBasisPoints,
+        uint256 _harvestTreasuryFeeBasisPoints,
+        IERC4626 _prizeVault,
+        address _treasury
+    ) public returns (bytes32 creationCodeHash) {
+        bytes memory creationCode = abi.encodePacked(
+            type(FanToken).creationCode,
+            abi.encode(
+                _name,
+                _symbol,
+                _harvestOwnerFeeBasisPoints,
+                _harvestTreasuryFeeBasisPoints,
+                msg.sender,
+                _prizeVault,
+                _treasury,
+                WETH
+            )
+        );
+
+        creationCodeHash = keccak256(creationCode);
+    }
+
     function create(
         string memory _name,
         string memory _symbol,

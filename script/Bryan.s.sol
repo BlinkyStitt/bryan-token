@@ -15,14 +15,9 @@ contract BryanScript is Script {
     IERC4626 constant PRIZE_VAULT_WETH = IERC4626(0x4E42f783db2D0C5bDFf40fDc66FCAe8b1Cda4a43);
 
     FanTokenFactory public fanTokenFactory;
-    address public owner;
 
     function setUp() public {
-        // TODO: read the environment to get the contract address for the factory
-        fanTokenFactory = FanTokenFactory(address(0));
-
-        // TODO: is this right? how do we get the active account?
-        owner = msg.sender;
+        fanTokenFactory = FanTokenFactory(vm.envAddress("FAN_TOKEN_FACTORY_ADDRESS"));
     }
 
     function _deploy(
@@ -32,29 +27,11 @@ contract BryanScript is Script {
         IERC4626 prizeVault,
         uint256 initialDeposit
     ) internal returns (FanToken fanToken) {
+        // half the rewards go to the owner.
         uint256 harvestOwnerFeeBasisPoints = 5000;
         uint256 harvestTreasuryFeeBasisPoints = 0;
         address treasury = address(0);
         bool setupUniswapV4HookedPool = true;
-
-        // prepare creation code
-        // TODO: get creation code hash from a call to the factory. that should make sure things are definitely set correctly. these constructor args are incorrect!
-        bytes memory creationCode =
-            abi.encodePacked(type(FanToken).creationCode, abi.encode(address(this), PRIZE_VAULT_WETH));
-
-        bytes32 creationCodeHash = keccak256(creationCode);
-
-        // find a salt. is it better to do this in deploy.sh or with ffi?
-        // TODO: should we use a miner script like the uniswap deployer does? i think this is like 10x faster on my laptop
-        // TODO: this needs to be changed now that there is a factory contract doing the deploy
-        string[] memory cmds = new string[](4);
-        cmds[0] = "./script/salt_finder.sh";
-        cmds[1] = LibString.toHexStringChecksummed(address(fanTokenFactory));
-        cmds[2] = addressPrefix;
-        cmds[3] = LibString.toHexString(uint256(creationCodeHash), 32);
-        bytes memory result = vm.ffi(cmds);
-
-        bytes32 salt = abi.decode(result, (bytes32));
 
         IERC20Metadata asset = IERC20Metadata(prizeVault.asset());
 
@@ -63,11 +40,33 @@ contract BryanScript is Script {
         string memory name = string(abi.encodePacked(assetSymbol, " from ", ownerName));
         string memory symbol = string(abi.encodePacked(ownerSymbol, "-", assetSymbol));
 
+        bytes32 salt;
+        if (LibString.eq(addressPrefix, "0x")) {
+            salt = bytes32(0);
+        } else {
+            // prepare creation code
+            bytes32 creationCodeHash = fanTokenFactory.createCodeHash(
+                name, symbol, harvestOwnerFeeBasisPoints, harvestTreasuryFeeBasisPoints, prizeVault, treasury
+            );
+
+            // find a salt. is it better to do this in deploy.sh or with ffi?
+            // TODO: should we use a miner script like the uniswap deployer does? i think this is like 10x faster on my laptop
+            // TODO: this needs to be changed now that there is a factory contract doing the deploy
+            string[] memory cmds = new string[](4);
+            cmds[0] = "./script/salt_finder.sh";
+            cmds[1] = LibString.toHexStringChecksummed(address(fanTokenFactory));
+            cmds[2] = addressPrefix;
+            cmds[3] = LibString.toHexString(uint256(creationCodeHash), 32);
+            bytes memory result = vm.ffi(cmds);
+
+            salt = abi.decode(result, (bytes32));
+        }
+
         // deploy the contract with our found salt
         vm.startBroadcast();
 
         // approve if necessary for the initial deposit
-        if (initialDeposit > prizeVault.allowance(owner, address(fanTokenFactory))) {
+        if (initialDeposit > prizeVault.allowance(msg.sender, address(fanTokenFactory))) {
             prizeVault.approve(address(fanTokenFactory), type(uint256).max);
         }
 
@@ -99,6 +98,13 @@ contract BryanScript is Script {
         _deploy(ownerName, ownerSymbol, usdcAddressPrefix, PRIZE_VAULT_USDC, 0);
         _deploy(ownerName, ownerSymbol, wethAddressPrefix, PRIZE_VAULT_WETH, 0);
     }
+
+    function runWETH(
+        string calldata ownerName,
+        string calldata ownerSymbol,
+        string calldata usdcAddressPrefix,
+        string calldata wethAddressPrefix
+    ) public {}
 
     function claimPrize() public pure {
         revert(
