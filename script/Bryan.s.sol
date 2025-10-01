@@ -4,7 +4,7 @@ pragma solidity ^0.8.13;
 
 import {LibString} from "solady/utils/LibString.sol";
 import {Script} from "forge-std/Script.sol";
-import {FanToken, FanTokenFactory, IERC20, IERC4626} from "../src/FanTokenFactory.sol";
+import {FanToken, FanTokenFactory, IERC4626} from "../src/FanTokenFactory.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 
 // TODO: rewrite this to prompt the user for inputs instead of having everything hard coded
@@ -17,7 +17,12 @@ contract BryanScript is Script {
     FanTokenFactory public fanTokenFactory;
 
     function setUp() public {
-        fanTokenFactory = FanTokenFactory(vm.envAddress("FAN_TOKEN_FACTORY_ADDRESS"));
+        // Read factory address from deployment artifacts for current chain
+        string memory chainId = vm.toString(block.chainid);
+        string memory path = string.concat("./broadcast/FanTokenFactory.s.sol/", chainId, "/run-latest.json");
+        string memory json = vm.readFile(path);
+        address factoryAddr = vm.parseJsonAddress(json, ".transactions[0].contractAddress");
+        fanTokenFactory = FanTokenFactory(factoryAddr);
     }
 
     function _deploy(
