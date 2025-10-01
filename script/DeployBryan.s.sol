@@ -8,9 +8,11 @@ import {FanToken, FanTokenFactory, IERC4626} from "../src/FanTokenFactory.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 
 // TODO: rewrite this to prompt the user for inputs instead of having everything hard coded
-contract BryanScript is Script {
+contract DeployBryanScript is Script {
     using LibString for uint256;
 
+    // these are the addresses on Base. Maybe these should be from config, but this is enough for me for now
+    // most users will use our mini-app, not this script anyways.
     IERC4626 constant PRIZE_VAULT_USDC = IERC4626(0x7f5C2b379b88499aC2B997Db583f8079503f25b9);
     IERC4626 constant PRIZE_VAULT_WETH = IERC4626(0x4E42f783db2D0C5bDFf40fDc66FCAe8b1Cda4a43);
 
@@ -25,6 +27,22 @@ contract BryanScript is Script {
         fanTokenFactory = FanTokenFactory(factoryAddr);
     }
 
+    // TODO: i can't decide if this should take arguments, or just be hard coded for me. i expect users to use a mini-app, not these scripts
+    function run() public {
+        string memory ownerName = "Bryan";
+        string memory ownerSymbol = "BRY";
+
+        string memory usdcAddressPrefix = "0xD8532110";
+        string memory wethAddressPrefix = "0x0112358D";
+
+        IERC20Metadata usdc = IERC20Metadata(PRIZE_VAULT_USDC.asset());
+        // IERC20Metadata weth = IERC20Metadata(PRIZE_VAULT_WETH.asset());
+
+        _deploy(ownerName, ownerSymbol, usdcAddressPrefix, PRIZE_VAULT_USDC, 200 * 10 ** usdc.decimals());
+        _deploy(ownerName, ownerSymbol, wethAddressPrefix, PRIZE_VAULT_WETH, 0.05 ether);
+    }
+
+    // TODO: i can't decide if this should take more arguments, or just be hard coded for me. i expect users to use a mini-app, not these scripts
     function _deploy(
         string memory ownerName,
         string memory ownerSymbol,
@@ -72,6 +90,7 @@ contract BryanScript is Script {
 
         // approve if necessary for the initial deposit
         if (initialDeposit > prizeVault.allowance(msg.sender, address(fanTokenFactory))) {
+            // TODO: max approval, or initialDeposit approval?
             prizeVault.approve(address(fanTokenFactory), type(uint256).max);
         }
 
@@ -90,44 +109,5 @@ contract BryanScript is Script {
         // TODO: make sure the address for fanToken matches the address prefix
 
         vm.stopBroadcast();
-    }
-
-    function run() public {
-        // TODO: constructor arguments should be function arguments i think
-        string memory ownerName = "Bryan";
-        string memory ownerSymbol = "BRY";
-
-        string memory usdcAddressPrefix = "0xD8532110";
-        string memory wethAddressPrefix = "0x0112358D";
-
-        _deploy(ownerName, ownerSymbol, usdcAddressPrefix, PRIZE_VAULT_USDC, 0);
-        _deploy(ownerName, ownerSymbol, wethAddressPrefix, PRIZE_VAULT_WETH, 0);
-    }
-
-    function runWETH(
-        string calldata ownerName,
-        string calldata ownerSymbol,
-        string calldata usdcAddressPrefix,
-        string calldata wethAddressPrefix
-    ) public {}
-
-    function claimPrize() public pure {
-        revert(
-            "claim any prizes. this might not be worth doing here. might be better to use pooltogether's official scirpts. research more"
-        );
-    }
-
-    // TODO: this should probably be in another file
-    function claimPool() public pure {
-        revert("claim POOL if its over a threshold");
-    }
-
-    // TODO: this should probably be in another file
-    function harvest() public pure {
-        revert("claim WETH if its over a threshold");
-    }
-
-    function kickAuction() public pure {
-        revert("start an auction for the relevant tokens (probably POOL)");
     }
 }

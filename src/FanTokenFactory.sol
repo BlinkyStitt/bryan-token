@@ -45,7 +45,7 @@ contract FanTokenFactory is ReentrancyGuardTransient {
         uint256 _harvestTreasuryFeeBasisPoints,
         IERC4626 _prizeVault,
         address _treasury
-    ) public returns (bytes32 creationCodeHash) {
+    ) public view returns (bytes32 creationCodeHash) {
         bytes memory creationCode = abi.encodePacked(
             type(FanToken).creationCode,
             abi.encode(

@@ -1,9 +1,11 @@
 #!/bin/bash
 set -eux -o pipefail
 
-ACCOUNT="${ACCOUNT:-flashprofits}"
+if [ -e .env ]; then
+    source .env
+fi
 
-forge script ./script/FanTokenFactory.s.sol \
+forge script ./script/DeployFanTokenFactory.s.sol \
     --account "$ACCOUNT" \
     --ffi \
     --verify \

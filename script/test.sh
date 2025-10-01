@@ -56,16 +56,20 @@ fi
 
 case "$mode" in
     anvil)
-        anvil --fork-block-number "$block_number" \
+        anvil \
+            --auto-impersonate \
+            --fork-block-number "$block_number" \
             --fork-url "$fork_url" \
             --optimism \
             "$@" &
 
+        # TODO: trap to kill anvil
+
         # TODO: sleep until 8545 is open. it starts faster than 3 seconds
         sleep 3
 
-        # TODO:
-        ./script/deploy.sh --rpc-url "http://127.0.0.1:8545"
+        ./script/deploy_fan_token_factory.sh --rpc-url "http://127.0.0.1:8545"
+        ./script/deploy_bryan.sh --rpc-url "http://127.0.0.1:8545"
 
         # wait for the anvil process to exit
         wait

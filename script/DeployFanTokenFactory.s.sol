@@ -6,7 +6,7 @@ import {Script} from "forge-std/Script.sol";
 import {FanTokenFactory, IWETH9} from "../src/FanTokenFactory.sol";
 import {Generic4626Router} from "../src/interfaces/Generic4626Router.sol";
 
-contract FanTokenFactoryScript is Script {
+contract DeployFanTokenFactoryScript is Script {
     using LibString for uint256;
 
     IWETH9 constant WETH9 = IWETH9(payable(0x4200000000000000000000000000000000000006));
@@ -30,7 +30,7 @@ contract FanTokenFactoryScript is Script {
 
         // find a salt. is it better to do this in deploy.sh or with ffi?
         // TODO: should we use a miner script like the uniswap deployer does? i think this is like 10x faster on my laptop
-        string[] memory cmds = new string[](3);
+        string[] memory cmds = new string[](4);
         cmds[0] = "./script/salt_finder.sh";
         cmds[1] = LibString.toHexStringChecksummed(CREATE2_DEPLOYER);
         cmds[2] = addressPrefix;
