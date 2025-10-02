@@ -99,7 +99,7 @@ contract DeployBryanScript is Script, StdCheats {
 
             salt = abi.decode(result, (bytes32));
         }
-        console.log("salt:", LibString.toHexString(uint256(salt)));
+        console.log("salt:", LibString.toHexString(uint256(salt), 32));
 
         // TODO: if the token is already deployed with these parameters, what should we do?
 
