@@ -220,11 +220,19 @@ source .env
 ```
 
 ```shell
-./script/deploy_fan_token_factory.sh --rpc-url "$BASE_RPC_URL" --account "$ACCOUNT"
+./script/deploy_fan_token_factory.sh \
+    --account "$ACCOUNT" \
+    --rpc-url "$BASE_RPC_URL" \
+    --verify \
+    --verifier etherscan
 ```
 
 ```shell
-./script/deploy_bryan.sh --rpc-url "$BASE_RPC_URL" --account "$ACCOUNT"
+./script/deploy_bryan.sh \
+    --account "$ACCOUNT" \
+    --rpc-url "$BASE_RPC_URL" \
+    --verify \
+    --verifier etherscan
 ```
 
 ### Cast
