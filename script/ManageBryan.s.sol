@@ -22,29 +22,60 @@ contract ManageBryanScript is Script {
     FanToken public fanTokenUSDC;
     FanToken public fanTokenWETH;
 
+    IERC20Metadata public usdc;
+    IERC20Metadata public weth;
+
     function setUp() public {
         // Read factory address from deployment artifacts for current chain
         // TODO: I'm not sure I like this. it should maybe read the addresses from a list saved somewhere instead?
         string memory chainId = vm.toString(block.chainid);
-        string memory path = string.concat("./broadcast/CreateBryan.s.sol/", chainId, "/run-latest.json");
+        string memory path = string(abi.encodePacked("./broadcast/DeployBryan.s.sol/", chainId, "/run-latest.json"));
         string memory json = vm.readFile(path);
 
-        // TODO: use filters to find the right transaction
-        // 0 and 2 are probably approvals if this is the very first setup, but approvals might be done separately
-        address fanTokenUSDCAddr = vm.parseJsonAddress(json, ".transactions[1].contractAddress");
-        address fanTokenWETHAddr = vm.parseJsonAddress(json, ".transactions[3].contractAddress");
+        // Get the factory address to filter transactions
+        string memory factoryPath =
+            string(abi.encodePacked("./broadcast/DeployFanTokenFactory.s.sol/", chainId, "/run-latest.json"));
+        string memory factoryJson = vm.readFile(factoryPath);
+        address factory = vm.parseJsonAddress(factoryJson, ".transactions[0].contractAddress");
 
-        fanTokenUSDC = FanToken(payable(fanTokenUSDCAddr));
-        fanTokenWETH = FanToken(payable(fanTokenWETHAddr));
+        // Use JSONPath to get all additionalContracts[0].address from transactions calling the factory
+        // The FanToken addresses are in the first additionalContract of each factory call
+        string memory factoryAddrStr = vm.toString(factory);
+        string memory filterPath = string(
+            abi.encodePacked(
+                "$.transactions[?(@.contractAddress == '", factoryAddrStr, "')].additionalContracts[0].address"
+            )
+        );
+
+        bytes memory result = vm.parseJson(json, filterPath);
+        address[] memory fanTokenAddrs = abi.decode(result, (address[]));
+
+        require(fanTokenAddrs.length == 2, "Expected 2 FanToken deployments");
+
+        address usdcAddr;
+        address wethAddr;
+
+        // Identify which is USDC and which is WETH based on the asset
+        for (uint256 i = 0; i < fanTokenAddrs.length; i++) {
+            FanToken token = FanToken(payable(fanTokenAddrs[i]));
+            IERC20Metadata underlying = IERC20Metadata(address(token.UNDERLYING()));
+
+            string memory underlyingSymbol = underlying.symbol();
+
+            if (LibString.eq(underlyingSymbol, "USDC")) {
+                fanTokenUSDC = token;
+                usdc = underlying;
+            } else if (LibString.eq(underlyingSymbol, "WETH")) {
+                fanTokenWETH = token;
+                weth = underlying;
+            }
+        }
 
         // TODO: get this from PRIZE_POOL_TWAB_REWARDS?
         poolToken = IERC20Metadata(0xd652C5425aea2Afd5fb142e120FeCf79e18fafc3);
     }
 
     function run() public {
-        IERC20Metadata weth = IERC20Metadata(fanTokenWETH.asset());
-        IERC20Metadata usdc = IERC20Metadata(fanTokenUSDC.asset());
-
         // TODO: what should the minimums be?
 
         // usdc fan token

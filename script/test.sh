@@ -107,6 +107,9 @@ case "$mode" in
 
         ./script/deploy_bryan.sh --rpc-url "$rpc_url" --private-key "$private_key"
 
+        # this probably won't do anything, but its good to check that the script works
+        ./script/manage_bryan.sh --rpc-url "$rpc_url" --private-key "$private_key"
+
         echo "deploys completed successfully. anvil is ready for use at $rpc_url"
 
         # wait for the anvil process to exit
