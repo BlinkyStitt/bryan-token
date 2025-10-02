@@ -45,7 +45,8 @@ contract FanTokenFactory is ReentrancyGuardTransient {
         uint256 _harvestTreasuryFeeBasisPoints,
         address _owner,
         IERC4626 _prizeVault,
-        address _treasury
+        address _treasury,
+        bool _treasuryStartsAsSponsor
     ) public view returns (bytes32 creationCodeHash) {
         bytes memory creationCode = abi.encodePacked(
             type(FanToken).creationCode,
@@ -57,6 +58,7 @@ contract FanTokenFactory is ReentrancyGuardTransient {
                 _owner,
                 _prizeVault,
                 _treasury,
+                _treasuryStartsAsSponsor,
                 WETH
             )
         );
@@ -71,6 +73,7 @@ contract FanTokenFactory is ReentrancyGuardTransient {
         uint256 _harvestTreasuryFeeBasisPoints,
         IERC4626 _prizeVault,
         address _treasury,
+        bool _treasuryStartsAsSponsor,
         bytes32 _salt,
         uint256 _initialDeposit,
         bool setupUniswapV4HookedPool
@@ -86,6 +89,7 @@ contract FanTokenFactory is ReentrancyGuardTransient {
             msg.sender,
             _prizeVault,
             _treasury,
+            _treasuryStartsAsSponsor,
             WETH
         );
 

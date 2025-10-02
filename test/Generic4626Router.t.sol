@@ -10,13 +10,8 @@ import {PoolIdLibrary, PoolId} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Currency, CurrencyLibrary} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
-import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-// import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
-// import {SwapParams} from "@uniswap/v4-core/src/types/PoolOperation.sol";
-// import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {IUniversalRouter} from "@uniswap/universal-router/contracts/interfaces/IUniversalRouter.sol";
 import {Commands} from "@uniswap/universal-router/contracts/libraries/Commands.sol";
-import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IV4Router} from "@uniswap/v4-periphery/src/interfaces/IV4Router.sol";
 import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
@@ -44,15 +39,13 @@ contract Generic4626RouterTest is Test {
     IUniversalRouter constant UNIVERSAL_ROUTER = IUniversalRouter(payable(0x6fF5693b99212Da76ad316178A184AB56D299b43));
     IPermit2 constant PERMIT2 = IPermit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
 
-    IPoolManager poolManager;
-
     // Test contracts
     FanTokenFactory factory;
     FanToken fanToken;
 
     // Test accounts
-    address trader;
-    address treasury;
+    address trader = makeAddr("trader");
+    address treasury = address(0);
 
     // Trade amounts
     uint256 constant INITIAL_WETH = 1 ether;
@@ -60,15 +53,8 @@ contract Generic4626RouterTest is Test {
 
     /// @notice create a fan token and give the trader some of it
     function setUp() public {
-        // Create test accounts
-        trader = makeAddr("trader");
-        treasury = address(0);
-
         // Deploy factory with the Generic4626Router hook
         factory = new FanTokenFactory(GENERIC_4626_ROUTER, WETH);
-
-        // Get the pool manager from the Generic4626Router
-        poolManager = IPoolManager(GENERIC_4626_ROUTER.poolManager());
 
         // Create a fan token for our prize vault - this sets up V4 pools
         // this must be done as the contract because we do NOT want the trader to be the owner
@@ -79,6 +65,7 @@ contract Generic4626RouterTest is Test {
             0,
             PRIZE_VAULT,
             treasury,
+            false, // treasuryStartsAsSponsor
             bytes32(0),
             INITIAL_WETH,
             true // setupUniswapV4HookedPool = true - creates V4 pools!

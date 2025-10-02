@@ -49,6 +49,8 @@ contract FanTokenTest is Test {
         uint256 harvestOwnerFeeBasisPoints = 200; // 2%
         uint256 harvestTreasuryFeeBasisPoints = 300; // 3%
 
+        bool treasuryStartsAsSponsor = true;
+
         factory = new FanTokenFactory(UNISWAP_V4_4626_HOOK, WETH9);
 
         vm.prank(owner);
@@ -59,6 +61,7 @@ contract FanTokenTest is Test {
             harvestTreasuryFeeBasisPoints,
             PRIZE_VAULT,
             treasury,
+            treasuryStartsAsSponsor,
             bytes32(0),
             0, // initial deposit
             false
@@ -667,6 +670,7 @@ contract FanTokenTest is Test {
             5000, // 50% treasury fee
             IERC4626(bryanFanToken.asset()),
             treasury,
+            true, // treasuryStartsAsSponsor
             bytes32(0),
             initialDeposit,
             false

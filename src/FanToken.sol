@@ -19,6 +19,7 @@ error ZeroOwner();
 error DepositNotReady();
 error IncorrectAssets();
 error AtLeastOneSideMustBeSponsor();
+error SponsorshipChangeNotAllowed();
 error InsufficientSponsorBalance(
     address owner, uint256 availableAssets, uint256 availableShares, uint256 requestedAssets, uint256 requestedShares
 );
@@ -92,6 +93,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
         address _owner,
         IERC4626 _prizeVault,
         address _treasury,
+        bool _treasuryStartsAsSponsor,
         IWETH9 _weth
     ) ERC20(_name, _symbol) ERC4626(_prizeVault) Ownable(_owner) {
         require(_harvestOwnerFeeBasisPoints + _harvestTreasuryFeeBasisPoints <= _BASIS_POINT_SCALE, FeesTooLarge());
@@ -117,15 +119,13 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
 
         setupApprovals();
 
+        // the owner always defaults to a sponsor
         isSponsor[_owner] = true;
 
-        if (_treasury != address(0)) {
+        if (_treasury != address(0) && _treasuryStartsAsSponsor) {
             // TODO: this should maybe be optional
             isSponsor[_treasury] = true;
         }
-
-        // TODO: think more about this. fan tokens here are special
-        // isSponsor[address(this)] = true;
 
         // TODO: i'm not sure about this. i think it just adds gas overhead. but it also seems like a good idea
         // TODO: maybe we should have a _transfer override that makes sure we aren't letting users call transfer to the factory

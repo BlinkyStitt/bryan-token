@@ -62,7 +62,7 @@ contract ManageBryanScript is Script {
         uint256 promotionId = PRIZE_POOL_TWAB_REWARDS.latestPromotionId();
         console.log("promotionId:", promotionId);
 
-        PrizePoolTwabRewards.Promotion memory promotion = PRIZE_POOL_TWAB_REWARDS.getPromotion(promotionId);
+        // PrizePoolTwabRewards.Promotion memory promotion = PRIZE_POOL_TWAB_REWARDS.getPromotion(promotionId);
 
         address prizeVault = fanToken.asset();
 

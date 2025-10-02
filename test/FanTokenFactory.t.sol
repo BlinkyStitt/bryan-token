@@ -38,6 +38,7 @@ contract FanTokenFactoryTest is Test {
             harvestTreasuryFeeBasisPoints,
             prizeVault,
             treasury,
+            true, // treasuryStartsAsSponsor
             salt,
             initialDeposit,
             setupUniswapV4HookedPool
@@ -53,7 +54,7 @@ contract FanTokenFactoryTest is Test {
 
         vm.prank(owner);
         FanToken fanToken = fanTokenFactory.create{value: initialDeposit}(
-            "ETH from Bryan Again", "BRY-ETH-2", 0, 0, prizeVault, address(0), bytes32(0), initialDeposit, false
+            "ETH from Bryan Again", "BRY-ETH-2", 0, 0, prizeVault, address(0), false, bytes32(0), initialDeposit, false
         );
 
         uint256 initialShares = fanToken.previewWithdraw(initialDeposit);
@@ -136,6 +137,7 @@ contract FanTokenFactoryTest is Test {
             2500,
             prizeVault,
             treasury,
+            true, // treasuryStartsAsSponsor
             bytes32(0),
             0,
             false // setupUniswapV4HookedPool
@@ -150,6 +152,7 @@ contract FanTokenFactoryTest is Test {
             2500,
             prizeVault,
             treasury,
+            true, // treasuryStartsAsSponsor
             bytes32(0),
             0,
             true // setupUniswapV4HookedPool
@@ -175,6 +178,7 @@ contract FanTokenFactoryTest is Test {
             0,
             prizeVault,
             address(0),
+            false, // treasuryStartsAsSponsor
             bytes32(uint256(1)),
             0,
             false // setupUniswapV4HookedPool
@@ -198,6 +202,7 @@ contract FanTokenFactoryTest is Test {
             0,
             prizeVault,
             address(0),
+            false, // treasuryStartsAsSponsor
             bytes32(uint256(2)),
             0,
             false // setupUniswapV4HookedPool

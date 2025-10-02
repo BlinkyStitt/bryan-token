@@ -62,7 +62,8 @@ contract DeployBryanScript is Script, StdCheats {
         uint256 harvestOwnerFeeBasisPoints = 5000;
         uint256 harvestTreasuryFeeBasisPoints = 0;
         address treasury = address(0);
-        bool setupUniswapV4HookedPool = false;  // TODO: remove before flight
+        bool treasuryStartsAsSponsor = false;
+        bool setupUniswapV4HookedPool = true;
 
         IERC20Metadata underlying = IERC20Metadata(prizeVault.asset());
 
@@ -84,7 +85,7 @@ contract DeployBryanScript is Script, StdCheats {
         } else {
             // prepare creation code
             bytes32 creationCodeHash = fanTokenFactory.createCodeHash(
-                name, symbol, harvestOwnerFeeBasisPoints, harvestTreasuryFeeBasisPoints, msg.sender, prizeVault, treasury
+                name, symbol, harvestOwnerFeeBasisPoints, harvestTreasuryFeeBasisPoints, msg.sender, prizeVault, treasury, true
             );
 
             // find a salt. is it better to do this in deploy.sh or with ffi?
@@ -139,6 +140,7 @@ contract DeployBryanScript is Script, StdCheats {
             harvestTreasuryFeeBasisPoints,
             prizeVault,
             treasury,
+            treasuryStartsAsSponsor,
             salt,
             initialDeposit,
             setupUniswapV4HookedPool
