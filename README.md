@@ -196,6 +196,8 @@ First, start the "anvil" rpc server:
 
 That will start anvil and then run the deploy scripts for the factory and the "Bryan" fan tokens for you.
 
+Anvil will be configured to use chain id 31337. It will run at <http://127.0.0.1:8545>.
+
 
 ### Deploy on a Live Network
 
