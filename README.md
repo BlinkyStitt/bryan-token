@@ -1,21 +1,19 @@
 # Fan Tokens
 
-A **social crypto tipping and gaming token** that creates personalized cryptocurrency tokens designed for social interactions, particularly on platforms like Farcaster. Think of fan tokens as "wrapping paper" around valuable assets - they make tips more personal and engaging than generic USDC or ETH transfers.
+A **tipping and gaming token** for social interactions, particularly on platforms like Farcaster. Think of fan tokens as "wrapping paper" around valuable assets - they make tips more personal and engaging than generic USDC or ETH transfers.
 
 ## What Are Fan Tokens?
 
 **🎁 Personalized Tipping Tokens**
-- Custom tokens that represent support for a creator or community member
+- Custom wrapping tokens that represent support for a creator or community member
 - Meant to be given as gifts, not bought/sold on markets
-- Each token is backed 1:1 by PoolTogether vault deposits
+- Each token is backed by PoolTogether vault deposits
 
 **🏆 Shared Prizes**
 - Token holders participate in daily [PoolTogether prize](https://pooltogether.com/) drawings
-- Winners are determined by the underlying PoolTogether mechanics
-- Prize winnings are distributed among the owner, the treasury, and the token holders
-- Token creators set custom harvest fee percentages for owner and treasury
-- Only constraint: combined fees cannot exceed 100%
-- Users can enable sponsorship if they do not want to earn any prizes.
+- Any prize winnings or other rewards are distributed among the owner, the treasury, and the token holders
+- Token creators set custom harvest fee percentages for owner and treasury. These fees cannot be changed once the token is created.
+- Users can enable sponsorship if they do not want to earn any prizes. The owner is a sponsor by default.
 
 **💰 Always Redeemable**
 - Tokens can always be redeemed for the underlying PoolTogether vault tokens
