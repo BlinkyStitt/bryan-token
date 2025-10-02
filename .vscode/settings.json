@@ -2,25 +2,6 @@
   "solidity.compileUsingRemoteVersion": "v0.8.30",
   "solidity.packageDefaultDependenciesContractsDirectory": "src",
   "solidity.packageDefaultDependenciesDirectory": "lib",
-  "solidity.remappings": [
-    "forge-std/=lib/forge-std/src/",
-    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
-    "openzeppelin-contracts/=lib/openzeppelin-contracts/",
-    "solady/=lib/solady/src/",
-    "solmate/=lib/solmate/",
-    "@tokenized-strategy/=lib/tokenized-strategy-periphery/lib/tokenized-strategy/src/",
-    "@yearn-vaults/=lib/tokenized-strategy-periphery/lib/yearn-vaults-v3/contracts/",
-    "tokenized-strategy-periphery/=lib/tokenized-strategy-periphery/",
-    "tokenized-strategy/=lib/tokenized-strategy-periphery/lib/tokenized-strategy/",
-    "yearn-vaults-v3/=lib/tokenized-strategy-periphery/lib/yearn-vaults-v3/",
-    "ds-test/=lib/solmate/lib/ds-test/src/",
-    "erc4626-tests/=lib/openzeppelin-contracts/lib/erc4626-tests/",
-    "halmos-cheatcodes/=lib/openzeppelin-contracts/lib/halmos-cheatcodes/src/",
-    "@uniswap/permit2/=lib/universal-router/lib/permit2/",
-    "@uniswap/universal-router/=lib/universal-router/",
-    "@uniswap/v4-core/=lib/v4-core/",
-    "@uniswap/v4-periphery/=lib/universal-router/lib/v4-periphery/"
-  ],
   "editor.formatOnSave": false,
   "[solidity]": {
     "editor.defaultFormatter": "JuanBlanco.solidity"
