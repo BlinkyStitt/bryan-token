@@ -1,5 +1,5 @@
 [lint]
-exclude_lints = ["mixed-case-function"]
+exclude_lints = ["mixed-case-function", "mixed-case-variable"]
 
 [profile.default]
 fs_permissions = [{ access = "read", path = "./broadcast"}]

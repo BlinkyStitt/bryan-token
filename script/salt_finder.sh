@@ -2,6 +2,8 @@
 # mine a 
 set -eu -o pipefail
 
+cd "$(dirname "$0")/../"
+
 cache_dir=broadcast/salts/
 
 mkdir -p "$cache_dir"

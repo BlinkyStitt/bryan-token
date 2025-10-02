@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
+import {console} from "forge-std/console.sol";
 import {LibString} from "solady/utils/LibString.sol";
 import {Script} from "forge-std/Script.sol";
 import {FanTokenFactory, IWETH9} from "../src/FanTokenFactory.sol";
@@ -45,8 +46,14 @@ contract DeployFanTokenFactoryScript is Script {
         fanTokenFactory = new FanTokenFactory{salt: salt}(GENERIC_4626_ROUTER, WETH9);
 
         // make sure the address for the deployed contract matches the address prefix
-        string memory fanTokenFactoryStringAddr = LibString.lower(LibString.toHexStringChecksummed(address(fanTokenFactory)));
-        require(LibString.startsWith(fanTokenFactoryStringAddr, LibString.lower(addressPrefix)), "address prefix does not match");
+        string memory fanTokenFactoryStringAddr =
+            LibString.lower(LibString.toHexStringChecksummed(address(fanTokenFactory)));
+        require(
+            LibString.startsWith(fanTokenFactoryStringAddr, LibString.lower(addressPrefix)),
+            "address prefix does not match"
+        );
+
+        console.log("Factory deployed to", address(fanTokenFactory));
 
         vm.stopBroadcast();
     }

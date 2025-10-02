@@ -57,30 +57,60 @@ fi
 
 case "$mode" in
     anvil)
+        # Start anvil in background and capture PID
         anvil \
-            --auto-impersonate \
             --chain-id 18543 \
             --fork-block-number "$block_number" \
             --fork-url "$fork_url" \
             "$@" &
 
-        # TODO: why isn't this working?
-        # anvil_pid=$!
-        # trap "kill $anvil_pid" EXIT
+        anvil_pid=$!
+        rpc_url="http://127.0.0.1:8545"
 
-        # TODO: trap to kill anvil
+        # Set up trap to kill anvil on script exit
+        cleanup() {
+            echo "Cleaning up anvil process..."
+            kill $anvil_pid 2>/dev/null || true
+            wait $anvil_pid 
+        }
+        trap cleanup EXIT INT TERM
 
-        # TODO: sleep until 8545 is open. it starts faster than 3 seconds
-        sleep 3
+        # Wait for anvil to be ready
+        echo "Waiting for anvil to start..."
+        timeout=30
+        count=0
+        while ! curl -s -X POST -H "Content-Type: application/json" \
+            --data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
+            "$rpc_url" > /dev/null 2>&1; do
+            sleep 1
+            count=$((count + 1))
+            if [ $count -ge $timeout ]; then
+                echo "ERROR: Anvil failed to start within $timeout seconds"
+                exit 1
+            fi
+        done
+        echo "Anvil is ready!"
 
         # This private key is baked into anvil. DO NOT SEND FUNDS HERE!
-        ./script/deploy_fan_token_factory.sh --rpc-url "http://127.0.0.1:8545" --private-key "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-        ./script/deploy_bryan.sh --rpc-url "http://127.0.0.1:8545" --private-key "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+        private_key="0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+        sender="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
 
-        echo "deploys complete. anvil is ready for use"
+        ./script/deploy_fan_token_factory.sh --rpc-url "$rpc_url" --private-key "$private_key"
+
+        # give some USDC
+        usdc_address="0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+        cast rpc anvil_setStorageAt "$usdc_address" \
+            "$(cast index address "$sender" 9)" \
+            "$(cast --to-bytes32 200000000)" \
+            --rpc-url "$rpc_url"
+
+        ./script/deploy_bryan.sh --rpc-url "$rpc_url" --private-key "$private_key"
+
+        echo "deploys completed successfully. anvil is ready for use at $rpc_url"
 
         # wait for the anvil process to exit
-        wait
+        # TODO: only wait if this script is being run interactively. if not run interactively, exit now?
+        wait $anvil_pid
         ;;
     test)
         exec forge test \
@@ -103,6 +133,7 @@ case "$mode" in
             echo "The coverage can be opened in a browser with \`open $(pwd)/coverage/index.html\` to open them"
         else
             echo "ERROR! No lcov.info exists! Did the tests pass?"
+            exit 1
         fi
         ;;
     snapshot)

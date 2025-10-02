@@ -31,18 +31,22 @@ contract DeployBryanScript is Script, StdCheats {
 
     // TODO: i can't decide if this should take arguments, or just be hard coded for me. i expect users to use a mini-app, not these scripts
     function run() public {
+        console.log("sender:", msg.sender);
+
         string memory ownerName = "Bryan";
         string memory ownerSymbol = "BRY";
 
         // string memory usdcAddressPrefix = "0x8532110";
         // string memory wethAddressPrefix = "0x0112358";
-        string memory usdcAddressPrefix = "0x"; // TODO: remove before flight!
-        string memory wethAddressPrefix = "0x"; // TODO: remove before flight!
+        string memory usdcAddressPrefix = "0x00AB00"; // TODO: remove before flight!
+        string memory wethAddressPrefix = "0x00CD00"; // TODO: remove before flight!
 
         IERC20Metadata usdc = IERC20Metadata(PRIZE_VAULT_USDC.asset());
         // IERC20Metadata weth = IERC20Metadata(PRIZE_VAULT_WETH.asset());
 
-        _deploy(ownerName, ownerSymbol, usdcAddressPrefix, PRIZE_VAULT_USDC, 200 * 10 ** usdc.decimals());
+        uint256 usdcInitialDeposit = block.chainid == 18543 ? 0 : 200 * 10 ** usdc.decimals();
+        _deploy(ownerName, ownerSymbol, usdcAddressPrefix, PRIZE_VAULT_USDC, usdcInitialDeposit);
+
         _deploy(ownerName, ownerSymbol, wethAddressPrefix, PRIZE_VAULT_WETH, 0.05 ether);
     }
 
@@ -58,13 +62,15 @@ contract DeployBryanScript is Script, StdCheats {
         uint256 harvestOwnerFeeBasisPoints = 5000;
         uint256 harvestTreasuryFeeBasisPoints = 0;
         address treasury = address(0);
-        bool setupUniswapV4HookedPool = true;
+        bool setupUniswapV4HookedPool = false;  // TODO: remove before flight
 
         IERC20Metadata underlying = IERC20Metadata(prizeVault.asset());
 
         string memory underlyingSymbol = underlying.symbol();
 
         console.log("underlyingSymbol:", underlyingSymbol);
+
+        bool underlyingIsWeth = LibString.eq(underlyingSymbol, "WETH");
 
         string memory name = string(abi.encodePacked(underlyingSymbol, " from ", ownerName));
         string memory symbol = string(abi.encodePacked(ownerSymbol, "-", underlyingSymbol));
@@ -93,32 +99,40 @@ contract DeployBryanScript is Script, StdCheats {
 
             salt = abi.decode(result, (bytes32));
         }
-        console.log("salt: ", LibString.toHexString(uint256(salt)));
+        console.log("salt:", LibString.toHexString(uint256(salt)));
 
         // TODO: if the token is already deployed with these parameters, what should we do?
 
-        if (block.chainid == 18543) {
-            // this is a forked network. fake the initial deposit
-            // TODO: is there a better way to tell if we are on a forked network?
-            if (underlying.balanceOf(msg.sender) < initialDeposit) {
-                // TODO: can't decide if this should be true. that seems to break weth
-                // TODO: if WETH, should we call deposit instead?
-                deal(address(underlying), msg.sender, initialDeposit, false);
-            }
+        if (underlyingIsWeth) {
+            // check ETH balance. the create command can handle the wrapping
+            require(msg.sender.balance >= initialDeposit, "not enough ETH for the initial deposit!");
+        } else {
+            // check the token balance
+            require(underlying.balanceOf(msg.sender) >= initialDeposit, "not enough tokens for the initial deposit!");
         }
-
-        require(underlying.balanceOf(msg.sender) >= initialDeposit, "not enough for the initial deposit!");
+        console.log("balance checks passed for", msg.sender);
 
         // deploy the contract with our found salt
         vm.startBroadcast();
 
         // approve if necessary for the initial deposit
-        if (initialDeposit > underlying.allowance(msg.sender, address(fanTokenFactory))) {
+        if (underlyingIsWeth) {
+            // no approvals needed for weth. we send native ETH
+        } else if (initialDeposit > underlying.allowance(msg.sender, address(fanTokenFactory))) {
             // TODO: max approval, or initialDeposit approval?
-            underlying.approve(address(fanTokenFactory), type(uint256).max);
+            console.log("approvals needed");
+            require(underlying.approve(address(fanTokenFactory), type(uint256).max), "approval of underlying failed");
+        } else {
+            console.log("approvals already set");
         }
 
-        fanToken = fanTokenFactory.create(
+        uint256 valueForCreate;
+        if (underlyingIsWeth) {
+            console.log("Sending ETH instead of WETH");
+            valueForCreate = initialDeposit;
+        }
+
+        fanToken = fanTokenFactory.create{value: valueForCreate}(
             name,
             symbol,
             harvestOwnerFeeBasisPoints,
@@ -130,10 +144,14 @@ contract DeployBryanScript is Script, StdCheats {
             setupUniswapV4HookedPool
         );
 
+        console.log(fanToken.symbol(), "deployed to", address(fanToken));
+
         // make sure the address for the deployed contract matches the address prefix
         // TODO: case sensitive prefixes seem like a waste of time
         string memory fanTokenStringAddr = LibString.lower(LibString.toHexStringChecksummed(address(fanToken)));
-        require(LibString.startsWith(fanTokenStringAddr, LibString.lower(addressPrefix)), "address prefix does not match");
+        require(
+            LibString.startsWith(fanTokenStringAddr, LibString.lower(addressPrefix)), "address prefix does not match"
+        );
 
         vm.stopBroadcast();
     }
