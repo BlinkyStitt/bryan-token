@@ -36,10 +36,8 @@ contract DeployBryanScript is Script, StdCheats {
         string memory ownerName = "Bryan";
         string memory ownerSymbol = "BRY";
 
-        // string memory usdcAddressPrefix = "0x8532110";
-        // string memory wethAddressPrefix = "0x0112358";
-        string memory usdcAddressPrefix = "0x00AB00"; // TODO: remove before flight!
-        string memory wethAddressPrefix = "0x00CD00"; // TODO: remove before flight!
+        string memory usdcAddressPrefix = "0xD8532110";
+        string memory wethAddressPrefix = "0x0112358D";
 
         // half the rewards go to the owner.
         uint256 harvestOwnerFeeBasisPoints = 5000;

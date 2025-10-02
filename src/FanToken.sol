@@ -83,8 +83,6 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
     /// @dev this is the number of assets, not the number of shares - stores asset amounts for sponsor accounting
     mapping(address who => uint256) public balanceOfSponsorAssets;
 
-    /// @dev these underscores are gross. too many different libraries and styles are being mixed together
-    /// todo: change this into an initializer that can only run once during deploy?
     constructor(
         string memory _name,
         string memory _symbol,
@@ -103,7 +101,6 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
 
         UNDERLYING = IERC20(_prizeVault.asset());
 
-        // TODO: i can't decide if this should have one
         harvestOwnerFeeBasisPoints = _harvestOwnerFeeBasisPoints;
         harvestTreasuryFeeBasisPoints = _harvestTreasuryFeeBasisPoints;
 
@@ -123,13 +120,8 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
         isSponsor[_owner] = true;
 
         if (_treasury != address(0) && _treasuryStartsAsSponsor) {
-            // TODO: this should maybe be optional
             isSponsor[_treasury] = true;
         }
-
-        // TODO: i'm not sure about this. i think it just adds gas overhead. but it also seems like a good idea
-        // TODO: maybe we should have a _transfer override that makes sure we aren't letting users call transfer to the factory
-        isSponsor[msg.sender] = true;
 
         IAuction auction = IAuction(AUCTION_FACTORY.createNewAuction(address(UNDERLYING)));
         _setAuction(address(auction));
@@ -191,9 +183,6 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
         balanceOfPendingAssets[receiver] -= assets;
 
         _update(address(this), receiver, shares);
-
-        // TODO: this is already part of _update
-        // _setSponsorship(receiver, isSponsor[receiver]);
 
         return shares;
     }

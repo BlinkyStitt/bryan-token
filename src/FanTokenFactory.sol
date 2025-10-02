@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity ^0.8.20;
 
-// TODO: use cloneable instead of deploying a full contract every time?
-
 import {FanToken, SafeERC20, IERC20, IERC4626, IWETH9} from "./FanToken.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import {Generic4626Router} from "./interfaces/Generic4626Router.sol";
@@ -78,9 +76,7 @@ contract FanTokenFactory is ReentrancyGuardTransient {
         uint256 _initialDeposit,
         bool setupUniswapV4HookedPool
     ) public payable returns (FanToken fanToken) {
-        // TODO: if salt is 0, should we generate one? msg.sender is already part of the args
-
-        // TODO: use fancy cloning code
+        // TODO: use fancy cloning code. that will be a large fork of ERC4626, ERC20, Ownable2Step, and probably other things.
         fanToken = new FanToken{salt: _salt}(
             _name,
             _symbol,
