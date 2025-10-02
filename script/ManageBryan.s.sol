@@ -45,6 +45,8 @@ contract ManageBryanScript is Script {
         IERC20Metadata weth = IERC20Metadata(fanTokenWETH.asset());
         IERC20Metadata usdc = IERC20Metadata(fanTokenUSDC.asset());
 
+        // TODO: what should the minimums be?
+
         // usdc fan token
         claimPool(fanTokenUSDC, 10 * 10 ** usdc.decimals());
         kickAuction(fanTokenUSDC, poolToken, 10 ** poolToken.decimals());
@@ -62,7 +64,7 @@ contract ManageBryanScript is Script {
         uint256 promotionId = PRIZE_POOL_TWAB_REWARDS.latestPromotionId();
         console.log("promotionId:", promotionId);
 
-        // PrizePoolTwabRewards.Promotion memory promotion = PRIZE_POOL_TWAB_REWARDS.getPromotion(promotionId);
+        PrizePoolTwabRewards.Promotion memory promotion = PRIZE_POOL_TWAB_REWARDS.getPromotion(promotionId);
 
         address prizeVault = fanToken.asset();
 
@@ -70,35 +72,38 @@ contract ManageBryanScript is Script {
 
         uint8[] memory claimedEpochIds = PRIZE_POOL_TWAB_REWARDS.epochBytesToIdArray(claimMask);
 
-        uint8 lastClaimedId = claimedEpochIds[claimedEpochIds.length - 1];
+        uint8 lastClaimedId = claimedEpochIds.length > 0 ? claimedEpochIds[claimedEpochIds.length - 1] : 0;
 
-        // TODO: how can we calculate this?
-        uint8[] memory unclaimedEpochIds;
+        uint8 nextClaimId = lastClaimedId + 1;
 
-        // TODO: make sure this is NOT broadcast!
-        uint256[] memory unclaimedRewards =
-            PRIZE_POOL_TWAB_REWARDS.calculateRewards(prizeVault, address(fanToken), promotionId, unclaimedEpochIds);
-
-        uint256 numUnclaimedRewards = unclaimedRewards.length;
-
-        uint256 sumUnclaimedRewards = 0;
-        for (uint256 i = 0; i < numUnclaimedRewards; i++) {
-            sumUnclaimedRewards += unclaimedRewards[i];
-        }
-
-        // TODO: min claim amounts
-        if (sumUnclaimedRewards < minClaimAmount) {
+        if (nextClaimId >= promotion.numberOfEpochs) {
+            console.log("No finished epochs to claim");
             return;
         }
 
-        // TODO: only claim if there are rewards to claim
-        // TODO: query the blockchain to figure out if we even need to claim
-        PRIZE_POOL_TWAB_REWARDS.claimRewardedEpochs(prizeVault, address(fanToken), promotionId, lastClaimedId + 1);
+        // Simulate the claim to check how much we would get
+        uint256 claimableAmount =
+            PRIZE_POOL_TWAB_REWARDS.claimRewardedEpochs(prizeVault, address(fanToken), promotionId, nextClaimId);
+
+        console.log("claimable amount:", claimableAmount);
+
+        if (claimableAmount < minClaimAmount) {
+            console.log("Not enough rewards to claim");
+            return;
+        }
+
+        vm.startBroadcast();
+
+        PRIZE_POOL_TWAB_REWARDS.claimRewardedEpochs(prizeVault, address(fanToken), promotionId, nextClaimId);
+
+        vm.stopBroadcast();
     }
 
     function harvest(FanToken fanToken, uint256 minHarvestAmount) public {
-        // TODO: min harvest amounts
-        if (fanToken.harvestable() == minHarvestAmount) {
+        uint256 harvestable = fanToken.harvestable();
+        console.log("harvestable:", harvestable);
+
+        if (harvestable < minHarvestAmount) {
             return;
         }
 
@@ -110,8 +115,10 @@ contract ManageBryanScript is Script {
     }
 
     function kickAuction(FanToken fanToken, IERC20Metadata sellToken, uint256 minAuctionAmount) public {
-        // TODO: min kick amounts
-        if (fanToken.kickable(address(sellToken)) == minAuctionAmount) {
+        uint256 kickable = fanToken.kickable(address(sellToken));
+        console.log("kickable", sellToken.symbol(), kickable);
+
+        if (kickable < minAuctionAmount) {
             return;
         }
 
