@@ -9,7 +9,6 @@ import {Script} from "forge-std/Script.sol";
 import {FanToken, FanTokenFactory, IERC4626} from "../src/FanTokenFactory.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/interfaces/IERC20Metadata.sol";
 
-// TODO: rewrite this to prompt the user for inputs instead of having everything hard coded
 contract DeployBryanScript is Script, StdCheats {
     using LibString for uint256;
 
@@ -82,7 +81,6 @@ contract DeployBryanScript is Script, StdCheats {
         }
     }
 
-    // TODO: i can't decide if this should take more arguments, or just be hard coded for me. i expect users to use a mini-app, not these scripts
     function _deploy(
         string memory addressPrefix,
         uint256 harvestOwnerFeeBasisPoints,
