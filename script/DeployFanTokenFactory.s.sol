@@ -8,8 +8,8 @@ import {FanTokenFactory, IWETH9} from "../src/FanTokenFactory.sol";
 import {Generic4626Router} from "../src/interfaces/Generic4626Router.sol";
 
 contract DeployFanTokenFactoryScript is Script {
-    IWETH9 constant WETH9 = IWETH9(payable(0x4200000000000000000000000000000000000006));
     Generic4626Router constant GENERIC_4626_ROUTER = Generic4626Router(0xD60a6A0f0D5E3Fd451449C7256BbbDC59561e888);
+    IWETH9 constant WETH9 = IWETH9(payable(0x4200000000000000000000000000000000000006));
 
     /// TODO: can we get this from config?
     address constant CREATE2_DEPLOYER = 0x4e59b44847b379578588920cA78FbF26c0B4956C;
