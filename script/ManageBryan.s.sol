@@ -38,22 +38,36 @@ contract ManageBryanScript is Script {
         string memory factoryJson = vm.readFile(factoryPath);
         address factory = vm.parseJsonAddress(factoryJson, ".transactions[0].contractAddress");
 
-        // Use JSONPath to get all additionalContracts[0].address from transactions calling the factory
-        // The FanToken addresses are in the first additionalContract of each factory call
-        string memory factoryAddrStr = vm.toString(factory);
-        string memory filterPath = string(
-            abi.encodePacked(
-                "$.transactions[?(@.contractAddress == '", factoryAddrStr, "')].additionalContracts[0].address"
-            )
-        );
+        // Parse transactions array length
+        bytes memory lengthBytes = vm.parseJson(json, ".transactions");
+        uint256 numTransactions = abi.decode(lengthBytes, (bytes[])).length;
 
-        bytes memory result = vm.parseJson(json, filterPath);
-        address[] memory fanTokenAddrs = abi.decode(result, (address[]));
+        // Collect FanToken addresses by iterating through transactions
+        address[] memory fanTokenAddrs = new address[](2);
+        uint256 foundCount = 0;
 
-        require(fanTokenAddrs.length == 2, "Expected 2 FanToken deployments");
+        for (uint256 i = 0; i < numTransactions && foundCount < 2; i++) {
+            string memory txPath = string(abi.encodePacked(".transactions[", vm.toString(i), "]"));
 
-        address usdcAddr;
-        address wethAddr;
+            // Check if this transaction is to the factory
+            bytes memory contractAddrBytes = vm.parseJson(json, string(abi.encodePacked(txPath, ".contractAddress")));
+            address contractAddr = abi.decode(contractAddrBytes, (address));
+
+            if (contractAddr == factory) {
+                // Get the first additional contract (the FanToken)
+                bytes memory additionalContractsBytes =
+                    vm.parseJson(json, string(abi.encodePacked(txPath, ".additionalContracts")));
+
+                if (additionalContractsBytes.length > 0) {
+                    bytes memory fanTokenAddrBytes =
+                        vm.parseJson(json, string(abi.encodePacked(txPath, ".additionalContracts[0].address")));
+                    fanTokenAddrs[foundCount] = abi.decode(fanTokenAddrBytes, (address));
+                    foundCount++;
+                }
+            }
+        }
+
+        require(foundCount == 2, "Expected 2 FanToken deployments");
 
         // Identify which is USDC and which is WETH based on the asset
         for (uint256 i = 0; i < fanTokenAddrs.length; i++) {
@@ -70,6 +84,9 @@ contract ManageBryanScript is Script {
                 weth = underlying;
             }
         }
+
+        require(address(usdc) != address(0), "no usdc found");
+        require(address(weth) != address(0), "no weth found");
 
         // TODO: get this from PRIZE_POOL_TWAB_REWARDS?
         poolToken = IERC20Metadata(0xd652C5425aea2Afd5fb142e120FeCf79e18fafc3);
@@ -103,29 +120,84 @@ contract ManageBryanScript is Script {
 
         uint8[] memory claimedEpochIds = PRIZE_POOL_TWAB_REWARDS.epochBytesToIdArray(claimMask);
 
+        console.log("num claimedEpochIds:", claimedEpochIds.length);
+
         uint8 lastClaimedId = claimedEpochIds.length > 0 ? claimedEpochIds[claimedEpochIds.length - 1] : 0;
+        console.log("lastClaimedId:", lastClaimedId);
 
         uint8 nextClaimId = lastClaimedId + 1;
+        console.log("nextClaimId:", nextClaimId);
 
-        if (nextClaimId >= promotion.numberOfEpochs) {
+        console.log("numberOfEpochs:", promotion.numberOfEpochs);
+
+        // Get the current epoch ID from the contract
+        uint8 currentEpochId = PRIZE_POOL_TWAB_REWARDS.getEpochIdNow(promotionId);
+        console.log("currentEpochId:", currentEpochId);
+
+        // Check if current epoch has ended
+        (,uint48 currentEpochEndTimestamp,,) = PRIZE_POOL_TWAB_REWARDS.epochRangesForPromotion(promotionId, currentEpochId);
+        bool currentEpochEnded = block.timestamp >= currentEpochEndTimestamp;
+        
+        // Determine the last claimable epoch
+        uint8 lastEpochToCheck = currentEpochEnded ? currentEpochId : (currentEpochId > 0 ? currentEpochId - 1 : 0);
+        console.log("lastEpochToCheck:", lastEpochToCheck);
+        
+        // Cap at numberOfEpochs
+        if (lastEpochToCheck >= promotion.numberOfEpochs) {
+            lastEpochToCheck = promotion.numberOfEpochs - 1;
+        }
+
+        if (nextClaimId > lastEpochToCheck || lastEpochToCheck == 0) {
             console.log("No finished epochs to claim");
             return;
         }
 
-        // Simulate the claim to check how much we would get
-        uint256 claimableAmount =
-            PRIZE_POOL_TWAB_REWARDS.claimRewardedEpochs(prizeVault, address(fanToken), promotionId, nextClaimId);
+        // Build array of unclaimed epoch IDs
+        uint256 numEpochsToCheck = lastEpochToCheck - nextClaimId + 1;
+        uint8[] memory epochsToCheck = new uint8[](numEpochsToCheck);
+        for (uint256 i = 0; i < numEpochsToCheck; i++) {
+            epochsToCheck[i] = nextClaimId + uint8(i);
+        }
 
-        console.log("claimable amount:", claimableAmount);
+        // Calculate rewards for each unclaimed epoch
+        uint256[] memory rewards =
+            PRIZE_POOL_TWAB_REWARDS.calculateRewards(prizeVault, address(fanToken), promotionId, epochsToCheck);
 
-        if (claimableAmount < minClaimAmount) {
+        // Filter to only epochs with non-zero rewards
+        uint256 claimableCount = 0;
+        for (uint256 i = 0; i < rewards.length; i++) {
+            if (rewards[i] > 0) {
+                claimableCount++;
+            }
+        }
+
+        if (claimableCount == 0) {
+            console.log("No epochs with claimable rewards");
+            return;
+        }
+
+        uint8[] memory epochsToClaim = new uint8[](claimableCount);
+        uint256 totalClaimable = 0;
+        uint256 claimIndex = 0;
+        for (uint256 i = 0; i < rewards.length; i++) {
+            if (rewards[i] > 0) {
+                epochsToClaim[claimIndex] = epochsToCheck[i];
+                totalClaimable += rewards[i];
+                claimIndex++;
+                console.log("Epoch", uint256(epochsToCheck[i]), "claimable:", rewards[i]);
+            }
+        }
+
+        console.log("Total claimable amount:", totalClaimable);
+
+        if (totalClaimable < minClaimAmount) {
             console.log("Not enough rewards to claim");
             return;
         }
 
         vm.startBroadcast();
 
-        PRIZE_POOL_TWAB_REWARDS.claimRewardedEpochs(prizeVault, address(fanToken), promotionId, nextClaimId);
+        PRIZE_POOL_TWAB_REWARDS.claimRewards(prizeVault, address(fanToken), promotionId, epochsToClaim);
 
         vm.stopBroadcast();
     }
