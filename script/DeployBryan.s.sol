@@ -92,7 +92,7 @@ contract DeployBryanScript is Script, StdCheats {
                 msg.sender,
                 prizeVault,
                 treasury,
-                true
+                treasuryStartsAsSponsor
             );
 
             // find a salt. is it better to do this in deploy.sh or with ffi?
