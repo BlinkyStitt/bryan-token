@@ -195,10 +195,10 @@ contract FanTokenTest is Test {
 
     function test_expected_default_sponsors() public view {
         assertEq(bryanFanToken.isSponsor(address(0)), false, "zero address should not be sponsor");
-        assertEq(bryanFanToken.isSponsor(address(bryanFanToken)), false, "contract itself should not be sponsor"); // TODO: i'm unsure if we want this to be true or not. i think not
+        assertEq(bryanFanToken.isSponsor(address(bryanFanToken)), false, "contract itself should not be sponsor");
         assertEq(bryanFanToken.isSponsor(owner), true, "owner should be default sponsor");
         assertEq(bryanFanToken.isSponsor(treasury), true, "treasury should be default sponsor");
-        assertEq(bryanFanToken.isSponsor(address(factory)), true, "factory should be default sponsor");
+        assertEq(bryanFanToken.isSponsor(address(factory)), false, "factory should not be a sponsor");
     }
 
     function test_multiple_users_depositing_without_sponsorship() public {
