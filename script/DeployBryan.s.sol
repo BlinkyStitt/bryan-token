@@ -85,7 +85,14 @@ contract DeployBryanScript is Script, StdCheats {
         } else {
             // prepare creation code
             bytes32 creationCodeHash = fanTokenFactory.createCodeHash(
-                name, symbol, harvestOwnerFeeBasisPoints, harvestTreasuryFeeBasisPoints, msg.sender, prizeVault, treasury, true
+                name,
+                symbol,
+                harvestOwnerFeeBasisPoints,
+                harvestTreasuryFeeBasisPoints,
+                msg.sender,
+                prizeVault,
+                treasury,
+                true
             );
 
             // find a salt. is it better to do this in deploy.sh or with ffi?
