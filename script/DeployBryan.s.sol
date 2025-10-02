@@ -44,7 +44,7 @@ contract DeployBryanScript is Script, StdCheats {
         IERC20Metadata usdc = IERC20Metadata(PRIZE_VAULT_USDC.asset());
         // IERC20Metadata weth = IERC20Metadata(PRIZE_VAULT_WETH.asset());
 
-        uint256 usdcInitialDeposit = block.chainid == 18543 ? 0 : 200 * 10 ** usdc.decimals();
+        uint256 usdcInitialDeposit = 200 * 10 ** usdc.decimals();
         _deploy(ownerName, ownerSymbol, usdcAddressPrefix, PRIZE_VAULT_USDC, usdcInitialDeposit);
 
         _deploy(ownerName, ownerSymbol, wethAddressPrefix, PRIZE_VAULT_WETH, 0.05 ether);
@@ -84,7 +84,7 @@ contract DeployBryanScript is Script, StdCheats {
         } else {
             // prepare creation code
             bytes32 creationCodeHash = fanTokenFactory.createCodeHash(
-                name, symbol, harvestOwnerFeeBasisPoints, harvestTreasuryFeeBasisPoints, prizeVault, treasury
+                name, symbol, harvestOwnerFeeBasisPoints, harvestTreasuryFeeBasisPoints, msg.sender, prizeVault, treasury
             );
 
             // find a salt. is it better to do this in deploy.sh or with ffi?

@@ -43,6 +43,7 @@ contract FanTokenFactory is ReentrancyGuardTransient {
         string memory _symbol,
         uint256 _harvestOwnerFeeBasisPoints,
         uint256 _harvestTreasuryFeeBasisPoints,
+        address _owner,
         IERC4626 _prizeVault,
         address _treasury
     ) public view returns (bytes32 creationCodeHash) {
@@ -53,7 +54,7 @@ contract FanTokenFactory is ReentrancyGuardTransient {
                 _symbol,
                 _harvestOwnerFeeBasisPoints,
                 _harvestTreasuryFeeBasisPoints,
-                msg.sender,
+                _owner,
                 _prizeVault,
                 _treasury,
                 WETH

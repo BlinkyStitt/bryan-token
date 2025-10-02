@@ -58,8 +58,9 @@ fi
 case "$mode" in
     anvil)
         # Start anvil in background and capture PID
+        # chain 31337 is used for development
         anvil \
-            --chain-id 18543 \
+            --chain-id 31337 \
             --fork-block-number "$block_number" \
             --fork-url "$fork_url" \
             "$@" &
