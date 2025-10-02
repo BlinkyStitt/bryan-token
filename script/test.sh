@@ -120,10 +120,12 @@ case "$mode" in
             "$@"
         ;;
     coverage)
+        # we skip scripts because they don't build without ir
         forge coverage \
             --fork-block-number "$block_number" \
             --fork-url "$fork_url" \
             --report lcov \
+            --skip script \
             "$@"
 
         # Generate HTML coverage report if lcov.info exists

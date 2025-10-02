@@ -41,23 +41,6 @@ contract DeployBryanScript is Script, StdCheats {
         string memory usdcAddressPrefix = "0x00AB00"; // TODO: remove before flight!
         string memory wethAddressPrefix = "0x00CD00"; // TODO: remove before flight!
 
-        IERC20Metadata usdc = IERC20Metadata(PRIZE_VAULT_USDC.asset());
-        // IERC20Metadata weth = IERC20Metadata(PRIZE_VAULT_WETH.asset());
-
-        uint256 usdcInitialDeposit = 200 * 10 ** usdc.decimals();
-        _deploy(ownerName, ownerSymbol, usdcAddressPrefix, PRIZE_VAULT_USDC, usdcInitialDeposit);
-
-        _deploy(ownerName, ownerSymbol, wethAddressPrefix, PRIZE_VAULT_WETH, 0.05 ether);
-    }
-
-    // TODO: i can't decide if this should take more arguments, or just be hard coded for me. i expect users to use a mini-app, not these scripts
-    function _deploy(
-        string memory ownerName,
-        string memory ownerSymbol,
-        string memory addressPrefix,
-        IERC4626 prizeVault,
-        uint256 initialDeposit
-    ) internal returns (FanToken fanToken) {
         // half the rewards go to the owner.
         uint256 harvestOwnerFeeBasisPoints = 5000;
         uint256 harvestTreasuryFeeBasisPoints = 0;
@@ -65,16 +48,63 @@ contract DeployBryanScript is Script, StdCheats {
         bool treasuryStartsAsSponsor = false;
         bool setupUniswapV4HookedPool = true;
 
+        IERC20Metadata usdc = IERC20Metadata(PRIZE_VAULT_USDC.asset());
+        // IERC20Metadata weth = IERC20Metadata(PRIZE_VAULT_WETH.asset());
+
+        {
+            uint256 usdcInitialDeposit = 200 * 10 ** usdc.decimals();
+            _deploy(
+                usdcAddressPrefix,
+                harvestOwnerFeeBasisPoints,
+                harvestTreasuryFeeBasisPoints,
+                usdcInitialDeposit,
+                ownerName,
+                ownerSymbol,
+                PRIZE_VAULT_USDC,
+                setupUniswapV4HookedPool,
+                treasury,
+                treasuryStartsAsSponsor
+            );
+        }
+
+        {
+            uint256 wethInitialDeposit = 0.05 ether;
+            _deploy(
+                wethAddressPrefix,
+                harvestOwnerFeeBasisPoints,
+                harvestTreasuryFeeBasisPoints,
+                wethInitialDeposit,
+                ownerName,
+                ownerSymbol,
+                PRIZE_VAULT_WETH,
+                setupUniswapV4HookedPool,
+                treasury,
+                treasuryStartsAsSponsor
+            );
+        }
+    }
+
+    // TODO: i can't decide if this should take more arguments, or just be hard coded for me. i expect users to use a mini-app, not these scripts
+    function _deploy(
+        string memory addressPrefix,
+        uint256 harvestOwnerFeeBasisPoints,
+        uint256 harvestTreasuryFeeBasisPoints,
+        uint256 initialDeposit,
+        string memory ownerName,
+        string memory ownerSymbol,
+        IERC4626 prizeVault,
+        bool setupUniswapV4HookedPool,
+        address treasury,
+        bool treasuryStartsAsSponsor
+    ) internal returns (FanToken fanToken) {
         IERC20Metadata underlying = IERC20Metadata(prizeVault.asset());
 
-        string memory underlyingSymbol = underlying.symbol();
+        console.log("underlyingSymbol:", underlying.symbol());
 
-        console.log("underlyingSymbol:", underlyingSymbol);
+        bool underlyingIsWeth = LibString.eq(underlying.symbol(), "WETH");
 
-        bool underlyingIsWeth = LibString.eq(underlyingSymbol, "WETH");
-
-        string memory name = string(abi.encodePacked(underlyingSymbol, " from ", ownerName));
-        string memory symbol = string(abi.encodePacked(ownerSymbol, "-", underlyingSymbol));
+        string memory name = string(abi.encodePacked(underlying.symbol(), " from ", ownerName));
+        string memory symbol = string(abi.encodePacked(ownerSymbol, "-", underlying.symbol()));
 
         console.log("fan token name:", name);
         console.log("fan token symbol:", symbol);
@@ -134,33 +164,38 @@ contract DeployBryanScript is Script, StdCheats {
             console.log("approvals already set");
         }
 
-        uint256 valueForCreate;
-        if (underlyingIsWeth) {
-            console.log("Sending ETH instead of WETH");
-            valueForCreate = initialDeposit;
-        }
+        {
+            uint256 valueForCreate;
+            if (underlyingIsWeth) {
+                console.log("Sending ETH instead of WETH");
+                valueForCreate = initialDeposit;
+            }
 
-        fanToken = fanTokenFactory.create{value: valueForCreate}(
-            name,
-            symbol,
-            harvestOwnerFeeBasisPoints,
-            harvestTreasuryFeeBasisPoints,
-            prizeVault,
-            treasury,
-            treasuryStartsAsSponsor,
-            salt,
-            initialDeposit,
-            setupUniswapV4HookedPool
-        );
+            fanToken = fanTokenFactory.create{value: valueForCreate}(
+                name,
+                symbol,
+                harvestOwnerFeeBasisPoints,
+                harvestTreasuryFeeBasisPoints,
+                prizeVault,
+                treasury,
+                treasuryStartsAsSponsor,
+                salt,
+                initialDeposit,
+                setupUniswapV4HookedPool
+            );
+        }
 
         console.log(fanToken.symbol(), "deployed to", address(fanToken));
 
-        // make sure the address for the deployed contract matches the address prefix
-        // TODO: case sensitive prefixes seem like a waste of time
-        string memory fanTokenStringAddr = LibString.lower(LibString.toHexStringChecksummed(address(fanToken)));
-        require(
-            LibString.startsWith(fanTokenStringAddr, LibString.lower(addressPrefix)), "address prefix does not match"
-        );
+        {
+            // make sure the address for the deployed contract matches the address prefix
+            // TODO: case sensitive prefixes seem like a waste of time
+            string memory fanTokenStringAddr = LibString.lower(LibString.toHexStringChecksummed(address(fanToken)));
+            require(
+                LibString.startsWith(fanTokenStringAddr, LibString.lower(addressPrefix)),
+                "address prefix does not match"
+            );
+        }
 
         vm.stopBroadcast();
     }
