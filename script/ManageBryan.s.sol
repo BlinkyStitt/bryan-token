@@ -135,13 +135,14 @@ contract ManageBryanScript is Script {
         console.log("currentEpochId:", currentEpochId);
 
         // Check if current epoch has ended
-        (,uint48 currentEpochEndTimestamp,,) = PRIZE_POOL_TWAB_REWARDS.epochRangesForPromotion(promotionId, currentEpochId);
+        (, uint48 currentEpochEndTimestamp,,) =
+            PRIZE_POOL_TWAB_REWARDS.epochRangesForPromotion(promotionId, currentEpochId);
         bool currentEpochEnded = block.timestamp >= currentEpochEndTimestamp;
-        
+
         // Determine the last claimable epoch
         uint8 lastEpochToCheck = currentEpochEnded ? currentEpochId : (currentEpochId > 0 ? currentEpochId - 1 : 0);
         console.log("lastEpochToCheck:", lastEpochToCheck);
-        
+
         // Cap at numberOfEpochs
         if (lastEpochToCheck >= promotion.numberOfEpochs) {
             lastEpochToCheck = promotion.numberOfEpochs - 1;

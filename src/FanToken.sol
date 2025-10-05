@@ -24,6 +24,8 @@ error InsufficientSponsorBalance(
     address owner, uint256 availableAssets, uint256 availableShares, uint256 requestedAssets, uint256 requestedShares
 );
 
+event ExcessHarvestTokens(address indexed token, uint256 excessAmount, uint256 deposited);
+
 /// @title FanToken.
 /// @notice Play pool together as a group of fans.
 contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTransient {
@@ -289,17 +291,19 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
         uint256 maxDepositAssets = prizeVault.maxDeposit(address(this));
 
         if (underlyingAssets > maxDepositAssets) {
+            uint256 excessAmount = underlyingAssets - maxDepositAssets;
+            emit ExcessHarvestTokens(address(underlyingToken), excessAmount, maxDepositAssets);
+
             // we leave any excess here.
             underlyingAssets = maxDepositAssets;
-
-            // TODO: emit an event about having some excess tokens stuck
         }
 
         if (underlyingAssets == 0) {
             return underlyingAssets;
         }
 
-        // TODO: I'm not sure these are right. i thought so, but my tests were giving weird answers for fees. so lets keep it simpler for now
+        // TODO: pay fees in shares instead of prize vault assets. i thought doing the math before the deposit would make it work right, but tests were giving me trouble
+        // TODO: remove before flight
         // uint256 expectedAssets = prizeVault.previewDeposit(underlyingAssets);
         // uint256 equivalentShares = previewDeposit(expectedAssets);
 
@@ -430,7 +434,7 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
 
     /// @notice sponsored tokens contribute to prizes, but do not earn any prizes themselves.
     /// todo: what return value?
-    /// TODO: time lock on this? i think its kind of pointless since people could just make a new address and send
+    /// a time lock on this is pointless since an account could just make a new address and sponsorTransfer
     function setSponsorship(bool state) public nonReentrant {
         harvestSponsorship();
 

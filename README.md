@@ -56,6 +56,8 @@ TODO: What happens if 100% of the tokens are burned/sponsored after there is som
 
 TODO: Someone can send us a single wei of a token and then start an auction. That auction will probably fail. This will waste a day of our time. Possible solution: if the kickable balance is 100x the current balance, allow cancelling the auction. That might open a griefing attack. 
 
+TODO: Before deploying, make sure the code does not contain any "TODO: remove before flight"
+
 ## Miscellaneous Ideas and Todos
 
 Primarily, this project gives me a reason to play with some smart contract tools/frameworks to prepare for a more serious project.
