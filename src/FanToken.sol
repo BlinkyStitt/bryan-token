@@ -310,14 +310,13 @@ contract FanToken is AuctionSwapper, ERC4626, Ownable2Step, ReentrancyGuardTrans
         prizeVault.deposit(underlyingAssets, address(this));
 
         // optionally split some to a "treasury" address
-        address treasuryAddress = TREASURY;
-        if (treasuryAddress != address(0)) {
+        if (TREASURY != address(0)) {
             uint256 treasuryFeeAssets =
                 underlyingAssets.mulDiv(harvestTreasuryFeeBasisPoints, _BASIS_POINT_SCALE, Math.Rounding.Floor);
             if (treasuryFeeAssets > 0) {
                 // Convert fee from underlying assets to vault shares for transfer
                 uint256 treasuryFeeShares = prizeVault.previewDeposit(treasuryFeeAssets);
-                IERC20(address(prizeVault)).safeTransfer(treasuryAddress, treasuryFeeShares);
+                IERC20(address(prizeVault)).safeTransfer(TREASURY, treasuryFeeShares);
             }
         }
 
