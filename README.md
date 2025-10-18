@@ -1,5 +1,7 @@
 # Fan Tokens
 
+**This project is ABANDONED**. I learned what I needed from this experiment. The more I talked with people about creator/fan tokens, the less excited I became. I don't think its worth my time to solve the remaining edge cases and write a mini-app.
+
 A **tipping and gaming token** for social interactions, particularly on platforms like Farcaster. Think of fan tokens as "wrapping paper" around valuable assets - they make tips more personal and engaging than generic USDC or ETH transfers.
 
 ## What Are Fan Tokens?
