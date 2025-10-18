@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {FanToken, IERC20, IERC4626, IWETH9} from "../src/FanToken.sol";
 import {FanTokenFactory} from "../src/FanTokenFactory.sol";
 import {Generic4626Router} from "../src/interfaces/Generic4626Router.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {console} from "forge-std/console.sol";
 
@@ -47,18 +48,14 @@ contract FanTokenVaultLossTest is Test {
 
         underlying = fanToken.UNDERLYING();
 
-        // Make an initial deposit from owner (underlying is WETH, so wrap ETH)
+        // Make an initial deposit from owner using the helper
         uint256 initialDeposit = 10 ether;
-        
+
+        vm.deal(owner, initialDeposit);
         vm.startPrank(owner);
-        // Wrap ETH to WETH
         WETH9.deposit{value: initialDeposit}();
-        
-        // Deposit WETH into prize vault
         WETH9.approve(address(PRIZE_VAULT), initialDeposit);
         uint256 prizeVaultShares = PRIZE_VAULT.deposit(initialDeposit, owner);
-        
-        // Then deposit prize vault shares into fan token (first deposit is instant)
         IERC20(address(PRIZE_VAULT)).approve(address(fanToken), prizeVaultShares);
         fanToken.deposit(prizeVaultShares, owner);
         vm.stopPrank();
@@ -82,25 +79,26 @@ contract FanTokenVaultLossTest is Test {
             uint256 when = fanToken.startDeposit(prizeVaultShares, user);
             if (when > 0) {
                 vm.warp(when);
-                shares = fanToken.finishDeposit(user, user);
-            } else {
-                shares = prizeVaultShares;
+                fanToken.finishDeposit(user, user);
             }
+            shares = fanToken.balanceOf(user);
         }
         vm.stopPrank();
     }
 
-    /// @dev Simulate a 50% loss in the prize vault
-    /// @notice This is a placeholder - actual loss simulation is difficult on a live fork
-    /// The test will demonstrate that without the multiplier fix, sponsors don't lose value
-    function _simulateVaultLoss50Percent() internal {
-        // NOTE: We can't easily simulate vault losses on a forked network
-        // because the prize vault's internal accounting is complex
-        // This test will FAIL showing that sponsors DON'T lose value when they should
-        // Once we implement the multiplier fix, we'll need a different approach to test it
+    function _simulateVaultLoss(IERC4626 vault, uint256 lossBps) internal {
+        require(lossBps <= 10000, "Loss bps must be <= 10000");
 
-        // For now, this function does nothing, and the test assertions will fail
-        // showing that balances don't change (proving the bug exists)
+        IERC20 vaultAsset = IERC20(vault.asset());
+        uint256 currentBalance = vaultAsset.balanceOf(address(vault));
+        uint256 amountToBurn = Math.mulDiv(currentBalance, lossBps, 10000);
+
+        vm.prank(address(vault));
+        IERC20(vaultAsset).transfer(address(0xdead), amountToBurn);
+    }
+
+    function _simulateVaultLoss50Percent() internal {
+        _simulateVaultLoss(IERC4626(fanToken.asset()), 5000); // 50% = 5000 bps
     }
 
     function test_vault_loss_affects_sponsors_and_nonsponsor_equally() public {
@@ -130,9 +128,9 @@ contract FanTokenVaultLossTest is Test {
         assertTrue(fanToken.isSponsor(bob), "Bob should be a sponsor");
 
         // Record balances before loss
-        uint256 aliceAssetsBefore = fanToken.convertToAssets(aliceShares);
+        uint256 aliceAssetsBefore = fanToken.balanceOfUnderlying(alice);
         uint256 bobAssetsBefore = fanToken.balanceOfSponsorAssets(bob);
-        uint256 ownerAssetsBefore = fanToken.convertToAssets(ownerShares);
+        uint256 ownerAssetsBefore = fanToken.balanceOfUnderlying(owner);
         uint256 totalAssetsBefore = aliceAssetsBefore + bobAssetsBefore + ownerAssetsBefore;
 
         // Verify balances add up correctly
@@ -147,26 +145,26 @@ contract FanTokenVaultLossTest is Test {
         _simulateVaultLoss50Percent();
 
         // Check balances after loss
-        uint256 aliceAssetsAfter = fanToken.convertToAssets(aliceShares);
+        uint256 aliceAssetsAfter = fanToken.balanceOfUnderlying(alice);
         uint256 bobAssetsAfter = fanToken.balanceOfSponsorAssets(bob);
-        uint256 ownerAssetsAfter = fanToken.convertToAssets(ownerShares);
+        uint256 ownerAssetsAfter = fanToken.balanceOfUnderlying(owner);
         uint256 totalAssetsAfter = aliceAssetsAfter + bobAssetsAfter + ownerAssetsAfter;
 
-        // Assert everyone lost approximately 50% (allow 1% margin for rounding)
-        assertApproxEqRel(aliceAssetsAfter, aliceAssetsBefore / 2, 0.01e18, "Alice should lose ~50%");
-        assertApproxEqRel(bobAssetsAfter, bobAssetsBefore / 2, 0.01e18, "Bob (sponsor) should lose ~50%");
-        assertApproxEqRel(ownerAssetsAfter, ownerAssetsBefore / 2, 0.01e18, "Owner should lose ~50%");
+        // Assert everyone lost exactly 50%
+        assertEq(aliceAssetsAfter, aliceAssetsBefore / 2, "Alice should lose exactly 50%");
+        assertEq(bobAssetsAfter, bobAssetsBefore / 2, "Bob (sponsor) should lose exactly 50%");
+        assertEq(ownerAssetsAfter, ownerAssetsBefore / 2, "Owner should lose exactly 50%");
 
         // Total should also be halved
-        assertApproxEqRel(totalAssetsAfter, totalAssetsBefore / 2, 0.01e18, "Total assets should be halved");
+        assertEq(totalAssetsAfter, totalAssetsBefore / 2, "Total assets should be exactly halved");
 
-        // Verify losses are proportional (within 1% of each other)
+        // Verify losses are exactly proportional
         uint256 aliceLossRatio = (aliceAssetsBefore - aliceAssetsAfter) * 1e18 / aliceAssetsBefore;
         uint256 bobLossRatio = (bobAssetsBefore - bobAssetsAfter) * 1e18 / bobAssetsBefore;
         uint256 ownerLossRatio = (ownerAssetsBefore - ownerAssetsAfter) * 1e18 / ownerAssetsBefore;
 
-        assertApproxEqRel(aliceLossRatio, bobLossRatio, 0.01e18, "Alice and Bob should have similar loss ratios");
-        assertApproxEqRel(bobLossRatio, ownerLossRatio, 0.01e18, "Bob and Owner should have similar loss ratios");
+        assertEq(aliceLossRatio, bobLossRatio, "Alice and Bob should have identical loss ratios");
+        assertEq(bobLossRatio, ownerLossRatio, "Bob and Owner should have identical loss ratios");
 
         // Test that harvest still works correctly after loss
         // Send some rewards to the contract
@@ -174,18 +172,18 @@ contract FanTokenVaultLossTest is Test {
         deal(address(underlying), address(fanToken), rewardAmount, true);
 
         // Record balances before harvest
-        uint256 aliceAssetsBeforeHarvest = fanToken.convertToAssets(aliceShares);
+        uint256 aliceAssetsBeforeHarvest = fanToken.balanceOfUnderlying(alice);
         uint256 bobAssetsBeforeHarvest = fanToken.balanceOfSponsorAssets(bob);
-        uint256 ownerAssetsBeforeHarvest = fanToken.convertToAssets(ownerShares);
+        uint256 ownerAssetsBeforeHarvest = fanToken.balanceOfUnderlying(owner);
         uint256 totalBeforeHarvest = aliceAssetsBeforeHarvest + bobAssetsBeforeHarvest + ownerAssetsBeforeHarvest;
 
         // Harvest the rewards
         fanToken.harvest();
 
         // Check balances after harvest
-        uint256 aliceAssetsAfterHarvest = fanToken.convertToAssets(aliceShares);
+        uint256 aliceAssetsAfterHarvest = fanToken.balanceOfUnderlying(alice);
         uint256 bobAssetsAfterHarvest = fanToken.balanceOfSponsorAssets(bob);
-        uint256 ownerAssetsAfterHarvest = fanToken.convertToAssets(ownerShares);
+        uint256 ownerAssetsAfterHarvest = fanToken.balanceOfUnderlying(owner);
         uint256 totalAfterHarvest = aliceAssetsAfterHarvest + bobAssetsAfterHarvest + ownerAssetsAfterHarvest;
 
         // Non-sponsors (Alice and Owner) should benefit from rewards
@@ -202,6 +200,6 @@ contract FanTokenVaultLossTest is Test {
         uint256 aliceGainRatio = (aliceAssetsAfterHarvest - aliceAssetsBeforeHarvest) * 1e18 / aliceAssetsBeforeHarvest;
         uint256 ownerGainRatio = (ownerAssetsAfterHarvest - ownerAssetsBeforeHarvest) * 1e18 / ownerAssetsBeforeHarvest;
 
-        assertApproxEqRel(aliceGainRatio, ownerGainRatio, 0.01e18, "Non-sponsors should gain proportionally");
+        assertEq(aliceGainRatio, ownerGainRatio, "Non-sponsors should gain proportionally");
     }
 }
