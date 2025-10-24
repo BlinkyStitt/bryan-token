@@ -164,28 +164,22 @@ forge fmt
 
 ### Code Coverage
 
-Run the tests with coverage:
+Run the tests with coverage and generate the report:
 
 ```shell
-forge coverage --fork-url https://1rpc.io/base --report lcov
-```
-
-Generate the report:
-
-```shell
-genhtml lcov.info --output-dir coverage
+./script/test.sh coverage
 ```
 
 ### Gas Snapshots
 
 ```shell
-forge snapshot
+./script/test.sh snapshot
 ```
 
 ### Anvil
 
 ```shell
-anvil
+./script/test.sh anvil
 ```
 
 ### Deploy on a Forked Network
